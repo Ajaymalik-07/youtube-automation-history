@@ -43,6 +43,7 @@ jobs:
 
       - name: Configure Environment Secrets
         env:
+          DOT_ENV: ${{ secrets.DOT_ENV }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
@@ -58,19 +59,24 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
-          # Write .env
-          echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> .env
-          echo "PEXELS_API_KEY=$PEXELS_API_KEY" >> .env
-          echo "PIXABAY_API_KEY=$PIXABAY_API_KEY" >> .env
-          echo "GROQ_API_KEY=$GROQ_API_KEY" >> .env
-          echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY" >> .env
-          echo "YOUTUBE_API_KEY=$YOUTUBE_API_KEY" >> .env
-          echo "YOUTUBE_CHANNEL_ID=$YOUTUBE_CHANNEL_ID" >> .env
-          echo "NOTIFICATION_EMAIL=$NOTIFICATION_EMAIL" >> .env
-          echo "SMTP_HOST=$SMTP_HOST" >> .env
-          echo "SMTP_PORT=$SMTP_PORT" >> .env
-          echo "SMTP_USER=$SMTP_USER" >> .env
-          echo "SMTP_PASSWORD=$SMTP_PASSWORD" >> .env
+          if [ -n "$DOT_ENV" ]; then
+            echo "Using single DOT_ENV secret file..."
+            echo "$DOT_ENV" > .env
+          else
+            # Write .env from individual secrets
+            echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> .env
+            echo "PEXELS_API_KEY=$PEXELS_API_KEY" >> .env
+            echo "PIXABAY_API_KEY=$PIXABAY_API_KEY" >> .env
+            echo "GROQ_API_KEY=$GROQ_API_KEY" >> .env
+            echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY" >> .env
+            echo "YOUTUBE_API_KEY=$YOUTUBE_API_KEY" >> .env
+            echo "YOUTUBE_CHANNEL_ID=$YOUTUBE_CHANNEL_ID" >> .env
+            echo "NOTIFICATION_EMAIL=$NOTIFICATION_EMAIL" >> .env
+            echo "SMTP_HOST=$SMTP_HOST" >> .env
+            echo "SMTP_PORT=$SMTP_PORT" >> .env
+            echo "SMTP_USER=$SMTP_USER" >> .env
+            echo "SMTP_PASSWORD=$SMTP_PASSWORD" >> .env
+          fi
 
           # Restore OAuth files if secrets are configured
           if [ -n "$YOUTUBE_CLIENT_SECRET_JSON" ]; then
