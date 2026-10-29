@@ -1577,7 +1577,7 @@ def upload():
                 "status": {
                     # If scheduling: upload as private, YouTube publishes at publishAt
                     "privacyStatus":           "private" if publish_at else privacy,
-                    "selfDeclaredMadeForKids": False,
+                    "selfDeclaredMadeForKids": getattr(config, "MADE_FOR_KIDS", True),
                 },
             }
             if publish_at:
