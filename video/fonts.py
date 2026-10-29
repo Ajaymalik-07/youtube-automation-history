@@ -29,7 +29,16 @@ FONTS = {
     "mono":    ("ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf", "JetBrainsMono-Variable.ttf",
                 ["C:/Windows/Fonts/consola.ttf", "/System/Library/Fonts/Menlo.ttc",
                  "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"]),
+    "devanagari_bold": ("ofl/notosansdevanagari/NotoSansDevanagari%5Bwdth%2Cwght%5D.ttf", "NotoSansDevanagari-Bold.ttf",
+                        ["assets/fonts/NotoSansDevanagari-Bold.ttf", "C:/Windows/Fonts/Nirmala.ttc", "C:/Windows/Fonts/mangal.ttf"]),
+    "devanagari_display": ("ofl/rozhaone/RozhaOne-Regular.ttf", "RozhaOne-Regular.ttf",
+                           ["assets/fonts/RozhaOne-Regular.ttf", "assets/fonts/NotoSansDevanagari-Bold.ttf", "C:/Windows/Fonts/Nirmala.ttc"]),
 }
+
+def is_devanagari(text: str) -> bool:
+    """Return True if text contains any Devanagari (Hindi) Unicode characters."""
+    return any('\u0900' <= ch <= '\u097F' for ch in (text or ""))
+
 
 _lock = threading.Lock()
 _cache: dict = {}
@@ -70,7 +79,11 @@ def get(name: str, size: int, weight: int | None = None) -> ImageFont.FreeTypeFo
         if not p or not os.path.exists(p):
             continue
         try:
-            font = ImageFont.truetype(p, size)
+            if p.lower().endswith(".ttc"):
+                idx = 1 if (weight and weight > 500) else 0
+                font = ImageFont.truetype(p, size, index=idx)
+            else:
+                font = ImageFont.truetype(p, size)
             if weight:
                 try:
                     font.set_variation_by_axes([weight])

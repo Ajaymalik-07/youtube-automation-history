@@ -18,8 +18,7 @@ env/
 ENV/
 
 # ── Secrets — NEVER commit these ─────────
-# Add your real client_secret.json here after copying from Google Cloud
-# The placeholder client_secret.json in the repo is safe to commit
+client_secret.json
 youtube_token.pickle
 .env
 *.pickle

@@ -8,10 +8,17 @@ Shorts  : Fast-paced 1080×1920, image slideshow (cuts every 2-3 s),
 
 Runs fully offline: MoviePy 1.0.3 + Pillow + NumPy.
 """
-import os, re, math
+import os, sys, re, math
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from moviepy.editor import VideoClip, AudioFileClip, concatenate_videoclips
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 import config
 
@@ -127,7 +134,7 @@ def _ken_burns(base: np.ndarray, t: float, duration: float,
     ox = max(0, min(ox, max_x))
     oy = max(0, min(oy, max_y))
     cropped = base[oy: oy + crop_h, ox: ox + crop_w]
-    return np.array(Image.fromarray(cropped).resize((W, H), Image.LANCZOS), dtype=np.uint8)
+    return np.array(Image.fromarray(cropped).resize((W, H), Image.BILINEAR), dtype=np.uint8)
 
 
 def _apply_overlay(arr: np.ndarray, opacity: float = None) -> np.ndarray:
@@ -160,16 +167,19 @@ def _gradient_bg(t: float) -> np.ndarray:
 #  TEXT UTILITIES
 # ══════════════════════════════════════════════════════════════
 
-def _shadow_text(draw, pos, text, font, fill, shadow_color=(0, 0, 0), shadow_offset=3):
+def _shadow_text(draw, pos, text, font, fill, shadow_color=(0, 0, 0), shadow_offset=2):
     x, y = pos
-    for ox in range(-shadow_offset, shadow_offset + 1):
-        for oy in range(-shadow_offset, shadow_offset + 1):
-            if abs(ox) + abs(oy) >= shadow_offset:
-                draw.text((x + ox, y + oy), text, font=font, fill=shadow_color)
+    so = max(1, min(shadow_offset, 3))
+    draw.text((x + so, y + so), text, font=font, fill=shadow_color)
     draw.text((x, y), text, font=font, fill=fill)
 
 
+_wrap_cache: dict = {}
+
 def _wrap_text(draw, text, font, max_width):
+    key = (text, max_width, getattr(font, "size", 0))
+    if key in _wrap_cache:
+        return _wrap_cache[key]
     words, lines, current = text.split(), [], []
     for word in words:
         test = " ".join(current + [word])
@@ -180,7 +190,11 @@ def _wrap_text(draw, text, font, max_width):
             current.append(word)
     if current:
         lines.append(" ".join(current))
-    return lines or [""]
+    res = lines or [""]
+    if len(_wrap_cache) > 500:
+        _wrap_cache.clear()
+    _wrap_cache[key] = res
+    return res
 
 
 def _ease_out(t: float) -> float:
@@ -207,85 +221,109 @@ def _draw_progress_bar(draw, progress, section_num, total):
         draw.ellipse([cx - 5, dot_y - 5, cx + 5, dot_y + 5], fill=col)
 
 
-def _draw_lower_third(frame, caption, alpha, section_title=""):
+_lower_third_cache: dict = {}
+
+def _draw_lower_third(frame: Image.Image, caption: str, alpha: float, section_title: str = "") -> Image.Image:
     if alpha <= 0:
         return frame
-    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    od = ImageDraw.Draw(overlay)
     bar_h, bar_y = 80, H - 120
-    od.rectangle([0, bar_y, W, bar_y + bar_h], fill=(10, 10, 30, int(200 * alpha)))
-    od.rectangle([0, bar_y, 6, bar_y + bar_h], fill=(*C["primary"], int(255 * alpha)))
-    if section_title:
-        od.text((30, bar_y + 8), section_title.upper(),
-                font=_load_font("regular", 22), fill=(*C["accent"], int(200 * alpha)))
-    if caption:
-        od.text((30, bar_y + 36), caption[:80],
-                font=_load_font("bold", 34), fill=(*C["white"], int(255 * alpha)))
-    return Image.alpha_composite(frame.convert("RGBA"), overlay).convert("RGB")
+    key = (caption, section_title, round(alpha, 1), W, H)
+    if key not in _lower_third_cache:
+        strip = Image.new("RGBA", (W, bar_h), (10, 10, 30, int(200 * alpha)))
+        od = ImageDraw.Draw(strip)
+        od.rectangle([0, 0, 6, bar_h], fill=(*C["primary"], int(255 * alpha)))
+        if section_title:
+            od.text((30, 8), section_title.upper(),
+                    font=_load_font("regular", 22), fill=(*C["accent"], int(200 * alpha)))
+        if caption:
+            od.text((30, 36), caption[:80],
+                    font=_load_font("bold", 34), fill=(*C["white"], int(255 * alpha)))
+        if len(_lower_third_cache) > 50:
+            _lower_third_cache.clear()
+        _lower_third_cache[key] = strip
+    else:
+        strip = _lower_third_cache[key]
+
+    frame.paste(strip, (0, bar_y), strip)
+    return frame
 
 
 # ══════════════════════════════════════════════════════════════
-#  NORMAL VIDEO — SRT CAPTION OVERLAY
+# ══════════════════════════════════════════════════════════════
+#  NORMAL VIDEO — SRT CAPTION OVERLAY (1080p, 2K, 4K Responsive)
 # ══════════════════════════════════════════════════════════════
 
-NORMAL_CAP_FONT_SIZE = 36       # smaller than Shorts (56px) — 1920×1080 context
+def _sz(size: int) -> int:
+    """Proportionally scale font or pixel sizes to current resolution (1080p, 2K, 4K)."""
+    return max(12, int(size * (H / 1080.0)))
+
 NORMAL_CAP_BG        = (0, 0, 0, 160)   # semi-transparent dark pill
 NORMAL_CAP_FG        = (255, 255, 255)
-NORMAL_CAP_MARGIN_B  = 90       # px from bottom (above progress bar)
 
+
+_caption_cache: dict = {}
 
 def _draw_normal_caption(frame: Image.Image, text: str) -> Image.Image:
     """
     Burn a subtitle cue into a normal (16:9) video frame.
     Centred horizontally, positioned above the progress bar.
-    Uses the same pill-background approach as Shorts captions.
+    Caches the subtitle patch so it is drawn once per cue and pasted in O(1).
     """
     if not text or not text.strip():
         return frame
 
-    base_rgba    = frame.convert("RGBA")
-    measure_draw = ImageDraw.Draw(base_rgba)
-    font         = _load_font("bold", NORMAL_CAP_FONT_SIZE)
-    max_w        = W - 200   # leave margins on both sides
+    key = (text, W, H)
+    if key in _caption_cache:
+        patch, lx, ly = _caption_cache[key]
+        frame.paste(patch, (lx, ly), patch)
+        return frame
 
-    # Wrap text — normal video uses Title Case, not ALL CAPS
-    lines  = _wrap_text(measure_draw, text, font, max_w)
-    line_h = NORMAL_CAP_FONT_SIZE + 8
-    pad    = 16
+    cap_size = _sz(36)
+    font     = _load_font("bold", cap_size)
+    max_w    = W - _sz(200)
 
-    # Position: above progress bar and lower-third area
-    block_h = len(lines) * line_h
-    block_y = H - NORMAL_CAP_MARGIN_B - block_h
+    dummy        = Image.new("RGBA", (1, 1))
+    measure_draw = ImageDraw.Draw(dummy)
+    lines        = _wrap_text(measure_draw, text, font, max_w)
+    line_h       = cap_size + _sz(8)
+    pad          = _sz(16)
 
-    # Build pill background
-    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    od      = ImageDraw.Draw(overlay)
-    for i, line in enumerate(lines):
+    line_metrics = []
+    max_lw = 0
+    for line in lines:
         bbox = measure_draw.textbbox((0, 0), line, font=font)
         lw   = bbox[2] - bbox[0]
-        lx   = (W - lw) // 2
-        ly   = block_y + i * line_h
+        max_lw = max(max_lw, lw)
+        line_metrics.append((line, lw))
+
+    patch_w = max_lw + pad * 2
+    patch_h = len(lines) * line_h + pad * 2
+    patch   = Image.new("RGBA", (patch_w, patch_h), (0, 0, 0, 0))
+    od      = ImageDraw.Draw(patch)
+
+    for i, (line, lw) in enumerate(line_metrics):
+        lx = (patch_w - lw) // 2
+        ly = pad + i * line_h
         od.rounded_rectangle(
             [lx - pad, ly - 4, lx + lw + pad, ly + line_h - 2],
-            radius=8, fill=NORMAL_CAP_BG,
+            radius=_sz(8), fill=NORMAL_CAP_BG,
         )
+        _shadow_text(od, (lx, ly), line, font,
+                     fill=NORMAL_CAP_FG, shadow_color=(0, 0, 0), shadow_offset=max(2, _sz(3)))
 
-    composited = Image.alpha_composite(base_rgba, overlay)
-    draw2      = ImageDraw.Draw(composited)
+    block_x = (W - patch_w) // 2
+    block_y = H - _sz(90) - patch_h
 
-    for i, line in enumerate(lines):
-        bbox = draw2.textbbox((0, 0), line, font=font)
-        lw   = bbox[2] - bbox[0]
-        lx   = (W - lw) // 2
-        ly   = block_y + i * line_h
-        _shadow_text(draw2, (lx, ly), line, font,
-                     fill=NORMAL_CAP_FG, shadow_color=(0, 0, 0), shadow_offset=3)
+    if len(_caption_cache) > 200:
+        _caption_cache.clear()
+    _caption_cache[key] = (patch, block_x, block_y)
 
-    return composited.convert("RGB")
+    frame.paste(patch, (block_x, block_y), patch)
+    return frame
 
 
 # ══════════════════════════════════════════════════════════════
-#  NORMAL VIDEO — SECTION RENDERERS
+#  NORMAL VIDEO — SECTION RENDERERS (Scalable to 2K & 4K)
 # ══════════════════════════════════════════════════════════════
 
 def _render_hook(draw, section, t, duration):
@@ -293,20 +331,20 @@ def _render_hook(draw, section, t, duration):
     title = section.get("title", "")
     if t > 0.3 and config.brand_text():
         a = min(1.0, (t - 0.3) / 0.4)
-        _shadow_text(draw, (60, 50), f"▶ {config.brand_text().upper()}",
-                     _load_font("regular", 24), fill=_alpha(C["accent"], a), shadow_offset=2)
+        _shadow_text(draw, (_sz(60), _sz(50)), f"▶ {config.brand_text().upper()}",
+                     _load_font("regular", _sz(24)), fill=_alpha(C["accent"], a), shadow_offset=2)
     sentences = [s.strip() for s in narr.replace("...", "…").split(".") if s.strip()]
     first_two = ". ".join(sentences[:2]) + ("." if sentences else "")
     if t > 0.5:
         a = min(1.0, _ease_out((t - 0.5) / 0.8))
-        font_big = _load_font("bold", 64)
-        lines = _wrap_text(draw, first_two, font_big, W - 200)
-        y0 = H // 2 - len(lines) * 78 // 2
+        font_big = _load_font("bold", _sz(64))
+        lines = _wrap_text(draw, first_two, font_big, W - _sz(200))
+        y0 = H // 2 - len(lines) * _sz(78) // 2
         for i, line in enumerate(lines[:5]):
             la    = min(1.0, _ease_out(max(0.0, (t - 0.5 - i * 0.18) / 0.5)))
-            slide = int((1 - la) * 60)
-            _shadow_text(draw, (100 + slide, y0 + i * 78), line,
-                         font_big, fill=_alpha(C["white"], la), shadow_offset=4)
+            slide = int((1 - la) * _sz(60))
+            _shadow_text(draw, (_sz(100) + slide, y0 + i * _sz(78)), line,
+                         font_big, fill=_alpha(C["white"], la), shadow_offset=max(3, _sz(4)))
 
 
 def _render_content(draw, section, t, duration, section_num):
@@ -315,7 +353,7 @@ def _render_content(draw, section, t, duration, section_num):
     narr    = section.get("narration", "")
     if t > 0.2:
         a = min(1.0, _ease_out((t - 0.2) / 0.5))
-        font_title = _load_font("bold", 52)
+        font_title = _load_font("bold", _sz(52))
         bbox = draw.textbbox((0, 0), title, font=font_title)
         tw   = bbox[2] - bbox[0]
         px, py, pad = 70, 55, 18
@@ -593,7 +631,7 @@ def _zoom_pulse(base: np.ndarray, img_t: float, img_index: int = 0) -> np.ndarra
     x0 = max(0, min(x0, W - crop_w))
     y0 = max(0, min(y0, H - crop_h))
     cropped = base[y0: y0 + crop_h, x0: x0 + crop_w]
-    return np.array(Image.fromarray(cropped).resize((W, H), Image.LANCZOS), dtype=np.uint8)
+    return np.array(Image.fromarray(cropped).resize((W, H), Image.BILINEAR), dtype=np.uint8)
 
 
 def _draw_shorts_caption(frame_img: Image.Image, text: str) -> Image.Image:
@@ -755,32 +793,34 @@ def _build_shorts_clip(all_images: list, total_duration: float,
 # ══════════════════════════════════════════════════════════════
 
 # ══════════════════════════════════════════════════════════════
-#  WATERMARK — burned into every frame of every video.
-#  Deliberately not a setting: YAAS credits its author on all output.
+#  WATERMARK — optional video watermark
 # ══════════════════════════════════════════════════════════════
 
-WATERMARK_TEXT    = "raunakpatil.com"
+WATERMARK_TEXT    = getattr(config, "VIDEO_WATERMARK", "")
 WATERMARK_OPACITY = 0.55
 
 
-def _watermark_patch(w: int, h: int):
+def _watermark_patch(w: int, h: int, text: str = ""):
     """Pre-rendered watermark: (x, y, rgb float array, alpha float array)."""
+    text = text or getattr(config, "VIDEO_WATERMARK", WATERMARK_TEXT)
+    if not text:
+        return 0, 0, None, None
     from video import fonts
     portrait = h > w
     size = max(18, int((h * 0.017) if portrait else (h * 0.024)))
     font = fonts.get("inter", size, 600)
     pad = size // 2
-    tw = int(font.getlength(WATERMARK_TEXT))
+    tw = int(font.getlength(text))
     pw, ph = tw + pad * 2, int(size * 1.5) + pad
     patch = Image.new("RGBA", (pw, ph), (0, 0, 0, 0))
     d = ImageDraw.Draw(patch)
     # soft dark halo keeps it legible on bright footage
     halo = Image.new("L", (pw, ph), 0)
-    ImageDraw.Draw(halo).text((pad, pad // 2), WATERMARK_TEXT, font=font, fill=255,
+    ImageDraw.Draw(halo).text((pad, pad // 2), text, font=font, fill=255,
                               stroke_width=max(2, size // 8), stroke_fill=255)
     halo = halo.filter(ImageFilter.GaussianBlur(max(2, size // 6)))
     patch.paste((0, 0, 0, 255), (0, 0), halo.point(lambda v: int(v * .55)))
-    d.text((pad, pad // 2), WATERMARK_TEXT, font=font, fill=(255, 255, 255, 255))
+    d.text((pad, pad // 2), text, font=font, fill=(255, 255, 255, 255))
 
     arr = np.asarray(patch, dtype=np.float32) / 255.0
     rgb, alpha = arr[..., :3] * 255.0, arr[..., 3:4] * WATERMARK_OPACITY
@@ -791,8 +831,14 @@ def _watermark_patch(w: int, h: int):
     return x, y, rgb, alpha
 
 
-def _apply_watermark(clip, w: int, h: int):
-    x, y, rgb, alpha = _watermark_patch(w, h)
+def _apply_watermark(clip, w: int, h: int, text: str = None):
+    if text is None:
+        text = getattr(config, "VIDEO_WATERMARK", WATERMARK_TEXT)
+    if not text:
+        return clip
+    x, y, rgb, alpha = _watermark_patch(w, h, text)
+    if alpha is None:
+        return clip
     ph, pw = alpha.shape[:2]
 
     def stamp(frame):
@@ -801,7 +847,7 @@ def _apply_watermark(clip, w: int, h: int):
         out[y:y + ph, x:x + pw] = (region * (1 - alpha) + rgb * alpha).astype(np.uint8)
         return out
 
-    print(f"   → Watermark: {WATERMARK_TEXT}")
+    print(f"   → Watermark: {text}")
     return clip.fl_image(stamp)
 
 
@@ -919,10 +965,8 @@ def create_video(script: dict, audio_path: str, output_dir: str,
             clips.append(clip)
             section_start_t += duration   # advance global timestamp
 
-        print("\n   → Crossfading sections…")
-        final = clips[0]
-        for clip in clips[1:]:
-            final = _crossfade(final, clip, fade_dur=0.7)
+        print("\n   → Assembling sections into seamless documentary timeline…")
+        final = concatenate_videoclips(clips, method="chain")
 
         print("   → Attaching narration…")
         audio = AudioFileClip(audio_path)
@@ -942,16 +986,32 @@ def create_video(script: dict, audio_path: str, output_dir: str,
     print(f"\n   → Rendering {total_secs // 60}m {total_secs % 60}s video…")
     print(f"      (~{max(1, total_secs // 10)} min — go get a coffee ☕)\n")
 
-    final.write_videofile(
-        output_path,
-        fps=FPS,
-        codec="libx264",
-        audio_codec="aac",
-        threads=4,
-        preset=getattr(config, "RENDER_PRESET", "ultrafast"),
-        verbose=False,
-        logger=None,
-    )
+    import uuid
+    temp_audio = os.path.join(os.path.dirname(output_path), f"temp_audio_{uuid.uuid4().hex[:8]}.m4a")
+    try:
+        final.write_videofile(
+            output_path,
+            fps=FPS,
+            codec="libx264",
+            audio_codec="aac",
+            temp_audiofile=temp_audio,
+            remove_temp=True,
+            threads=max(4, os.cpu_count() or 4),
+            preset=getattr(config, "RENDER_PRESET", "ultrafast"),
+            ffmpeg_params=["-movflags", "+faststart"],
+            verbose=False,
+            logger=None,
+        )
+    finally:
+        try:
+            final.close()
+        except Exception:
+            pass
+        if os.path.exists(temp_audio):
+            try:
+                os.remove(temp_audio)
+            except Exception:
+                pass
 
     size_mb = os.path.getsize(output_path) // (1024 * 1024)
     print(f"\n   ✅ Video rendered: {output_path} ({size_mb} MB)")

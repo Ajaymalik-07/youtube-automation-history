@@ -1,46 +1,65 @@
 """
 LLM Client — shared across all agents.
-
-1. Gemini / Gemma: tries models in order starting from config.GEMINI_MODEL,
-   falling back through the rest of the chain on quota / overload errors.
-2. If there's no Gemini key, or every Gemini model fails, hands over to the
-   free fallback chain in apis/llm.py: Groq → OpenRouter → Pollinations
-   (keyless), so generation always has somewhere to go.
-
-Free-tier daily limits (approximate):
-  gemini-2.5-flash      → 500 req/day
-  gemini-2.0-flash      → 1,500 req/day
-  gemini-2.0-flash-lite → 1,500 req/day
-  gemma-4-31b-it        → 500 req/day
+Features intelligent multi-model failover across all free Gemini & Gemma models:
+1. Immediately shifts to the next Gemini model if quota is exhausted (429) or
+   if the model reports high demand / heavy traffic / busy / overloaded (503).
+2. Tries modern high-capacity models first (gemini-3.5-flash, gemini-3.5-flash-lite, etc.).
+3. Falls back to external providers (Groq -> OpenRouter -> Pollinations) only if
+   all Gemini models are unavailable.
 """
 import time
+import re
+import sys
 import config
 
-# Full list of supported models in preference order.
-# The actual runtime order is determined by build_chain() below,
-# which rotates this list so config.GEMINI_MODEL comes first.
+# Ensure stdout/stderr handles Unicode on Windows without crashing
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+# Prioritized list of active modern Gemini and Gemma models
 _ALL_MODELS = [
-    "gemini-2.5-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3-flash-preview",
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
     "gemini-2.5-flash-lite",
-    "gemma-4-31b-it",        # Gemma 4 31B dense — strong reasoning, free tier
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemma-3-27b-it",
-    "gemini-1.5-flash-001",
-    "gemini-1.5-pro-001",
+    "gemini-2.5-pro",
+    "gemini-3.1-pro-preview",
+    "gemini-pro-latest",
+    "gemma-4-31b-it",
+    "gemma-4-26b-a4b-it",
 ]
 
 # Which provider answered the last call — shown in the GUI
 last_provider = None
+_active_preferred_model = None
+
+
+def _set_preferred_model(model: str) -> None:
+    global _active_preferred_model
+    _active_preferred_model = model
 
 
 def build_chain(starting_model: str | None = None) -> list:
     """
-    Return MODEL_CHAIN rotated so `starting_model` is first.
-    If starting_model is not in the list (typo / unknown), falls back to
-    the default order so generation always has a working chain.
+    Return model list rotated so preferred / starting model is tried first,
+    followed by all other available models.
     """
-    preferred = (starting_model or "").strip()
+    preferred = (_active_preferred_model or starting_model or getattr(config, "GEMINI_MODEL", "")).strip()
     if preferred and preferred in _ALL_MODELS:
         idx = _ALL_MODELS.index(preferred)
         return _ALL_MODELS[idx:] + _ALL_MODELS[:idx]
@@ -66,60 +85,100 @@ def _get_client():
     return _client
 
 
+def _classify_error(err: Exception) -> tuple[bool, str]:
+    """
+    Classifies error and returns (should_shift, friendly_reason).
+    Returns should_shift=True for quota, heavy traffic, overload, busy, 404 retired models, etc.
+    """
+    msg = str(err).lower()
+
+    if any(k in msg for k in ("429", "resource_exhausted", "quota", "rate limit")):
+        return True, "Quota exhausted (429)"
+
+    if any(k in msg for k in ("503", "unavailable", "high demand", "busy", "heavy traffic", "overloaded", "server error")):
+        return True, "High traffic / Busy server (503)"
+
+    if any(k in msg for k in ("404", "not_found", "not found", "is not supported", "no longer available")):
+        return True, "Model retired or not available (404)"
+
+    if any(k in msg for k in ("500", "internal", "timed out", "timeout", "connection reset", "connection aborted", "remotedisconnected")):
+        return True, "Transient server/network error"
+
+    # Default to shifting on any generation error so pipeline never dead-ends on one model
+    return True, f"Model error: {msg[:80]}"
+
+
 def _is_gone(err: Exception) -> bool:
-    """Model retired or unknown — retrying it is pointless."""
-    msg = str(err)
-    return any(k in msg for k in ["404", "NOT_FOUND", "not found", "is not supported"])
+    msg = str(err).lower()
+    return any(k in msg for k in ("404", "not_found", "not found", "is not supported", "no longer available"))
 
 
 def _should_switch_model(err: Exception) -> bool:
-    """Return True for any error code that means we should try the next model."""
-    msg = str(err)
-    return _is_gone(err) or any(k in msg for k in [
-        "429", "RESOURCE_EXHAUSTED", "quota", "rate limit",  # 429 – quota
-        "503", "UNAVAILABLE", "overloaded", "high demand",   # 503 – overloaded
-        "500", "INTERNAL",                                    # 500 – transient
-        # dropped / flaky connections — worth a retry, not a failed run
-        "10053", "10054", "Connection aborted", "Connection reset", "ConnectError",
-        "RemoteDisconnected", "timed out", "Timeout", "Temporary failure", "NameResolution",
-    ])
+    msg = str(err).lower()
+    if "400" in msg or "api_key_invalid" in msg:
+        return False
+    return any(k in msg for k in ("connection", "timed out", "timeout", "10053", "503", "429"))
 
 
 def _generate_gemini(prompt: str, starting_model: str | None) -> str:
     global last_provider
     from google.genai import types
     client = _get_client()
-    chain  = build_chain(starting_model or getattr(config, "GEMINI_MODEL", None))
+    chain = build_chain(starting_model)
+
+    attempted_models = []
+    errors = []
 
     for model in chain:
-        for attempt in range(3):   # up to 3 attempts per model before moving on
+        attempted_models.append(model)
+        try:
+            print(f"   -> Trying Gemini model: {model}...")
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=types.GenerateContentConfig(temperature=0.9),
+            )
+            text = (response.text or "").strip()
+            if text:
+                last_provider = model
+                _set_preferred_model(model)
+                print(f"   [OK] Succeeded with {model} ({len(text.split())} words generated)")
+                return text
+
+        except Exception as e:
+            should_shift, reason = _classify_error(e)
+            print(f"   [!] [{model}] {reason} -- immediately shifting to next model...")
+            errors.append(f"{model}: {reason}")
+            continue
+
+    # If all models in static list failed, attempt dynamic query of available models
+    try:
+        remote_models = [m.name.replace("models/", "") for m in client.models.list()
+                         if ("gemini" in m.name or "gemma" in m.name) and m.name.replace("models/", "") not in attempted_models]
+        for dyn_model in remote_models[:5]:
             try:
-                print(f"   → Using {model}…")
+                print(f"   -> Trying discovered model: {dyn_model}...")
                 response = client.models.generate_content(
-                    model=model,
+                    model=dyn_model,
                     contents=prompt,
                     config=types.GenerateContentConfig(temperature=0.9),
                 )
-                last_provider = model
-                return response.text.strip()
-
+                text = (response.text or "").strip()
+                if text:
+                    last_provider = dyn_model
+                    _set_preferred_model(dyn_model)
+                    print(f"   [OK] Succeeded with {dyn_model}")
+                    return text
             except Exception as e:
-                if _is_gone(e):
-                    print(f"   ⚠ {model} unavailable — trying next model…")
-                    break
-                if _should_switch_model(e):
-                    if attempt < 2:
-                        wait = 15 * (attempt + 1)   # 15s then 30s
-                        print(f"   ⚠ {model} error (attempt {attempt+1}/3) — waiting {wait}s…")
-                        time.sleep(wait)
-                    else:
-                        print(f"   ⚠ {model} failed 3 times — trying next model…")
-                else:
-                    raise   # auth error or bug — surface immediately
+                _, reason = _classify_error(e)
+                print(f"   [!] [{dyn_model}] {reason} -- shifting...")
+                continue
+    except Exception:
+        pass
 
     raise RuntimeError(
-        "All Gemini models failed. 503/500 = temporary, retry in a few minutes; "
-        "429 = quota, resets at midnight Pacific (https://aistudio.google.com/apikey)."
+        f"All {len(attempted_models)} Gemini models failed.\n" +
+        "\n".join(f"* {err}" for err in errors[:5])
     )
 
 
@@ -135,9 +194,9 @@ def generate(prompt: str, starting_model: str | None = None) -> str:
             gemini_err = e
             if not llm.providers():
                 raise
-            print(f"   ⚠ Gemini unavailable ({str(e)[:120]}) — switching to fallback LLMs…")
+            print("   [!] All Gemini models failed -- switching to fallback LLM stack...")
     else:
-        print("   → No Gemini key set — using free fallback LLMs")
+        print("   -> No Gemini key set -- using free fallback LLMs")
 
     try:
         text = llm.chat(prompt)
@@ -145,7 +204,7 @@ def generate(prompt: str, starting_model: str | None = None) -> str:
         return text
     except Exception as e:
         if gemini_err:
-            raise RuntimeError(f"Gemini failed: {gemini_err}\nFallbacks failed: {e}") from e
+            raise RuntimeError(f"Gemini failed:\n{gemini_err}\n\nFallbacks failed:\n{e}") from e
         raise RuntimeError(
             f"{e}\nAdd a free Gemini key in Settings (aistudio.google.com/apikey)."
         ) from e

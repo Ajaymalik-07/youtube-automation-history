@@ -90,6 +90,12 @@ def _measure(font, s: str, tracking: float = 0) -> int:
 def _layout(tokens, font_name, max_w, max_h, max_lines, start, minimum,
             upper=True, weight=None, leading=0.95, tracking=0.0):
     """Biggest font size whose wrapped lines fit the box. Returns (font, lines, line_h)."""
+    has_hindi = any(fonts.is_devanagari(word) for word, _ in tokens)
+    if has_hindi:
+        font_name = "devanagari_display"
+        upper = False
+        tracking = 0.0
+        leading = max(1.15, leading)
     size = start
     while True:
         font = fonts.get(font_name, size, weight)
@@ -120,7 +126,7 @@ def _line_w(line, space):
 
 
 def _draw_word(draw, xy, word, font, fill, tracking=0.0, **kw):
-    if not tracking:
+    if not tracking or fonts.is_devanagari(word):
         draw.text(xy, word, font=font, fill=fill, **kw)
         return
     x, y = xy
@@ -226,15 +232,24 @@ def _brand_pill(img: Image.Image, brand: str, xy, dark=False, center_y=None):
         return
     k = 1.45 if H > W else 1.0
     d = ImageDraw.Draw(img, "RGBA")
-    f = fonts.get("inter", int(24 * k), 700)
-    label = f"▶ {brand.upper()}"
-    tw = _measure(f, label, 1.5 * k)
-    pw, ph = tw + int(32 * k), int(42 * k)
+    has_hindi = fonts.is_devanagari(brand)
+    f = fonts.get("devanagari_bold" if has_hindi else "inter", int(24 * k), 700)
+    label = brand if has_hindi else brand.upper()
+    tr = 0.0 if has_hindi else 1.5 * k
+    tw = _measure(f, label, tr)
+    icon_w = int(12 * k)
+    gap = int(8 * k)
+    pw, ph = tw + icon_w + gap + int(28 * k), int(42 * k)
     x, y = ((W - pw) // 2, center_y - ph // 2) if center_y is not None else xy
-    fill = (17, 17, 17, 235) if dark else (255, 255, 255, 235)
-    d.rounded_rectangle([x, y, x + pw, y + ph], radius=ph // 2, fill=fill)
-    _draw_word(d, (x + int(16 * k), y + int(8 * k)), label, f,
-               (255, 255, 255) if dark else (17, 17, 17), tracking=1.5 * k)
+    fill_bg = (17, 17, 17, 235) if dark else (255, 255, 255, 235)
+    fg = (255, 255, 255) if dark else (17, 17, 17)
+    d.rounded_rectangle([x, y, x + pw, y + ph], radius=ph // 2, fill=fill_bg)
+    # Vector play triangle:
+    ix = x + int(14 * k)
+    iy = y + int(13 * k)
+    ih = int(16 * k)
+    d.polygon([(ix, iy), (ix + icon_w, iy + ih // 2), (ix, iy + ih)], fill=fg)
+    _draw_word(d, (ix + icon_w + gap, y + int(8 * k)), label, f, fg, tracking=tr)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -338,11 +353,13 @@ def _cinematic(bg, tokens, brand):
     d.rectangle([0, 0, W, bar], fill=(0, 0, 0, 255))
     d.rectangle([0, H - bar, W, H], fill=(0, 0, 0, 255))
     if brand:
-        f = fonts.get("inter", int(20 * k), 500)
-        label = brand.upper()
-        tw = _measure(f, label, 6 * k)
+        has_hindi = fonts.is_devanagari(brand)
+        f = fonts.get("devanagari_bold" if has_hindi else "inter", int(20 * k), 500)
+        label = brand if has_hindi else brand.upper()
+        tr = 0.0 if has_hindi else 6 * k
+        tw = _measure(f, label, tr)
         y = y0 - int(46 * k)
-        _draw_word(d, ((W - tw) // 2, y), label, f, (235, 235, 235, 230), tracking=6 * k)
+        _draw_word(d, ((W - tw) // 2, y), label, f, (235, 235, 235, 230), tracking=tr)
         cy, gap, ln = y + int(12 * k), int(22 * k), int(48 * k)
         d.line([((W - tw) // 2 - gap - ln, cy), ((W - tw) // 2 - gap, cy)], fill=(235, 235, 235, 160), width=2)
         d.line([((W + tw) // 2 + gap, cy), ((W + tw) // 2 + gap + ln, cy)], fill=(235, 235, 235, 160), width=2)
@@ -386,8 +403,11 @@ def _split(bg, tokens, brand):
             x += ww + space
         y += lh
     if brand:
-        f = fonts.get("inter", int(22 * k), 800)
-        _draw_word(d, (bx, H - int(64 * k) - (40 if P else 0)), f"▶ {brand.upper()}", f, (17, 17, 17), tracking=1.5 * k)
+        has_hindi = fonts.is_devanagari(brand)
+        f = fonts.get("devanagari_bold" if has_hindi else "inter", int(22 * k), 800)
+        label = f"▶ {brand}" if has_hindi else f"▶ {brand.upper()}"
+        tr = 0.0 if has_hindi else 1.5 * k
+        _draw_word(d, (bx, H - int(64 * k) - (40 if P else 0)), label, f, (17, 17, 17), tracking=tr)
     return img
 
 
@@ -421,12 +441,15 @@ def _studio(bg, tokens, brand):
     d.rounded_rectangle([px, py, px + pw - 1, py + ph - 1], radius=int(22 * k), outline=(255, 255, 255, 40), width=2)
 
     if brand:
-        f = fonts.get("mono", int(20 * k), 500)
-        _draw_word(d, label_xy, f"▶ {brand.upper()}", f, (154, 154, 154), tracking=2 * k)
+        has_hindi = fonts.is_devanagari(brand)
+        f = fonts.get("devanagari_bold" if has_hindi else "mono", int(20 * k), 500)
+        label = f"▶ {brand}" if has_hindi else f"▶ {brand.upper()}"
+        tr = 0.0 if has_hindi else 2 * k
+        _draw_word(d, label_xy, label, f, (154, 154, 154), tracking=tr)
 
     font, lines, lh, space, _ = _layout(tokens, "inter", tw, int(th * (.9 if P else .62)), 4,
                                         170 if P else 128, 48, upper=False, weight=320, leading=1.0)
-    hi_font = fonts.get("inter", font.size, 620)
+    hi_font = fonts.get("devanagari_display" if any(fonts.is_devanagari(w) for w, _ in tokens) else "inter", font.size, 620)
     y = ty + (th - lh * len(lines)) // 2 - (0 if P else 10)
     for line in lines:
         x = tx

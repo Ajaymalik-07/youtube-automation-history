@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-/* ===================== Tokens (shared with raunakpatil.com) ===================== */
+/* ===================== Tokens ===================== */
 :root {
   --bg: #f2f2f2;
   --surface: #ffffff;
@@ -345,8 +345,28 @@ details.more > .more-body { margin-top: 14px; }
 }
 .bars-foot { display: flex; justify-content: space-between; font-size: 11px; color: var(--on-card-3); margin-top: 6px; }
 .stat-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 8px; }
-.stat b { display: block; font-size: 28px; font-weight: 300; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .stat span { font-size: 12px; color: var(--on-card-3); }
+
+/* ===================== Weekly Editorial Plan ===================== */
+.weekly-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }
+.day-card {
+  background: var(--card-2); border: 1px solid var(--card-line); border-radius: 12px;
+  padding: 12px 14px; cursor: pointer; transition: transform .2s, border-color .25s, box-shadow .25s, background .25s;
+  display: flex; flex-direction: column; gap: 6px; text-align: left; position: relative;
+}
+.day-card:hover { border-color: #6366f1; background: var(--card-3); transform: translateY(-2px); }
+.day-card.today {
+  border-color: var(--green); background: rgba(56,255,179,.06);
+  box-shadow: 0 0 16px rgba(56,255,179,.18);
+}
+.day-card.selected { border-color: #a78bfa; box-shadow: 0 0 12px rgba(167,139,250,.35); background: var(--card-3); }
+.day-head { display: flex; justify-content: space-between; align-items: center; }
+.day-name { font-family: var(--mono); font-size: 11px; text-transform: uppercase; color: var(--on-card-2); letter-spacing: .06em; font-weight: 600; }
+.day-theme-en { font-size: 13.5px; font-weight: 600; color: #f3f4f6; line-height: 1.3; }
+.day-theme-hi { font-size: 12px; color: #c7d2fe; font-weight: 500; }
+.day-desc { font-size: 11.5px; color: var(--on-card-3); line-height: 1.4; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.day-badge-today { background: rgba(56,255,179,.15); color: var(--green); font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: .05em; }
+
 
 .api-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 16px; }
 .api-group { grid-column: 1 / -1; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--on-card-3); text-transform: uppercase; margin-top: 10px; }
@@ -442,7 +462,7 @@ details.more > .more-body { margin-top: 14px; }
 
 /* ===================== Library ===================== */
 .lib-card { padding: 10px 10px 14px; display: flex; flex-direction: column; gap: 10px; }
-.lib-card h4 { font-weight: 500; font-size: 14px; line-height: 1.3; padding: 0 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 36px; }
+.lib-card h4 { font-weight: 500; font-size: 14px; line-height: 1.3; padding: 0 4px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 36px; }
 .lib-meta { padding: 0 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--on-card-3); }
 .lib-actions { padding: 0 4px; display: flex; gap: 6px; margin-top: auto; }
 
@@ -532,7 +552,7 @@ details.more > .more-body { margin-top: 14px; }
         <div class="ask-row">
           <div class="or">no idea yet? <button class="surprise" type="button" id="surprise-btn"><b>✦</b> Let AI pick a topic</button></div>
           <div class="seg" id="format-seg" title="Video format">
-            <button data-fmt="normal" class="on" type="button">Long video · 6–8 min</button>
+            <button data-fmt="normal" class="on" type="button">Long video · 10–14 min</button>
             <button data-fmt="shorts" type="button">Short · 60 s</button>
           </div>
         </div>
@@ -556,21 +576,16 @@ details.more > .more-body { margin-top: 14px; }
             </select>
           </div>
           <div class="field" style="margin-top:0">
-            <div class="label">When AI picks the topic <small>stay within a theme</small></div>
+            <div class="label">When AI picks the topic <small>Weekly Content Calendar</small></div>
             <select id="focus-angle">
-              <option value="">Any theme from my channel</option>
-              <option>Theoretical Physics &amp; Time Travel</option>
-              <option>The Dark Forest Theory &amp; Aliens</option>
-              <option>Existential Human Psychology &amp; Illusions</option>
-              <option>Frightening AI Futures &amp; Simulation Theory</option>
-              <option>Mind-bending Mathematical Paradoxes</option>
-              <option>The limits of Human Biology &amp; Immortality</option>
-              <option>Quantum Mechanics &amp; Alternate Realities</option>
-              <option>Cosmic scale, Black Holes, and the end of the Universe</option>
-              <option>Neuroscience &amp; the Mystery of Consciousness</option>
-              <option>Ancient Civilisations &amp; Lost History</option>
-              <option>Cutting-edge Biotechnology &amp; Genetic Engineering</option>
-              <option>The Future of Space Colonisation</option>
+              <option value="">Today's Scheduled Theme (Auto-detected)</option>
+              <option value="Rivers & Ancient Civilizations (Monday)">Monday: Rivers & Ancient Civilizations (नदियां और प्राचीन सभ्यताएं)</option>
+              <option value="Ghosts & Haunted Places (Tuesday)">Tuesday: Ghosts & Haunted Places (भूतिया और शापित स्थान)</option>
+              <option value="Kings, Queens & Empires (Wednesday)">Wednesday: Kings, Queens & Empires (राजा, रानियां और साम्राज्य)</option>
+              <option value="Ancient Mysteries (Thursday)">Thursday: Ancient Mysteries (प्राचीन रहस्य और अनसुलझी पहेलियां)</option>
+              <option value="Wars & Battles (Friday)">Friday: Wars & Battles (ऐतिहासिक युद्ध और महासंग्राम)</option>
+              <option value="Lost Cities & Forgotten Places (Saturday)">Saturday: Lost Cities & Forgotten Places (खोए हुए शहर और भूले स्थान)</option>
+              <option value="Historical Stories & Legends (Sunday)">Sunday: Historical Stories & Legends (ऐतिहासिक कहानियां और अमर गाथाएं)</option>
             </select>
           </div>
           <div>
@@ -635,6 +650,21 @@ details.more > .more-body { margin-top: 14px; }
       <div id="latest"><div class="empty" style="min-height:110px">Your videos will show up here.</div></div>
     </article>
   </div>
+
+  <!-- ══════════════════════ WEEKLY EDITORIAL CALENDAR ══════════════════════ -->
+  <article class="card s24" id="weekly-plan-card">
+    <div class="card-label">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Weekly Editorial Plan · Long Video (10–14 Min) &amp; Daily Shorts
+    </div>
+    <div class="card-tools">
+      <span class="tag green" id="today-theme-badge">🗓️ Today's Theme: Loading…</span>
+    </div>
+    <p class="card-intro">7-Day automated schedule powering all Long-Form Documentaries and Daily Shorts. Click any day to immediately load its theme and sample topic ideas.</p>
+    <div class="weekly-grid" id="weekly-plan-grid">
+      <div class="empty" style="grid-column:1/-1">Loading Weekly Content Schedule…</div>
+    </div>
+  </article>
 
   <article class="card s16">
     <div class="card-label"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>Need an idea? Trending today</div>
@@ -722,7 +752,10 @@ details.more > .more-body { margin-top: 14px; }
         <div class="ring"><svg viewBox="0 0 100 100"><circle class="bg" cx="50" cy="50" r="42"/><circle class="fg" id="seo-ring" cx="50" cy="50" r="42" stroke-dasharray="263.9" stroke-dashoffset="263.9"/></svg><div><span><b id="seo-num">–</b><small>/ 100</small></span></div></div>
         <div class="score-text"><b id="seo-verdict">—</b><span id="seo-sub">Updates as you edit the title, description and tags.</span></div>
       </div>
-      <div class="checks" id="seo-checks"></div>
+      <div style="margin-top:12px">
+        <button class="btn btn-green btn-sm btn-block" id="auto-optimize-seo-btn" style="font-weight:600;font-size:13px;padding:8px 12px;display:flex;align-items:center;justify-content:center;gap:6px">⚡ Auto-Optimize 100/100</button>
+      </div>
+      <div class="checks" id="seo-checks" style="margin-top:10px"></div>
     </article>
   </div>
 
@@ -847,6 +880,60 @@ details.more > .more-body { margin-top: 14px; }
     <div class="field"><div class="label">What your channel is about</div><textarea id="s-channel_desc" rows="5"></textarea><div class="hint">The AI uses this to pick topics and match your style. Be specific about subjects, tone and audience.</div></div>
   </article>
 
+  <!-- YouTube Upload (OAuth Publishing) Card -->
+  <article class="card s12" id="card-yt-oauth">
+    <div class="card-label"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>YouTube Upload (OAuth Publishing)</div>
+    <p class="card-intro">Direct one-click publishing and scheduled video releases to your YouTube channel.</p>
+    
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div class="status-pill" id="yt-oauth-pill" style="display:inline-flex">
+        <i></i><span id="yt-oauth-status-text">Checking status…</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="btn-yt-disconnect" type="button" style="display:none;height:28px;padding:0 10px;font-size:11px">Disconnect</button>
+    </div>
+
+    <div class="field">
+      <div class="label">OAuth Client ID <a class="link" style="font-weight:400;font-size:11.5px" href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console ↗</a></div>
+      <input type="password" id="s-yt_client_id" placeholder="…apps.googleusercontent.com" autocomplete="off" spellcheck="false">
+      <div class="hint">From Google Cloud Console → APIs &amp; Services → Credentials → OAuth 2.0 Client ID (Desktop app)</div>
+    </div>
+
+    <div class="field">
+      <div class="label">OAuth Client Secret</div>
+      <input type="password" id="s-yt_client_secret" placeholder="Client secret string" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-primary btn-sm" id="btn-yt-auth" type="button">✦ Link / Authorize YouTube Channel</button>
+      <span class="hint" style="margin:0">Opens Google login to grant upload permission</span>
+    </div>
+
+    <details class="more" style="margin-top:14px">
+      <summary>Or paste client_secret.json directly</summary>
+      <div class="more-body">
+        <textarea id="s-client_secret_json" rows="4" class="mono" placeholder='Paste contents of downloaded client_secret.json here…'></textarea>
+        <button class="btn btn-ghost btn-sm" id="btn-save-json" type="button" style="margin-top:8px">Apply client_secret.json</button>
+      </div>
+    </details>
+
+    <details class="more" style="margin-top:10px">
+      <summary>Already authorized? Paste callback URL / code here</summary>
+      <div class="more-body">
+        <input type="text" id="s-callback-url" class="mono" placeholder="http://localhost:8080/?state=...&amp;code=4/0A..." style="width:100%;height:34px;padding:0 10px;border-radius:6px;background:var(--card-2);border:1px solid var(--card-line);color:var(--on-card)">
+        <button class="btn btn-ghost btn-sm" id="btn-exchange-code" type="button" style="margin-top:8px">Exchange Code &amp; Complete Setup</button>
+      </div>
+    </details>
+  </article>
+
+  <!-- Email Dispatch & Analytics Card -->
+  <article class="card s12">
+    <div class="card-label"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>Email Dispatch &amp; Analytics</div>
+    <p class="card-intro">Sends video links and live performance analytics after each upload.</p>
+    <div class="field"><div class="label">Recipient Email</div><input type="email" id="s-notification_email" placeholder="ajaymobulous@gmail.com"></div>
+    <div class="field"><div class="label">Gmail Sender Address</div><input type="email" id="s-smtp_user" placeholder="your_email@gmail.com"></div>
+    <div class="field"><div class="label">Gmail App Password <a class="link" style="font-weight:400;font-size:11.5px" href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">get 16-character password ↗</a></div><input type="password" id="s-smtp_password" placeholder="16-character app password"></div>
+  </article>
+
   <article class="card s12">
     <div class="card-label"><svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Voice</div>
     <div class="field">
@@ -874,7 +961,7 @@ details.more > .more-body { margin-top: 14px; }
   <article class="card s12">
     <div class="card-label"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Music &amp; publishing</div>
     <label class="toggle first"><span><b>Background music</b><small>Drop MP3s into the <span class="mono">music library</span> folder</small></span><input type="checkbox" id="s-music_enabled"><span class="switch"></span></label>
-    <label class="toggle"><span><b>Credit YAAS in descriptions</b><small>Adds “Made with YAAS by Raunak Patil · raunakpatil.com”</small></span><input type="checkbox" id="s-credit_yaas"><span class="switch"></span></label>
+    <input type="checkbox" id="s-credit_yaas" style="display:none">
     <div class="field"><div class="label">Music volume</div><div class="range-row"><input type="range" id="r-music_volume" min="0" max="100"><span id="v-music_volume"></span></div></div>
     <div class="field"><div class="label">Default visibility</div>
       <select id="s-privacy"><option value="public">Everyone (public)</option><option value="unlisted">Anyone with the link (unlisted)</option><option value="private">Only me (private)</option></select></div>
@@ -905,12 +992,13 @@ details.more > .more-body { margin-top: 14px; }
         </div>
         <div class="field"><div class="label">Gemini model to try first</div>
           <select id="s-gemini_model">
-            <option value="gemini-2.5-flash">gemini-2.5-flash — best quality</option>
-            <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite — fast + smart</option>
+            <option value="gemini-3.5-flash">gemini-3.5-flash — best quality & high quota</option>
+            <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite — ultra fast</option>
+            <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite — high quota</option>
+            <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+            <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+            <option value="gemini-flash-latest">gemini-flash-latest</option>
             <option value="gemma-4-31b-it">gemma-4-31b-it</option>
-            <option value="gemini-2.0-flash">gemini-2.0-flash — most free quota</option>
-            <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite — fastest</option>
-            <option value="gemma-3-27b-it">gemma-3-27b-it</option>
           </select></div>
         <div class="field"><div class="label">Groq model</div><input type="text" id="s-groq_model"></div>
         <div class="field"><div class="label">OpenRouter model</div><input type="text" id="s-openrouter_model"></div>
@@ -931,12 +1019,6 @@ details.more > .more-body { margin-top: 14px; }
 </section>
 
 </main>
-
-<footer class="foot">
-  <span><b style="font-weight:500;color:var(--ink)">YAAS</b> <span class="mono">youtube-agentic-ai-studio</span></span>
-  <span>made by <a href="https://raunakpatil.com" target="_blank" rel="noopener">Raunak Patil · raunakpatil.com</a></span>
-  <a href="https://github.com/raunakpatil/youtube-agentic-ai-studio" target="_blank" rel="noopener">GitHub</a>
-</footer>
 
 <div class="savebar" id="savebar">
   <i></i><span>Unsaved changes</span>
@@ -1106,7 +1188,7 @@ async function onFinished(d) {
       <div class="thumb-frame">${d.has_thumb ? `<img src="/thumbnail/${Date.now()}" alt="">` : ""}</div>
       <div><div style="font-size:20px;line-height:1.25">${esc(out.title || "")}</div>
         <p class="hint" style="margin:8px 0 16px">${out.sources && out.sources.length ? `Fact-checked against ${out.sources.length} sources. ` : ""}Next: watch it, polish the title and thumbnail, then publish.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-white btn-lg" href="#review">Review &amp; publish →</a><button class="btn btn-ghost btn-lg" onclick="setHero('form')">Make another</button></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-white btn-lg" href="#review" onclick="loadReview()">Review &amp; publish →</a><button class="btn btn-ghost btn-lg" onclick="setHero('form')">Make another</button></div></div>
     </div>`;
   setHero("done");
   $("#tabs a[data-view=review]").classList.add("notify");
@@ -1264,6 +1346,55 @@ async function loadHealth(probe) {
 }
 $("#api-probe").onclick = () => loadHealth(true);
 
+async function loadWeeklyPlan() {
+  try {
+    const res = await api("/api/weekly-plan");
+    if (!res || !res.ok) return;
+    const grid = $("#weekly-plan-grid");
+    if (!grid) return;
+    const badge = $("#today-theme-badge");
+    if (badge && res.today_theme) {
+      badge.textContent = `★ TODAY (${res.current_day}): ${res.today_theme.theme} ★`;
+    }
+    grid.innerHTML = (res.plan || []).map(p => `
+      <div class="day-card ${p.is_today ? 'today' : ''}" data-day="${p.day}" data-theme="${esc(p.theme)}">
+        <div class="day-head">
+          <span class="day-name">${esc(p.day)}</span>
+          ${p.is_today ? '<span class="day-badge-today">Today</span>' : ''}
+        </div>
+        <div class="day-theme-en">${esc(p.theme)}</div>
+        <div class="day-theme-hi">${esc(p.theme_hi || '')}</div>
+        <div class="day-desc">${esc(p.description || '')}</div>
+      </div>
+    `).join("");
+
+    $$(".day-card").forEach(card => {
+      card.onclick = () => {
+        $$(".day-card").forEach(c => c.classList.remove("selected"));
+        card.classList.add("selected");
+        const theme = card.getAttribute("data-theme");
+        const day = card.getAttribute("data-day");
+        const sel = $("#focus-angle");
+        if (sel) {
+          for (let opt of sel.options) {
+            if (opt.value.includes(day) || opt.value.includes(theme)) {
+              sel.value = opt.value;
+              break;
+            }
+          }
+        }
+        toast(`Selected ${day}: ${theme}`, "ok");
+        const details = sel ? sel.closest("details") : null;
+        if (details) details.open = true;
+        const ask = $("#hero-ask") || $("#hero-form");
+        if (ask) ask.scrollIntoView({ behavior: "smooth", block: "center" });
+      };
+    });
+  } catch (err) {
+    console.error("loadWeeklyPlan error:", err);
+  }
+}
+
 async function loadChannel() {
   const lib = library || { totals: {}, activity: [] };
   const ch = await api("/api/channel-stats").catch(() => null);
@@ -1296,30 +1427,41 @@ function renderLatest() {
 /* ═══════════════════════════ review ═══════════════════════════ */
 let tags = [], saved = null, thumbMode = "stock", uploadMode = "now";
 async function loadReview() {
-  const [st, d] = await Promise.all([api("/api/status"), api("/api/output")]);
-  const has = st.has_video;
-  $("#review-empty").hidden = has;
-  $$(".review-part").forEach(el => el.hidden = !has);
-  if (!has) return;
-  $("#player").classList.toggle("shorts", d.video_type === "shorts");
-  $("#player").innerHTML = `<video controls preload="metadata" src="/video?t=${Date.now()}"></video>`;
-  $("#thumb-wrap").innerHTML = st.has_thumb ? `<img src="/thumbnail/${Date.now()}" alt="Thumbnail">` : `<div class="empty">No thumbnail yet</div>`;
-  loadThumb();
-  $("#review-src").textContent = st.library_id ? "from My videos" : "";
-  $("#dl-thumb").hidden = !st.has_thumb;
-  $("#dl-srt").hidden = !st.has_captions;
-  saved = { title: d.title || "", desc: d.description || "", tags: [...(d.tags || [])] };
-  fillMeta(saved);
-  $("#sections").innerHTML = d.sections.map((s, i) => `
-    <details class="section"><summary><span class="n">${String(i + 1).padStart(2, "0")}</span><span>${esc(s.title || s.section_type || "Section")}</span><span class="tag">${esc(s.section_type || "")}</span></summary><p>${esc(s.narration || "")}</p></details>`).join("") || `<div class="hint">No script</div>`;
-  const credits = d.credits || [];
-  const bySrc = credits.reduce((a, c) => (a[c.source] = (a[c.source] || 0) + 1, a), {});
-  $("#review-sources").innerHTML = sourcesHTML(d.sources) +
-    (credits.length ? `<div class="label" style="margin:16px 0 8px">Where the images came from</div><div class="chips">${Object.entries(bySrc).map(([k, v]) => `<span class="chip" style="cursor:default">${esc(k)} <span class="count">${v}</span></span>`).join("")}</div>` : "");
-  $("#upload-status").innerHTML = st.yt_url ? `Already on YouTube: <a class="link" href="${esc(st.yt_url)}" target="_blank" rel="noopener">${esc(st.yt_url)}</a>` : "";
-  $("#ideas").innerHTML = "";
-  loadKeywords();
-  checkYt();
+  try {
+    let [st, d] = await Promise.all([api("/api/status"), api("/api/output")]);
+    if (!st.has_video || !d.title) {
+      const lib = await api("/api/library").catch(() => null);
+      if (lib && lib.projects && lib.projects.length) {
+        await api(`/api/library/${lib.projects[0].id}/load`, {}).catch(() => {});
+        [st, d] = await Promise.all([api("/api/status"), api("/api/output")]);
+      }
+    }
+    const has = st.has_video;
+    $("#review-empty").hidden = has;
+    $$(".review-part").forEach(el => el.hidden = !has);
+    if (!has) return;
+    $("#player").classList.toggle("shorts", d.video_type === "shorts");
+    $("#player").innerHTML = `<video controls preload="metadata" src="/video?t=${Date.now()}"></video>`;
+    $("#thumb-wrap").innerHTML = st.has_thumb ? `<img src="/thumbnail/${Date.now()}" alt="Thumbnail">` : `<div class="empty">No thumbnail yet</div>`;
+    loadThumb();
+    $("#review-src").textContent = st.library_id ? "from My videos" : "";
+    $("#dl-thumb").hidden = !st.has_thumb;
+    $("#dl-srt").hidden = !st.has_captions;
+    saved = { title: d.title || "", desc: d.description || "", tags: [...(d.tags || [])] };
+    fillMeta(saved);
+    $("#sections").innerHTML = (d.sections || []).map((s, i) => `
+      <details class="section"><summary><span class="n">${String(i + 1).padStart(2, "0")}</span><span>${esc(s.title || s.section_type || "Section")}</span><span class="tag">${esc(s.section_type || "")}</span></summary><p>${esc(s.narration || "")}</p></details>`).join("") || `<div class="hint">No script</div>`;
+    const credits = d.credits || [];
+    const bySrc = credits.reduce((a, c) => (a[c.source] = (a[c.source] || 0) + 1, a), {});
+    $("#review-sources").innerHTML = sourcesHTML(d.sources) +
+      (credits.length ? `<div class="label" style="margin:16px 0 8px">Where the images came from</div><div class="chips">${Object.entries(bySrc).map(([k, v]) => `<span class="chip" style="cursor:default">${esc(k)} <span class="count">${v}</span></span>`).join("")}</div>` : "");
+    $("#upload-status").innerHTML = st.yt_url ? `Already on YouTube: <a class="link" href="${esc(st.yt_url)}" target="_blank" rel="noopener">${esc(st.yt_url)}</a>` : "";
+    $("#ideas").innerHTML = "";
+    loadKeywords();
+    checkYt();
+  } catch (err) {
+    console.error("loadReview failed:", err);
+  }
 }
 function sourcesHTML(sources) {
   if (!sources || !sources.length) return `<div class="hint">No fact-check sources for this video.</div>`;
@@ -1366,6 +1508,29 @@ async function scoreSEO() {
   $("#seo-checks").innerHTML = todo.map(c => `<div class="check"><span class="mk">→</span><span>${esc(c.tip)}</span></div>`).join("") +
     (r.checks.length - todo.length ? `<div class="check ok"><span class="mk">✓</span><span class="dim">${r.checks.length - todo.length} checks passed</span></div>` : "");
 }
+
+$("#auto-optimize-seo-btn").onclick = async () => {
+  const b = $("#auto-optimize-seo-btn");
+  busy(b, true, "⚡ Optimizing to 100/100…");
+  try {
+    const r = await api("/api/seo/auto-optimize", {
+      title: $("#edit-title").value,
+      description: $("#edit-desc").value,
+      tags: tags,
+    });
+    if (!r.ok) throw new Error(r.error || "Failed to auto-optimize");
+    $("#edit-title").value = r.title;
+    $("#edit-desc").value = r.description;
+    tags = r.tags;
+    renderTags();
+    await saveMeta();
+    await scoreSEO();
+    toast("✨ Successfully Auto-Optimized to 100/100!", "ok");
+  } catch (e) {
+    toast("Optimization failed: " + e.message, "err");
+  }
+  busy(b, false);
+};
 async function loadKeywords() {
   $("#kw-chips").innerHTML = `<span class="hint">Asking YouTube what people search…</span>`;
   try {
@@ -1479,15 +1644,68 @@ $$("#upload-seg button").forEach(b => b.onclick = () => {
   $("#upane-schedule").hidden = uploadMode === "now";
   $("#upload-btn").textContent = uploadMode === "now" ? "Upload to YouTube" : "Schedule on YouTube";
 });
+let ytConnected = false;
 async function checkYt() {
   const d = await api("/api/yt-status").catch(() => null);
   if (!d) return;
-  $("#upload-btn").disabled = !d.secret;
-  $("#yt-setup").innerHTML = !d.secret
-    ? `<span class="tag amber">one-time setup</span> To upload from here, connect your YouTube account once (about 10 minutes, free). <a href="${SETUP_URL}" target="_blank" rel="noopener">Follow the guide</a>, or download the MP4 above and upload it yourself.`
-    : d.token ? `<span style="color:var(--green)">●</span> Your YouTube account is connected.` : `The first upload opens a Google sign-in window so you can pick your channel.`;
+  ytConnected = !!d.token;
+  const btn = $("#upload-btn");
+  if (!d.secret) {
+    btn.disabled = true;
+    btn.textContent = "OAuth Keys Not Configured";
+    btn.className = "btn btn-ghost btn-lg btn-block";
+    $("#yt-setup").innerHTML = `<span class="tag amber">one-time setup</span> Please add your OAuth Client ID &amp; Secret in <a href="#settings">Settings</a>.`;
+  } else if (!d.token) {
+    btn.disabled = false;
+    btn.textContent = "✦ Link YouTube Channel (Authorize)";
+    btn.className = "btn btn-primary btn-lg btn-block";
+    $("#yt-setup").innerHTML = `<span class="tag amber">Step 1 of 2</span> Click button above to sign in with Google and link your channel.`;
+  } else {
+    btn.disabled = false;
+    btn.textContent = uploadMode === "now" ? "Upload to YouTube" : "Schedule on YouTube";
+    btn.className = "btn btn-green btn-lg btn-block";
+    $("#yt-setup").innerHTML = `<span style="color:var(--green)">●</span> Connected: <b>${esc(d.channel_title || "YouTube Channel")}</b>. Ready to publish!`;
+  }
 }
 $("#upload-btn").onclick = async () => {
+  if (!ytConnected) {
+    const b = $("#upload-btn");
+    busy(b, true, "Starting Google Sign-In…");
+    const r = await api("/api/yt-auth-start", {}).catch(e => ({ ok: false, error: e.message }));
+    busy(b, false);
+    if (!r.ok) return toast(r.error, "err");
+    if (r.auth_url) window.open(r.auth_url, "_blank");
+    toast("Google authorization opened. Select your channel in the popup tab.", "ok");
+    const timer = setInterval(async () => {
+      const s = await api("/api/yt-status").catch(() => null);
+      if (s && s.token) {
+        clearInterval(timer);
+        toast("YouTube Channel Successfully Linked! ✓", "ok");
+        checkYt();
+        refreshYtOAuthStatus();
+      }
+    }, 2000);
+    setTimeout(() => clearInterval(timer), 180000);
+    return;
+  }
+
+  // Auto-optimize to guaranteed 100/100 before publishing
+  try {
+    const opt = await api("/api/seo/auto-optimize", {
+      title: $("#edit-title").value,
+      description: $("#edit-desc").value,
+      tags: tags,
+    });
+    if (opt && opt.ok) {
+      $("#edit-title").value = opt.title;
+      $("#edit-desc").value = opt.description;
+      tags = opt.tags;
+      renderTags();
+      await saveMeta();
+      await scoreSEO();
+    }
+  } catch (e) { console.warn("Pre-publish SEO check:", e); }
+
   if (metaDirty()) await saveMeta();
   let publish_at = "";
   if (uploadMode === "schedule") {
@@ -1498,7 +1716,10 @@ $("#upload-btn").onclick = async () => {
     publish_at = dt.toISOString();
   }
   const r = await api("/api/upload", { privacy: $("#upload-privacy").value, publish_at });
-  if (!r.ok) return toast(r.error, "err");
+  if (!r.ok) {
+    if (r.need_auth) checkYt();
+    return toast(r.error, "err");
+  }
   $("#upload-progress").hidden = false;
   $("#upload-btn").disabled = true;
   $("#upload-status").textContent = "Uploading… keep this window open.";
@@ -1541,7 +1762,7 @@ async function loadLibrary() {
     (items.length ? items.map(m => card(m, isShort)).join("")
       : `<article class="card s24 flat"><div class="empty" style="min-height:90px">None yet. Pick “${isShort ? "Short · 60 s" : "Long video"}” on Home to make one.</div></article>`);
   $("#lib-grid").innerHTML = library.items.length
-    ? section("Long videos", "16:9 · 6–8 min · 1280×720 thumbnails", longs, false) +
+    ? section("Long videos", "16:9 · 10–14 min · 1280×720 thumbnails", longs, false) +
       section("Shorts", "9:16 · ~60 s · vertical thumbnails", shorts, true)
     : `<article class="card s24 flat"><div class="empty">No videos yet. Every video you make is saved here automatically.<a class="btn btn-white" href="#home">Make your first video</a></div></article>`;
   renderLatest();
@@ -1583,7 +1804,12 @@ const RANGES = {
   broll_interval: { to: v => Math.round(v), from: v => +v, label: v => v + " s" },
   broll_xfade:    { to: v => Math.round(v * 10), from: v => v / 10, label: v => (v / 10).toFixed(1) + " s" },
 };
-const TEXT = ["channel_name", "channel_desc", "brand_text", "thumb_style", "gemini_model", "groq_model", "openrouter_model", "render_preset", "kb_start", "kb_end", "privacy", "voice_id", "trends_geo"];
+const TEXT = [
+  "channel_name", "channel_desc", "brand_text", "thumb_style",
+  "gemini_model", "groq_model", "openrouter_model", "render_preset",
+  "kb_start", "kb_end", "privacy", "voice_id", "trends_geo",
+  "yt_client_id", "yt_client_secret", "notification_email", "smtp_user", "smtp_password"
+];
 const BOOLS = ["fact_grounding", "keyless_llm", "music_enabled", "show_brand", "credit_yaas"];
 Object.entries(RANGES).forEach(([k, r]) => { const el = $("#r-" + k); el.addEventListener("input", () => $("#v-" + k).textContent = r.label(+el.value)); });
 
@@ -1591,13 +1817,86 @@ let settingsSnap = "";
 function collectSettings() {
   const body = {};
   KEYS.forEach(([id]) => body[id] = $("#s-" + id).value);
-  TEXT.forEach(k => body[k] = $("#s-" + k).value);
+  TEXT.forEach(k => { const el = $("#s-" + k); if (el) body[k] = el.value; });
   BOOLS.forEach(k => body[k] = $("#s-" + k).checked);
   Object.entries(RANGES).forEach(([k, r]) => body[k] = r.from(+$("#r-" + k).value));
   body.image_sources = $$("#img-sources input:checked").map(i => i.value);
   return body;
 }
 const settingsDirty = () => settingsSnap && JSON.stringify(collectSettings()) !== settingsSnap;
+async function refreshYtOAuthStatus() {
+  const d = await api("/api/yt-status").catch(() => null);
+  if (!d) return;
+  const pill = $("#yt-oauth-pill");
+  const txt = $("#yt-oauth-status-text");
+  const btnAuth = $("#btn-yt-auth");
+  const btnDisc = $("#btn-yt-disconnect");
+  if (d.token) {
+    pill.className = "status-pill on";
+    txt.textContent = d.channel_title ? `Connected: ${d.channel_title}` : "Connected & Ready to Upload";
+    btnAuth.textContent = "Re-authorize Channel";
+    btnDisc.style.display = "inline-block";
+  } else if (d.secret) {
+    pill.className = "status-pill amber";
+    txt.textContent = "Credentials Ready (Click to Authorize)";
+    btnAuth.textContent = "✦ Link / Authorize YouTube Channel";
+    btnDisc.style.display = "none";
+  } else {
+    pill.className = "status-pill";
+    txt.textContent = "Not Configured";
+    btnAuth.textContent = "✦ Link / Authorize YouTube Channel";
+    btnDisc.style.display = "none";
+  }
+}
+$("#btn-yt-auth").onclick = async () => {
+  const b = $("#btn-yt-auth");
+  busy(b, true, "Starting Google Login…");
+  const r = await api("/api/yt-auth-start", {}).catch(e => ({ ok: false, error: e.message }));
+  busy(b, false);
+  if (!r.ok) return toast(r.error, "err");
+  if (r.auth_url) window.open(r.auth_url, "_blank");
+  toast("Google sign-in opened. Check your browser to pick your channel.", "ok");
+  const timer = setInterval(async () => {
+    const s = await api("/api/yt-status").catch(() => null);
+    if (s && s.token) {
+      clearInterval(timer);
+      toast("YouTube Channel Successfully Linked! ✓", "ok");
+      refreshYtOAuthStatus();
+      checkYt();
+      loadHealth();
+    }
+  }, 2500);
+  setTimeout(() => clearInterval(timer), 120000);
+};
+$("#btn-yt-disconnect").onclick = async () => {
+  await api("/api/yt-disconnect", {});
+  toast("YouTube account disconnected");
+  refreshYtOAuthStatus();
+  checkYt();
+  loadHealth();
+};
+$("#btn-save-json").onclick = async () => {
+  const raw = $("#s-client_secret_json").value.trim();
+  if (!raw) return toast("Paste JSON content first", "err");
+  const r = await api("/api/yt-upload-secret", { json_content: raw });
+  if (!r.ok) return toast(r.error, "err");
+  toast("client_secret.json applied!", "ok");
+  $("#s-client_secret_json").value = "";
+  loadSettings();
+};
+$("#btn-exchange-code").onclick = async () => {
+  const raw = $("#s-callback-url").value.trim();
+  if (!raw) return toast("Paste callback URL or code first", "err");
+  const b = $("#btn-exchange-code");
+  busy(b, true, "Exchanging…");
+  const r = await api("/api/yt-auth-exchange", { code: raw });
+  busy(b, false);
+  if (!r.ok) return toast(r.error, "err");
+  toast("YouTube Channel Successfully Linked! ✓", "ok");
+  $("#s-callback-url").value = "";
+  refreshYtOAuthStatus();
+  checkYt();
+};
 async function loadSettings() {
   const d = settings = await api("/api/settings");
   KEYS.forEach(([id]) => { const el = $("#s-" + id); el.value = d[id] || ""; el.placeholder = id === "youtube_channel" ? "@yourhandle" : "not set (optional)"; });
@@ -1613,6 +1912,7 @@ async function loadSettings() {
   settingsSnap = JSON.stringify(collectSettings());
   settingsChanged();
   renderChecklist();
+  refreshYtOAuthStatus();
 }
 function settingsChanged() {
   if (location.hash === "#settings") $("#savebar").classList.toggle("show", !!settingsDirty());
@@ -1654,6 +1954,7 @@ setHero("form");
 route();
 pollStatus();
 loadTrends();
+loadWeeklyPlan();
 loadHealth();
 loadSettings().catch(() => {});
 document.fonts && document.fonts.ready.then(moveIndicator);

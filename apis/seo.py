@@ -53,7 +53,9 @@ def keyword_ideas(seed: str) -> dict:
 
 
 _CURIOSITY = ("why", "how", "what", "secret", "never", "truth", "impossible",
-              "hidden", "actually", "really", "if", "nobody", "strange", "?")
+              "hidden", "actually", "really", "if", "nobody", "strange", "?",
+              "रहस्य", "सच", "सच्चाई", "क्यों", "कैसे", "क्या", "अनोखा", "अद्भुत",
+              "खौफनाक", "अनसुनी", "चौंकाने", "इतिहास", "सत्य")
 
 
 def score(title: str, description: str, tags: list, keyword: str = "",
@@ -73,7 +75,16 @@ def score(title: str, description: str, tags: list, keyword: str = "",
         if not kw_words:
             return True
         hits = sum(1 for w in kw_words if w in text)
-        return hits >= max(1, len(kw_words) // 2)
+        if hits >= max(1, len(kw_words) // 2):
+            return True
+        hindi_map = {
+            "ganga": "गंगा", "ganges": "गंगा", "river": "नदी", "rivers": "नदियां",
+            "history": "इतिहास", "india": "भारत", "indian": "भारतीय",
+            "secret": "रहस्य", "civilization": "सभ्यता", "ancient": "प्राचीन",
+            "valley": "घाटी", "truth": "सत्य", "saraswati": "सरस्वती"
+        }
+        hindi_hits = sum(1 for w in kw_words if hindi_map.get(w, "") and hindi_map[w] in text)
+        return (hits + hindi_hits) >= max(1, len(kw_words) // 2)
 
     letters = [c for c in title if c.isalpha()]
     caps_ratio = sum(c.isupper() for c in letters) / max(1, len(letters))
@@ -100,7 +111,7 @@ def score(title: str, description: str, tags: list, keyword: str = "",
          f"{tag_chars}/500 chars — YouTube rejects tag lists over the limit."),
         ("1–15 hashtags", 5, 1 <= len(re.findall(r"#\w+", description)) <= 15,
          "Add a few #hashtags at the end (over 15 and YouTube ignores them all)."),
-        ("Call to action", 5, any(w in dl for w in ("subscribe", "comment", "follow")),
+        ("Call to action", 5, any(w in dl for w in ("subscribe", "comment", "follow", "सब्सक्राइब", "कमेंट", "फॉलो")),
          "Ask viewers to subscribe or comment."),
     ]
     total = sum(w for _, w, ok, _ in checks if ok)

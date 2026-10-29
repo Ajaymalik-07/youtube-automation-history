@@ -23,20 +23,15 @@ _BUILTIN_BANNED = [
     "Quantum Immortality",
 ]
 
-# All available focus angles — used by researcher AND exposed to the GUI
+# All available focus angles — matches the channel's 7-Day Weekly Content Calendar
 FOCUS_ANGLES = [
-    "Theoretical Physics & Time Travel",
-    "The Dark Forest Theory & Aliens",
-    "Existential Human Psychology & Illusions",
-    "Frightening AI Futures & Simulation Theory",
-    "Mind-bending Mathematical Paradoxes",
-    "The limits of Human Biology & Immortality",
-    "Quantum Mechanics & Alternate Realities",
-    "Cosmic scale, Black Holes, and the end of the Universe",
-    "Neuroscience & the Mystery of Consciousness",
-    "Ancient Civilisations & Lost History",
-    "Cutting-edge Biotechnology & Genetic Engineering",
-    "The Future of Space Colonisation",
+    "Rivers & Ancient Civilizations (Monday)",
+    "Ghosts & Haunted Places (Tuesday)",
+    "Kings, Queens & Empires (Wednesday)",
+    "Ancient Mysteries (Thursday)",
+    "Wars & Battles (Friday)",
+    "Lost Cities & Forgotten Places (Saturday)",
+    "Historical Stories & Legends (Sunday)",
 ]
 
 
@@ -144,7 +139,7 @@ about "{exact_topic}". The user has explicitly requested this topic.
 BANNED TOPICS: Do NOT include any of these in the output: {banned_str}
 If the requested topic conflicts with a banned one, still write about it (user override).
 
-Your mission: Research and plan a compelling 6-8 minute YouTube video about "{exact_topic}".
+Your mission: Research and plan a compelling 10-14 minute YouTube documentary about "{exact_topic}".
 {facts_block}
 Respond with ONLY a valid JSON object. No markdown fences, no explanation:
 
@@ -172,40 +167,41 @@ Respond with ONLY a valid JSON object. No markdown fences, no explanation:
         return data
 
     # ── MODE 2: AI PICKS THE TOPIC ───────────────────────────────────────────
-    # Use focus_angle if supplied by the GUI dropdown; otherwise pick randomly.
+    # Use focus_angle if supplied; otherwise auto-select today's Weekly Content Calendar theme!
     if focus_angle.strip():
         chosen_angle = focus_angle.strip()
-        print(f"   → Focus angle (GUI selected): {chosen_angle}")
+        print(f"   → Focus angle (selected): {chosen_angle}")
     else:
-        chosen_angle = random.choice(FOCUS_ANGLES)
-        print(f"   → Focus angle (random): {chosen_angle}")
+        weekly_theme_info = config.get_weekly_theme()
+        chosen_angle = f"{weekly_theme_info['theme']} ({weekly_theme_info['day']})"
+        print(f"   → Focus angle (Weekly Plan: {weekly_theme_info['day']}): {weekly_theme_info['theme']} [{weekly_theme_info['theme_hi']}]")
 
-    print(f"   → Asking the AI for topic ideas within: {chosen_angle}")
+    print(f"   → Asking AI for documentary topic within theme: {chosen_angle}")
 
     trend_block = ""
     if trend_context:
         print(f"   → Trend-aware: {len(trend_context)} live headlines from Trend Radar")
         joined = "\n".join(f"  - {t}" for t in trend_context[:25])
         trend_block = (
-            "4. TRENDING RIGHT NOW (news, papers, search spikes):\n"
+            "4. TRENDING RIGHT NOW (news, papers, archaeological discoveries):\n"
             f"{joined}\n"
             "   If one of these connects naturally to the theme, build the video around it "
             "for timeliness and say so in \"why_now\". If none fit, ignore them.\n"
         )
 
-    prompt = f"""You are a top YouTube content strategist for a viral science/tech channel.
+    prompt = f"""You are a top YouTube content strategist for a viral History and Ancient Civilizations documentary channel.
 
 Channel description:
 {channel_description}
 
 CRITICAL INSTRUCTIONS FOR THIS RUN:
-1. Focus entirely on this specific theme: >>> {chosen_angle} <<<
+1. Focus entirely on this specific weekly theme: >>> {chosen_angle} <<<
 2. BANNED TOPICS: Do NOT suggest any of the following — we already made videos about them: {banned_str}. You must give me a brand new, highly original concept.
 3. Cache Bust ID: {time.time()} (Ensure completely unique output).
 {trend_block}
 Your mission:
 1. Think of 3-4 highly compelling video topic ideas within that specific theme.
-2. Select the single BEST topic that is genuinely mind-blowing, timely, and explainable in 6-8 minutes.
+2. Select the single BEST topic that is genuinely mind-blowing, timely, and suited for a deep 10-14 minute documentary.
 
 Respond with ONLY a valid JSON object. No markdown fences, no explanation:
 

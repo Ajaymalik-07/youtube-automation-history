@@ -15,6 +15,13 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)   # relative paths (output/, token file) resolve the same from anywhere
 
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # Module-level imports from agents (sys.path is set above)
 from agents.researcher import load_banned_topics, save_banned_topics
 
@@ -177,13 +184,10 @@ def _credit_lines(credits, detailed=True):
         lines.append("Some visuals are AI-generated.")
     return lines
 
-CREDIT_LINE = "🎬 Made with YAAS by Raunak Patil · https://raunakpatil.com"
+CREDIT_LINE = ""
 
 def _with_credit(desc):
-    """Add the credit to descriptions written before it existed."""
-    if getattr(config, "CREDIT_YAAS", True) and "raunakpatil.com" not in (desc or ""):
-        return (desc or "").rstrip() + "\n\n" + CREDIT_LINE
-    return desc
+    return desc or ""
 
 def _build_description(script, research, video_type: str = "normal"):
     sections = script.get("sections", [])
@@ -263,6 +267,164 @@ def _read_meta(pid):
 def _write_meta(pid, meta):
     with open(_lib_path(pid, "meta.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
+
+def _ensure_active_project():
+    """Ensure _state has a video loaded if output files or library projects exist."""
+    if _state.get("running"):
+        return
+
+    # 1. Try loading from existing output/ directory files
+    script_file = os.path.join(config.OUTPUT_DIR, "script.json")
+    research_file = os.path.join(config.OUTPUT_DIR, "research.json")
+    vp_short = os.path.join(config.OUTPUT_DIR, "final_short.mp4")
+    vp_norm = os.path.join(config.OUTPUT_DIR, "final_video.mp4")
+    thumb_path = os.path.join(config.OUTPUT_DIR, "thumbnail.jpg")
+
+    script = None
+    if os.path.exists(script_file):
+        try:
+            with open(script_file, encoding="utf-8") as f:
+                script = json.load(f)
+        except Exception:
+            script = None
+
+    vtype = script.get("video_type", "normal") if script else "normal"
+    video_path = None
+
+    # Strictly prioritize the video matching script.json's video_type
+    if vtype == "shorts":
+        video_path = vp_short if os.path.exists(vp_short) else (vp_norm if os.path.exists(vp_norm) else None)
+    else:
+        video_path = vp_norm if os.path.exists(vp_norm) else (vp_short if os.path.exists(vp_short) else None)
+
+    # If both files exist, ensure newer video matching script is selected
+    if os.path.exists(vp_norm) and os.path.exists(vp_short):
+        if vtype == "normal" and os.path.exists(vp_norm):
+            video_path = vp_norm
+        elif vtype == "shorts" and os.path.exists(vp_short):
+            video_path = vp_short
+        else:
+            video_path = max([vp_norm, vp_short], key=os.path.getmtime)
+            vtype = "shorts" if video_path == vp_short else "normal"
+
+    # Check if loaded state in memory is already up-to-date with disk
+    mtimes = [os.path.getmtime(p) for p in (script_file, video_path) if p and os.path.exists(p)]
+    current_mtime = max(mtimes) if mtimes else 0
+
+    if (_state.get("video_path") == video_path and
+        _state.get("script") and
+        _state.get("_loaded_mtime", 0) >= current_mtime and
+        os.path.exists(_state["video_path"])):
+        return
+
+    research = None
+    if os.path.exists(research_file):
+        try:
+            with open(research_file, encoding="utf-8") as f:
+                research = json.load(f)
+        except Exception:
+            research = None
+
+    if video_path and script:
+        image_map = {}
+        images_dir = getattr(config, "IMAGES_DIR", os.path.join(config.OUTPUT_DIR, "images"))
+        if os.path.isdir(images_dir):
+            for i in range(1, len(script.get("sections", [])) + 1):
+                imgs = sorted(glob.glob(os.path.join(images_dir, f"section_{i:02d}_img*.jpg")))
+                if imgs:
+                    image_map[i] = imgs
+
+        library_id = None
+        if os.path.isdir(LIB_DIR):
+            pids = sorted([p for p in os.listdir(LIB_DIR) if os.path.isdir(os.path.join(LIB_DIR, p))], reverse=True)
+            for pid in pids:
+                try:
+                    meta = _read_meta(pid)
+                    if script.get("title") and meta.get("title") and meta.get("title").strip() == script.get("title").strip():
+                        library_id = pid
+                        break
+                except Exception:
+                    continue
+
+        desc = script.get("description", "")
+        if not desc or len(desc) < 250 or (vtype != "shorts" and "CHAPTERS" not in desc):
+            if research:
+                desc = _build_description(script, research, vtype)
+
+        try:
+            from agents.seo_optimizer import optimize_for_100_percent
+            topic = (research or {}).get("topic", "")
+            opt = optimize_for_100_percent(
+                title=script.get("title", ""),
+                description=desc,
+                tags=script.get("tags", []),
+                sections=script.get("sections", []),
+                topic=topic,
+                is_shorts=(vtype == "shorts"),
+                keyword=topic,
+            )
+            script["title"] = opt["title"]
+            script["tags"] = opt["tags"]
+            desc = opt["description"]
+        except Exception:
+            pass
+        _state.update({
+            "script": script,
+            "research": research,
+            "video_type": vtype,
+            "video_path": video_path,
+            "thumb_path": thumb_path if os.path.exists(thumb_path) else None,
+            "thumb_bg": None,
+            "image_map": image_map,
+            "description": _with_credit(desc),
+            "library_id": library_id,
+            "_loaded_mtime": current_mtime,
+            "stages": {
+                "research": "done" if research else "pending",
+                "script": "done",
+                "images": "done" if image_map else "pending",
+                "narration": "done" if os.path.exists(os.path.join(config.OUTPUT_DIR, "narration.mp3")) else "pending",
+                "video": "done",
+            },
+            "error": None,
+        })
+        return
+
+    # 2. If output/ didn't have both, load from latest project in Library
+    if os.path.isdir(LIB_DIR):
+        pids = sorted([p for p in os.listdir(LIB_DIR) if os.path.isdir(os.path.join(LIB_DIR, p))], reverse=True)
+        for pid in pids:
+            try:
+                meta = _read_meta(pid)
+                s_path = _lib_path(pid, "script.json")
+                v_path = _lib_path(pid, "video.mp4")
+                if os.path.exists(s_path) and os.path.exists(v_path):
+                    with open(s_path, encoding="utf-8") as f: s = json.load(f)
+                    r_path = _lib_path(pid, "research.json")
+                    r = {}
+                    if os.path.exists(r_path):
+                        with open(r_path, encoding="utf-8") as f: r = json.load(f)
+                    cover = _lib_path(pid, "cover.jpg")
+                    _state.update({
+                        "script": s,
+                        "research": r,
+                        "video_type": meta.get("video_type", "normal"),
+                        "video_path": v_path,
+                        "thumb_path": _lib_path(pid, "thumbnail.jpg"),
+                        "thumb_bg": None if glob.glob(_lib_path(pid, "photos", "*.jpg")) else (cover if os.path.exists(cover) else None),
+                        "image_map": {1: sorted(glob.glob(_lib_path(pid, "photos", "*.jpg")))},
+                        "description": _with_credit(meta.get("description") or _build_description(s, r, meta.get("video_type", "normal"))),
+                        "yt_url": meta.get("yt_url"),
+                        "library_id": pid,
+                        "thumb_style": meta.get("thumb_style"),
+                        "thumb_text": meta.get("thumb_text"),
+                        "thumb_bg_index": 0,
+                        "stages": {"research": "done", "script": "done", "images": "done", "narration": "done", "video": "done"},
+                        "error": None,
+                    })
+                    return
+            except Exception:
+                continue
 
 def _archive_project():
     """Copy the finished render + metadata into the Library. Copies, never hard-links:
@@ -428,7 +590,7 @@ def _run_pipeline(steps: list, topic_override: str = "", video_type: str = "norm
         if "script" in steps:
             _stage("script", "running")
             _log(f"Generating {'Shorts' if video_type == 'shorts' else 'normal'} script…")
-            script = write_script(research, video_type=video_type)
+            script = write_script(research, video_type=video_type, language=getattr(config, "DEFAULT_LANGUAGE", "hi"))
             _state["script"] = script
             with open(f"{config.OUTPUT_DIR}/script.json", "w", encoding="utf-8") as f:
                 json.dump(script, f, indent=2)
@@ -464,7 +626,10 @@ def _run_pipeline(steps: list, topic_override: str = "", video_type: str = "norm
         # ── Narration ─────────────────────────────────────────
         if "narration" in steps:
             _stage("narration", "running")
-            audio_path = generate_narration(script, config.OUTPUT_DIR)
+            audio_path = generate_narration(
+                script, config.OUTPUT_DIR,
+                voice_id=getattr(config, "VOICE_ID", "hi-IN-MadhurNeural")
+            )
             _state["audio_path"] = audio_path
             _stage("narration", "done")
         else:
@@ -519,10 +684,30 @@ def _run_pipeline(steps: list, topic_override: str = "", video_type: str = "norm
             vp = vp_short if os.path.exists(vp_short) else vp_norm
             _state["video_path"] = vp if os.path.exists(vp) else None
 
-        # ── Build description ─────────────────────────────────
+        # ── Build description & 100/100 SEO ──────────────────
         if _state["research"] and _state["script"]:
             _state["description"] = _build_description(
                 _state["script"], _state["research"], video_type=video_type)
+            try:
+                from agents.seo_optimizer import optimize_for_100_percent
+                topic = (_state.get("research") or {}).get("topic", "")
+                opt = optimize_for_100_percent(
+                    title=_state["script"].get("title", ""),
+                    description=_state["description"],
+                    tags=_state["script"].get("tags", []),
+                    sections=_state["script"].get("sections", []),
+                    topic=topic,
+                    is_shorts=(video_type == "shorts"),
+                    keyword=topic,
+                )
+                _state["script"]["title"] = opt["title"]
+                _state["script"]["tags"] = opt["tags"]
+                _state["description"] = opt["description"]
+                with open(f"{config.OUTPUT_DIR}/script.json", "w", encoding="utf-8") as f:
+                    json.dump(_state["script"], f, indent=2, ensure_ascii=False)
+                _log(f"SEO Auto-Optimized: {opt['score']}/100", "info")
+            except Exception as e:
+                _log(f"SEO auto-optimization non-fatal warning: {e}", "warn")
 
         # ── Archive to Library ───────────────────────────────
         if "video" in steps:
@@ -558,6 +743,10 @@ def _run_pipeline(steps: list, topic_override: str = "", video_type: str = "norm
 # ══════════════════════════════════════════════════════════════════════════════
 
 app = Flask(__name__, template_folder="gui_templates")
+try:
+    _ensure_active_project()
+except Exception:
+    pass
 
 
 @app.route("/")
@@ -616,6 +805,7 @@ def stop_pipeline():
 
 @app.route("/api/status")
 def status():
+    _ensure_active_project()
     from agents import gemini_client
     return jsonify({
         "running":        _state["running"],
@@ -649,12 +839,28 @@ def _send(path, mimetype, name=None):
 
 @app.route("/video")
 def serve_video():
-    return _send(_state.get("video_path"), "video/mp4",
+    _ensure_active_project()
+    vp = _state.get("video_path")
+    if not vp or not os.path.exists(vp):
+        vtype = _state.get("video_type", "normal")
+        cands = ("final_video.mp4", "final_short.mp4") if vtype == "normal" else ("final_short.mp4", "final_video.mp4")
+        for cand in cands:
+            p = os.path.join(config.OUTPUT_DIR, cand)
+            if os.path.exists(p):
+                vp = p
+                break
+    return _send(vp, "video/mp4",
                  f"{_slug((_state.get('script') or {}).get('title'))}.mp4")
 
 @app.route("/thumbnail")
 def serve_thumb():
-    return _send(_state.get("thumb_path"), "image/jpeg", "thumbnail.jpg")
+    _ensure_active_project()
+    tp = _state.get("thumb_path")
+    if not tp or not os.path.exists(tp):
+        p = os.path.join(config.OUTPUT_DIR, "thumbnail.jpg")
+        if os.path.exists(p):
+            tp = p
+    return _send(tp, "image/jpeg", "thumbnail.jpg")
 
 @app.route("/thumbnail/<int:ts>")  # cache-busting route
 def serve_thumb_ts(ts):
@@ -669,6 +875,7 @@ def serve_captions():
 
 @app.route("/api/output")
 def get_output():
+    _ensure_active_project()
     s = _state.get("script") or {}
     r = _state.get("research") or {}
     return jsonify({
@@ -685,6 +892,66 @@ def get_output():
         "sources":     (r.get("grounding") or {}).get("sources", []),
         "credits":     _load_credits(),
         "video_type":  _state.get("video_type", "normal"),
+    })
+
+
+@app.route("/api/automation/status")
+def get_automation_status():
+    try:
+        from automation import load_schedule_state, get_current_ist_time, is_configured
+        state = load_schedule_state()
+        now_ist = get_current_ist_time()
+        target_hour = state.get("longform_target_hour_ist", 19)
+        trigger_hour = state.get("prerender_day_before_hour_ist", 20)
+        today_theme = config.get_weekly_theme()
+        current_day = now_ist.strftime("%A")
+        plan_list = []
+        for d_name, d_info in config.WEEKLY_THEMES.items():
+            plan_list.append({
+                "day": d_name,
+                "theme": d_info["theme"],
+                "theme_hi": d_info["theme_hi"],
+                "description": d_info["description"],
+                "sample_topics": d_info["sample_topics"],
+                "is_today": (d_name == current_day),
+            })
+
+        return jsonify({
+            "ok": True,
+            "current_time_ist": now_ist.strftime("%A, %d %b %Y — %I:%M:%S %p IST"),
+            "today_theme": today_theme,
+            "weekly_plan": plan_list,
+            "target_release_ist": f"{target_hour}:00 IST",
+            "pre_render_trigger_ist": f"{trigger_hour}:00 IST",
+            "shorts_windows": state.get("shorts_hours_ist", []),
+            "youtube_configured": is_configured(),
+            "slot_performance": state.get("slot_performance", {}),
+            "history_runs": state.get("history_runs", [])[-10:],
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route("/api/weekly-plan")
+def get_weekly_plan():
+    from automation import get_current_ist_time
+    now_ist = get_current_ist_time()
+    current_day = now_ist.strftime("%A")
+    plan = []
+    for d_name, d_info in config.WEEKLY_THEMES.items():
+        plan.append({
+            "day": d_name,
+            "theme": d_info["theme"],
+            "theme_hi": d_info["theme_hi"],
+            "description": d_info["description"],
+            "keywords": d_info.get("keywords", []),
+            "sample_topics": d_info["sample_topics"],
+            "is_today": (d_name == current_day),
+        })
+    return jsonify({
+        "ok": True,
+        "current_day": current_day,
+        "today_theme": config.get_weekly_theme(),
+        "plan": plan
     })
 
 @app.route("/api/research")
@@ -783,6 +1050,7 @@ def _thumb_info():
 @app.route("/api/thumbnail", methods=["GET", "POST"])
 def thumbnail_api():
     """GET: current design. POST {style?, text?, bg?: next|prev|photo|ai, previews?}: change + re-render."""
+    _ensure_active_project()
     if request.method == "GET":
         return jsonify(_thumb_info())
     script = _state.get("script")
@@ -909,6 +1177,32 @@ def seo_score():
                              b.get("keyword") or _primary_keyword(),
                              is_shorts=_state.get("video_type") == "shorts"))
 
+@app.route("/api/seo/auto-optimize", methods=["POST"])
+def seo_auto_optimize():
+    from agents.seo_optimizer import optimize_for_100_percent
+    b = request.get_json(force=True) or {}
+    t = b.get("title") or (_state.get("script") or {}).get("title", "")
+    d = b.get("description") or _state.get("description", "")
+    tags = b.get("tags") or (_state.get("script") or {}).get("tags", [])
+    topic = b.get("keyword") or _primary_keyword()
+    is_shorts = (_state.get("video_type") == "shorts")
+    sections = (_state.get("script") or {}).get("sections", [])
+    opt = optimize_for_100_percent(
+        title=t, description=d, tags=tags,
+        sections=sections, topic=topic, is_shorts=is_shorts, keyword=topic
+    )
+    if _state.get("script"):
+        _state["script"]["title"] = opt["title"]
+        _state["script"]["tags"] = opt["tags"]
+        _state["description"] = opt["description"]
+        try:
+            with open(os.path.join(config.OUTPUT_DIR, "script.json"), "w", encoding="utf-8") as f:
+                json.dump(_state["script"], f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+    _sync_library()
+    return jsonify({"ok": True, **opt})
+
 @app.route("/api/keywords")
 def keywords():
     from apis import seo
@@ -944,11 +1238,20 @@ def channel_stats():
 # ── API stack health ──────────────────────────────────────────────────────────
 
 def _secret_ok():
+    cid = os.getenv("YOUTUBE_CLIENT_ID", "").strip()
+    csec = os.getenv("YOUTUBE_CLIENT_SECRET", "").strip()
+    if cid and csec and "YOUR_CLIENT_ID" not in cid and "YOUR_CLIENT_SECRET" not in csec:
+        config.sync_client_secret_file()
+        return True
     try:
-        with open(config.YOUTUBE_CLIENT_SECRET, encoding="utf-8") as f:
-            return "YOUR_CLIENT_ID" not in f.read()
+        cs_file = getattr(config, "YOUTUBE_CLIENT_SECRET_FILE", "client_secret.json")
+        if os.path.exists(cs_file):
+            with open(cs_file, encoding="utf-8") as f:
+                content = f.read()
+                return "YOUR_CLIENT_ID" not in content and len(content.strip()) > 20
     except Exception:
-        return False
+        pass
+    return False
 
 def _providers():
     from agents.gemini_client import gemini_configured
@@ -1087,16 +1390,145 @@ def library_delete(pid):
 @app.route("/api/yt-status")
 def yt_status():
     token_ok = os.path.exists("youtube_token.pickle")
-    return jsonify({"token": token_ok, "secret": _secret_ok()})
+    secret_ok = _secret_ok()
+    channel_title = ""
+    if token_ok:
+        try:
+            from uploader.youtube import _get_service
+            yt = _get_service()
+            ch = yt.channels().list(mine=True, part="snippet").execute()
+            if ch.get("items"):
+                channel_title = ch["items"][0]["snippet"]["title"]
+        except Exception:
+            pass
+    return jsonify({
+        "token": token_ok,
+        "secret": secret_ok,
+        "channel_title": channel_title,
+        "client_id": _mask(os.getenv("YOUTUBE_CLIENT_ID", "")),
+        "has_client_id": bool(os.getenv("YOUTUBE_CLIENT_ID", "")),
+    })
+
+@app.route("/api/yt-auth-start", methods=["POST"])
+def yt_auth_start():
+    if not _secret_ok():
+        return jsonify({"ok": False, "error": "OAuth Client ID / Secret not set yet. Please enter them in Settings and save first."})
+
+    try:
+        import secrets
+        from google_auth_oauthlib.flow import InstalledAppFlow
+        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+        cs_file = getattr(config, "YOUTUBE_CLIENT_SECRET_FILE", "client_secret.json")
+        flow = InstalledAppFlow.from_client_secrets_file(
+            cs_file, config.YOUTUBE_SCOPES
+        )
+        flow.redirect_uri = "http://localhost:8080/"
+        state_token = secrets.token_urlsafe(24)
+        auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", state=state_token)
+
+        def _flow():
+            try:
+                import pickle as pkl
+                token_path = os.path.join(ROOT, "youtube_token.pickle")
+                creds = flow.run_local_server(
+                    bind_addr="0.0.0.0", port=8080, open_browser=False,
+                    timeout_seconds=300, state=state_token
+                )
+                with open(token_path, "wb") as f:
+                    pkl.dump(creds, f)
+                print(f"[AUTH SUCCESS] YouTube credentials saved to {token_path}")
+                _log("YouTube account successfully authorized! ✓")
+            except Exception as e:
+                print(f"[AUTH ERROR] YouTube authorization failed: {e}")
+                _log(f"YouTube authorization error: {e}", "error")
+
+        threading.Thread(target=_flow, daemon=True).start()
+        return jsonify({"ok": True, "auth_url": auth_url, "message": "Opening Google authorization page in your browser..."})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route("/api/yt-auth-exchange", methods=["POST"])
+def yt_auth_exchange():
+    """Fallback manual exchange if redirect URL is pasted."""
+    body = request.get_json(force=True) or {}
+    raw_code = body.get("code", "").strip()
+    if not raw_code:
+        return jsonify({"ok": False, "error": "No code provided"})
+
+    # Extract code if full URL was pasted
+    if "code=" in raw_code:
+        import urllib.parse
+        parsed = urllib.parse.urlparse(raw_code)
+        qs = urllib.parse.parse_qs(parsed.query)
+        code = qs.get("code", [""])[0]
+    else:
+        code = raw_code
+
+    try:
+        import pickle as pkl
+        from google_auth_oauthlib.flow import InstalledAppFlow
+        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+        cs_file = getattr(config, "YOUTUBE_CLIENT_SECRET_FILE", "client_secret.json")
+        flow = InstalledAppFlow.from_client_secrets_file(cs_file, config.YOUTUBE_SCOPES)
+        flow.redirect_uri = "http://localhost:8080/"
+        flow.fetch_token(code=code)
+        token_path = os.path.join(ROOT, "youtube_token.pickle")
+        with open(token_path, "wb") as f:
+            pkl.dump(flow.credentials, f)
+        print(f"[AUTH SUCCESS] Exchanged code and saved token to {token_path}")
+        return jsonify({"ok": True})
+    except Exception as e:
+        print(f"[AUTH EXCHANGE ERROR] {e}")
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route("/api/yt-disconnect", methods=["POST"])
+def yt_disconnect():
+    token_path = "youtube_token.pickle"
+    if os.path.exists(token_path):
+        try:
+            os.remove(token_path)
+            return jsonify({"ok": True})
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)})
+    return jsonify({"ok": True})
+
+@app.route("/api/yt-upload-secret", methods=["POST"])
+def yt_upload_secret():
+    body = request.get_json(force=True) or {}
+    raw = body.get("json_content", "").strip()
+    if not raw:
+        return jsonify({"ok": False, "error": "No JSON content provided"})
+    try:
+        data = json.loads(raw)
+        inst = data.get("installed") or data.get("web") or {}
+        cid = inst.get("client_id", "")
+        csec = inst.get("client_secret", "")
+        if not cid or not csec or "YOUR_CLIENT_ID" in cid:
+            return jsonify({"ok": False, "error": "Invalid client_secret.json (missing client_id or client_secret)"})
+
+        cs_file = getattr(config, "YOUTUBE_CLIENT_SECRET_FILE", "client_secret.json")
+        with open(cs_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        config.save_env({"YOUTUBE_CLIENT_ID": cid, "YOUTUBE_CLIENT_SECRET": csec})
+        return jsonify({"ok": True, "client_id": _mask(cid)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Failed to parse JSON: {e}"})
 
 @app.route("/api/upload", methods=["POST"])
 def upload():
+    _ensure_active_project()
     if _state.get("uploading"):
         return jsonify({"ok": False, "error": "Upload already in progress"})
     if not _state.get("video_path") or not os.path.exists(_state["video_path"]):
         return jsonify({"ok": False, "error": "No video to upload"})
     if not _secret_ok():
-        return jsonify({"ok": False, "error": "client_secret.json is still the placeholder — see SETUP.md step 4"})
+        return jsonify({"ok": False, "error": "OAuth Client ID / Secret not set yet. Please check Settings."})
+    if not os.path.exists("youtube_token.pickle"):
+        return jsonify({
+            "ok": False,
+            "need_auth": True,
+            "error": "YouTube channel not linked yet. Please click 'Link / Authorize YouTube Channel' to connect your Google account."
+        })
 
     body    = request.get_json(force=True) or {}
     privacy = body.get("privacy", config.VIDEO_PRIVACY)
@@ -1111,24 +1543,25 @@ def upload():
             import pickle as pkl
             from googleapiclient.discovery import build
             from googleapiclient.http import MediaFileUpload
-            from google_auth_oauthlib.flow import InstalledAppFlow
             from google.auth.transport.requests import Request
 
             TOKEN_FILE = "youtube_token.pickle"
-            creds = None
-            if os.path.exists(TOKEN_FILE):
-                with open(TOKEN_FILE, "rb") as f: creds = pkl.load(f)
+            if not os.path.exists(TOKEN_FILE):
+                raise RuntimeError("YouTube token not found. Please click 'Link YouTube Channel' to authorize first.")
+
+            with open(TOKEN_FILE, "rb") as f:
+                creds = pkl.load(f)
+
             if creds and not creds.valid and creds.expired and creds.refresh_token:
                 try:
                     creds.refresh(Request())
-                    with open(TOKEN_FILE, "wb") as f: pkl.dump(creds, f)
-                except Exception:
-                    creds = None
+                    with open(TOKEN_FILE, "wb") as f:
+                        pkl.dump(creds, f)
+                except Exception as e:
+                    raise RuntimeError(f"Could not refresh YouTube OAuth token: {e}. Please re-authorize channel.")
+
             if not creds or not creds.valid:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    config.YOUTUBE_CLIENT_SECRET, config.YOUTUBE_SCOPES)
-                creds = flow.run_local_server(port=8080)
-                with open(TOKEN_FILE, "wb") as f: pkl.dump(creds, f)
+                raise RuntimeError("YouTube authorization expired. Please re-authorize channel in Settings.")
 
             yt = build("youtube", "v3", credentials=creds)
             script = _state["script"] or {}
@@ -1207,6 +1640,11 @@ _SETTINGS = {
     "openrouter_key":   ("OPENROUTER_API_KEY", "env"),
     "youtube_key":      ("YOUTUBE_API_KEY",    "env"),
     "youtube_channel":  ("YOUTUBE_CHANNEL_ID", "env_plain"),
+    "yt_client_id":     ("YOUTUBE_CLIENT_ID",  "env"),
+    "yt_client_secret": ("YOUTUBE_CLIENT_SECRET", "env"),
+    "notification_email": ("NOTIFICATION_EMAIL", "env_plain"),
+    "smtp_user":        ("SMTP_USER",          "env_plain"),
+    "smtp_password":    ("SMTP_PASSWORD",      "env"),
     "music_enabled":    ("MUSIC_ENABLED",      bool),
     "music_volume":     ("MUSIC_VOLUME",       float),
     "channel_name":     ("CHANNEL_NAME",       str),
@@ -1324,9 +1762,12 @@ def post_banned_topics():
 
 if __name__ == "__main__":
     import webbrowser
-    port = int(os.getenv("STUDIO_PORT", 7070))
-    print(f"\n🎬  YAAS — youtube-agentic-ai-studio")
-    print(f"   Opening at  http://localhost:{port}\n")
+    port = int(os.getenv("STUDIO_PORT", 7071))
+    try:
+        print(f"\n[YAAS] youtube-agentic-ai-studio")
+        print(f"   Opening at http://localhost:{port}\n")
+    except Exception:
+        pass
     if os.getenv("STUDIO_NO_BROWSER") != "1":
         threading.Timer(1.4, lambda: webbrowser.open(f"http://localhost:{port}")).start()
-    app.run(port=port, debug=False, threaded=True, use_reloader=False)
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True, use_reloader=False)

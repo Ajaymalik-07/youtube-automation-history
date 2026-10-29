@@ -45,7 +45,7 @@ def run():
 
     # ── 2. Script ─────────────────────────────────────────────
     banner("2 / 6  ·  Writing script  [Gemini]")
-    script = write_script(research)
+    script = write_script(research, language=getattr(config, "DEFAULT_LANGUAGE", "hi"))
     print(f"\n  ✅  {len(script['sections'])} sections written")
     for s in script["sections"]:
         words = len(s.get("narration", "").split())
@@ -63,7 +63,10 @@ def run():
 
     # ── 4. Narration ──────────────────────────────────────────
     banner("4 / 6  ·  Generating voiceover  [Edge TTS — free]")
-    audio_path = generate_narration(script, config.OUTPUT_DIR)
+    audio_path = generate_narration(
+        script, config.OUTPUT_DIR,
+        voice_id=getattr(config, "VOICE_ID", "hi-IN-MadhurNeural")
+    )
     print(f"\n  ✅  Audio: {audio_path}")
 
     # ── 5. Video ──────────────────────────────────────────────

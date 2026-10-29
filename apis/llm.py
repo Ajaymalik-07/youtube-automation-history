@@ -7,9 +7,19 @@ out of quota. All three speak the OpenAI chat-completions format.
   pollinations  keyless    · last resort so the pipeline never dead-ends
 """
 import time
+import sys
+import urllib.parse
+import requests
 
 import config
 from apis.http import post_json
+
+# Ensure stdout/stderr handles Unicode on Windows without crashing
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 
 def _real_key(value: str) -> bool:
@@ -39,14 +49,14 @@ def providers() -> list:
 def chat(prompt: str, temperature: float = 0.9) -> str:
     errors = []
     for name, url, model, headers in providers():
-        for attempt in range(3):
+        for attempt in range(2):
             try:
-                print(f"   → Fallback LLM: {name} ({model})…")
+                print(f"   -> Fallback LLM: {name} ({model})...")
                 d = post_json(url, {
                     "model": model,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": temperature,
-                }, timeout=180, headers=headers)
+                }, timeout=120, headers=headers)
                 text = (d["choices"][0]["message"].get("content") or "").strip()
                 if text:
                     return text
@@ -54,14 +64,23 @@ def chat(prompt: str, temperature: float = 0.9) -> str:
                 break
             except Exception as e:
                 msg = str(e)
-                # Free tiers rate-limit bursts (Pollinations answers 402/429) — back off and retry
-                if attempt < 2 and any(c in msg for c in ("402", "429", "503", "Max retries",
+                # If Pollinations POST fails, try direct GET as a resilient alternative
+                if name == "pollinations":
+                    try:
+                        print("   -> Trying Pollinations direct GET endpoint...")
+                        encoded = urllib.parse.quote(prompt[:1000])
+                        r = requests.get(f"https://text.pollinations.ai/{encoded}", timeout=60)
+                        if r.status_code == 200 and r.text.strip():
+                            return r.text.strip()
+                    except Exception as ge:
+                        msg = f"{msg} | GET: {ge}"
+                if attempt < 1 and any(c in msg for c in ("402", "429", "503", "Max retries",
                                                            "NameResolution", "timed out", "Connection")):
-                    wait = 20 * (attempt + 1)
-                    print(f"   ⚠ {name} is rate-limiting — retrying in {wait}s…")
+                    wait = 5 * (attempt + 1)
+                    print(f"   [!] {name} rate-limiting or busy -- retrying in {wait}s...")
                     time.sleep(wait)
                     continue
-                print(f"   ⚠ {name} failed: {msg[:160]}")
+                print(f"   [!] {name} failed: {msg[:160]}")
                 errors.append(f"{name}: {msg[:160]}")
                 break
-    raise RuntimeError("All fallback LLMs failed — " + " | ".join(errors or ["none configured"]))
+    raise RuntimeError("All fallback LLMs failed -- " + " | ".join(errors or ["none configured"]))

@@ -6,11 +6,20 @@ The SRT is used by the Shorts creator to burn in synced captions.
 Compatible with all edge-tts versions (6.0 → 7.x).
 Uses MoviePy's AudioFileClip for duration — guaranteed to match the video render.
 """
+import sys
 import os
 import re
 import asyncio
 import edge_tts
 import config
+
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 
 # ══════════════════════════════════════════════════════════════
@@ -205,15 +214,22 @@ def _build_sentence_srt(text: str, audio_path: str, srt_path: str) -> int:
 #  TTS SYNTHESIS
 # ══════════════════════════════════════════════════════════════
 
-async def _synthesise(text: str, audio_path: str, srt_path: str) -> int:
+async def _synthesise(text: str, audio_path: str, srt_path: str, voice_id: str = None) -> int:
     """
     Stream edge-tts audio + word-boundary events.
     Tries SubMaker → raw WordBoundary events → sentence fallback.
     Returns the number of SRT cues written.
     """
+    try:
+        import certifi
+        os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+    except ImportError:
+        pass
+
+    chosen_voice = voice_id or getattr(config, "VOICE_ID", "hi-IN-MadhurNeural")
     communicate = edge_tts.Communicate(
         text,
-        config.VOICE_ID,
+        chosen_voice,
         rate=config.VOICE_RATE,
         pitch=config.VOICE_PITCH,
     )
@@ -310,9 +326,11 @@ async def _synthesise(text: str, audio_path: str, srt_path: str) -> int:
 #  PUBLIC API
 # ══════════════════════════════════════════════════════════════
 
-def generate_narration(script: dict, output_dir: str) -> str:
+def generate_narration(script: dict, output_dir: str, voice_id: str = None,
+                       filename: str = "narration.mp3", srt_filename: str = "narration.srt") -> str:
     """
     Concatenates all section narrations → synthesises MP3 → writes SRT.
+    Supports Hindi primary, English auto-dub, or custom voices.
     Returns path to the saved audio file.
     """
     parts = []
@@ -325,12 +343,13 @@ def generate_narration(script: dict, output_dir: str) -> str:
         parts.append(narration)
 
     full_text  = "  ...  ".join(parts)
-    audio_path = os.path.join(output_dir, "narration.mp3")
-    srt_path   = os.path.join(output_dir, "narration.srt")
+    audio_path = os.path.join(output_dir, filename)
+    srt_path   = os.path.join(output_dir, srt_filename)
 
-    print(f"   → Synthesising {len(full_text.split())} words via Edge TTS…")
+    active_voice = voice_id or getattr(config, "VOICE_ID", "hi-IN-MadhurNeural")
+    print(f"   → Synthesising {len(full_text.split())} words via Edge TTS ({active_voice})…")
     try:
-        asyncio.run(_synthesise(full_text, audio_path, srt_path))
+        asyncio.run(_synthesise(full_text, audio_path, srt_path, voice_id=active_voice))
     except Exception as e:
         if "403" in str(e):
             raise RuntimeError(
