@@ -18,14 +18,19 @@ if not exist "%PYTHON_EXE%" (
     exit /b 1
 )
 
-:: Create or update scheduled task
-schtasks /create /tn "YAAS_Daily_YouTube_Studio" /tr "\"%PYTHON_EXE%\" \"%SCRIPT_DIR%automation.py\" --run-all" /sc daily /st 06:00 /f /rl HIGHEST
+:: Create or update scheduled task: Hourly auto catch-up
+schtasks /create /tn "YAAS_Hourly_YouTube_Catchup" /tr "\"%PYTHON_EXE%\" \"%SCRIPT_DIR%automation.py\" --auto" /sc hourly /mo 1 /f /rl HIGHEST
+
+:: Also create or update daily morning run
+schtasks /create /tn "YAAS_Daily_YouTube_Studio" /tr "\"%PYTHON_EXE%\" \"%SCRIPT_DIR%automation.py\" --auto" /sc daily /st 06:00 /f /rl HIGHEST
 
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo ===============================================================
-    echo [SUCCESS] Windows Task 'YAAS_Daily_YouTube_Studio' created!
-    echo It will execute daily at 06:00 AM IST (every Monday-Sunday).
+    echo [SUCCESS] Windows Tasks registered successfully!
+    echo 1. 'YAAS_Hourly_YouTube_Catchup' runs every hour to catch up
+    echo    all due Shorts (9AM, 12PM, 4PM, 7PM, 10PM IST) & Longform (7PM).
+    echo 2. 'YAAS_Daily_YouTube_Studio' runs daily at 06:00 AM IST.
     echo ===============================================================
 ) else (
     echo.

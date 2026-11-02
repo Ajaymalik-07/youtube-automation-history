@@ -2,17 +2,23 @@ name: Daily YouTube Automation
 
 on:
   schedule:
-    # Runs daily at 00:00 UTC (05:30 AM IST)
-    - cron: '0 0 * * *'
+    # 5 Daily Shorts release windows + Longform (all UTC times convert to IST UTC+5:30)
+    - cron: '30 3 * * *'   # 09:00 AM IST — Short 1/5
+    - cron: '30 6 * * *'   # 12:00 PM IST — Short 2/5
+    - cron: '30 10 * * *'  # 04:00 PM IST — Short 3/5
+    - cron: '30 13 * * *'  # 07:00 PM IST — Short 4/5 + 15+ Min Longform Documentary
+    - cron: '30 16 * * *'  # 10:00 PM IST — Short 5/5
+    - cron: '30 14 * * *'  # 08:00 PM IST — Pre-render tomorrow's batch overnight
   # Allows manual trigger anytime from the GitHub Actions tab
   workflow_dispatch:
     inputs:
       action:
         description: 'Automation action to run'
         required: true
-        default: 'run_now'
+        default: 'auto'
         type: choice
         options:
+          - 'auto'
           - 'run_now'
           - 'prerender'
 
@@ -79,9 +85,16 @@ jobs:
             echo "ℹ Notice: youtube_token.pickle not found. Will save rendered output to pending_uploads."
           fi
 
-      - name: Run YouTube Studio Automation (Produce Shorts & Long-Form Video)
+      - name: Run YouTube Studio Automation
         run: |
-          python automation.py --run-all
+          ACTION="${{ github.event.inputs.action }}"
+          if [ "$ACTION" = "run_now" ]; then
+            python automation.py --run-all
+          elif [ "$ACTION" = "prerender" ]; then
+            python automation.py --prerender
+          else
+            python automation.py --auto
+          fi
 
       - name: Upload Artifacts (Rendered Videos & Metadata)
         if: always()

@@ -230,18 +230,27 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
     print("  [7/8] Generating thumbnail & optimizing 100/100 publishing checklist…")
     thumb_path = os.path.join(config.OUTPUT_DIR, "thumbnail.jpg")
     try:
-        from gui import _make_thumbnail
-        thumb_path = _make_thumbnail(hindi_script, image_map_int, config.OUTPUT_DIR)
-    except Exception:
-        # Fallback simple render
         first_img = None
         for imgs in image_map.values():
             if imgs:
-                first_img = imgs[0] if isinstance(imgs, list) else imgs
+                candidates = imgs if isinstance(imgs, list) else [imgs]
+                for c in candidates:
+                    if c and os.path.exists(c):
+                        first_img = c
+                        break
+            if first_img:
                 break
-        thumb_path = thumbnail.render(getattr(config, "THUMB_STYLE", "cinematic"),
-                                      thumb_path, hindi_script.get("title", ""),
-                                      bg_path=first_img, brand=config.brand_text())
+        thumb_text = thumbnail.auto_text(hindi_script.get("title", ""))
+        thumb_path = thumbnail.render(
+            getattr(config, "THUMB_STYLE", "cinematic"),
+            thumb_path,
+            thumb_text,
+            bg_path=first_img,
+            brand=config.brand_text(),
+            portrait=False
+        )
+    except Exception as e:
+        print(f"   ⚠ Thumbnail generation warning: {e}")
 
     seo_result = optimize_for_100_percent(
         title=hindi_script.get("title", ""),
@@ -314,6 +323,8 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
     # Update schedule state
     state = load_schedule_state()
     state["last_longform_date"] = target_date
+    if not is_prerender:
+        state["last_longform_pub_date"] = target_date
     state["history_runs"].append({
         "type": "longform",
         "title": seo_result["title"],
@@ -383,118 +394,145 @@ Return ONLY a valid JSON array of 5 strings:
     return list(zip(fallback_titles[:5], langs))
 
 
-def create_and_publish_shorts_batch(is_prerender: bool = False, for_date: str = None) -> list:
+def create_and_publish_single_short(index: int, is_prerender: bool = False, for_date: str = None) -> dict:
     """
-    Generates and processes 5 historical Shorts (3 in Hindi, 2 in English),
-    strictly aligned with today's Weekly Editorial Theme.
+    Generates and processes a SINGLE historical Short (index 1 to 5),
+    strictly aligned with the Weekly Editorial Theme for the target date.
     """
     target_date = for_date or get_current_ist_time().strftime("%Y-%m-%d")
     day_theme = config.get_weekly_theme(target_date)
+    todays_shorts = get_shorts_topics_for_day(target_date)
+
+    idx = max(1, min(index, len(todays_shorts)))
+    topic_title, lang = todays_shorts[idx - 1]
 
     print("\n" + "=" * 70)
-    print(f"  ⚡ YAAS Autonomous Pipeline: 5 Daily History Shorts")
+    print(f"  ⚡ YAAS Single Short Pipeline: Short {idx}/5")
+    print(f"  Topic: {topic_title} ({'Hindi' if lang == 'hi' else 'English'})")
     print(f"  📅 Weekly Theme ({day_theme['day']}): {day_theme['theme']} [{day_theme['theme_hi']}]")
     print("=" * 70 + "\n")
 
-    results = []
     shorts_dir = os.path.join(config.OUTPUT_DIR, "shorts_batch")
     q_dir = os.path.join(config.OUTPUT_DIR, "scheduled_queue")
     os.makedirs(shorts_dir, exist_ok=True)
     if is_prerender:
         os.makedirs(q_dir, exist_ok=True)
 
-    todays_shorts = get_shorts_topics_for_day(target_date)
+    item_dir = os.path.join(shorts_dir, f"short_{idx:02d}")
+    os.makedirs(item_dir, exist_ok=True)
 
-    for i, (topic_title, lang) in enumerate(todays_shorts, 1):
-        print(f"\n  ── Short {i}/5: {topic_title} ({'Hindi' if lang == 'hi' else 'English'}) ──")
-        item_dir = os.path.join(shorts_dir, f"short_{i:02d}")
-        os.makedirs(item_dir, exist_ok=True)
+    research = {
+        "topic": topic_title,
+        "video_title": topic_title,
+        "hook_question": f"Did you know the secret behind {topic_title}?",
+        "key_points": [f"Shocking historical discovery about {topic_title}"],
+        "tags": ["History", "Shorts", "AncientMysteries", "Archaeology", "Facts"],
+    }
 
-        research = {
-            "topic": topic_title,
-            "video_title": topic_title,
-            "hook_question": f"Did you know the secret behind {topic_title}?",
-            "key_points": [f"Shocking historical discovery about {topic_title}"],
-            "tags": ["History", "Shorts", "AncientMysteries", "Archaeology", "Facts"],
-        }
+    # 1. Write Short Script
+    short_script = write_script(research, video_type="shorts", language=lang)
+    with open(os.path.join(item_dir, "script.json"), "w", encoding="utf-8") as f:
+        json.dump(short_script, f, indent=2, ensure_ascii=False)
 
-        # 1. Write Short Script
-        short_script = write_script(research, video_type="shorts", language=lang)
-        with open(os.path.join(item_dir, "script.json"), "w", encoding="utf-8") as f:
-            json.dump(short_script, f, indent=2, ensure_ascii=False)
+    # 2. Download Images
+    image_map = download_images(short_script, item_dir)
 
-        # 2. Download Images
-        image_map = download_images(short_script, item_dir)
+    # 3. Voiceover
+    voice_id = getattr(config, "VOICE_ID", "hi-IN-MadhurNeural") if lang == "hi" else getattr(config, "VOICE_ID_EN", "en-US-AndrewNeural")
+    audio_path = generate_narration(short_script, item_dir, voice_id=voice_id)
 
-        # 3. Voiceover
-        voice_id = getattr(config, "VOICE_ID", "hi-IN-MadhurNeural") if lang == "hi" else getattr(config, "VOICE_ID_EN", "en-US-AndrewNeural")
-        audio_path = generate_narration(short_script, item_dir, voice_id=voice_id)
+    # 4. Render Short Video (1080x1920)
+    image_map_int = {int(k): v for k, v in image_map.items()}
+    video_path = create_video(short_script, audio_path, item_dir, image_map_int, video_type="shorts")
 
-        # 4. Render Short Video (1080x1920)
-        image_map_int = {int(k): v for k, v in image_map.items()}
-        video_path = create_video(short_script, audio_path, item_dir, image_map_int, video_type="shorts")
+    # 5. Optimize 100/100
+    seo_res = optimize_for_100_percent(
+        title=short_script.get("title", ""),
+        description=short_script.get("description", ""),
+        tags=short_script.get("tags", []),
+        sections=short_script.get("sections", []),
+        topic=topic_title,
+        is_shorts=True,
+    )
 
-        # 5. Optimize 100/100
-        seo_res = optimize_for_100_percent(
-            title=short_script.get("title", ""),
-            description=short_script.get("description", ""),
-            tags=short_script.get("tags", []),
-            sections=short_script.get("sections", []),
-            topic=topic_title,
-            is_shorts=True,
+    print(f"   🎯 Short {idx} Score: {seo_res['score']} / 100")
+
+    # 6. Publish or Pre-Render Queue
+    if is_prerender:
+        manifest_path = os.path.join(q_dir, f"short_{idx}_{target_date}.json")
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "type": "short",
+                "index": idx,
+                "target_date": target_date,
+                "video_path": video_path,
+                "title": seo_res["title"],
+                "description": seo_res["description"],
+                "tags": seo_res["tags"],
+                "score": seo_res["score"],
+                "created_at": datetime.now().isoformat(),
+            }, f, indent=2)
+        yt_url = f"local://scheduled_queue/{target_date}/short_{idx}"
+        print(f"   📦 Short {idx} queued for tomorrow ({target_date}) scroll window.")
+    else:
+        yt_url = upload_to_youtube(
+            script=short_script,
+            video_path=video_path,
+            title=seo_res["title"],
+            description=seo_res["description"],
+            tags=seo_res["tags"],
         )
 
-        print(f"   🎯 Short {i} Score: {seo_res['score']} / 100")
-
-        # 6. Publish or Pre-Render Queue
-        if is_prerender:
-            manifest_path = os.path.join(q_dir, f"short_{i}_{target_date}.json")
-            with open(manifest_path, "w", encoding="utf-8") as f:
-                json.dump({
-                    "type": "short",
-                    "index": i,
-                    "target_date": target_date,
-                    "video_path": video_path,
-                    "title": seo_res["title"],
-                    "description": seo_res["description"],
-                    "tags": seo_res["tags"],
-                    "score": seo_res["score"],
-                    "created_at": datetime.now().isoformat(),
-                }, f, indent=2)
-            yt_url = f"local://scheduled_queue/{target_date}/short_{i}"
-            print(f"   📦 Short {i} queued for tomorrow ({target_date}) scroll window.")
-        else:
-            yt_url = upload_to_youtube(
-                script=short_script,
-                video_path=video_path,
-                title=seo_res["title"],
-                description=seo_res["description"],
-                tags=seo_res["tags"],
-            )
-
-        results.append({
-            "index": i,
-            "title": seo_res["title"],
-            "language": lang,
-            "url": yt_url,
-            "video_path": video_path,
-            "score": seo_res["score"],
-        })
+    result = {
+        "ok": True,
+        "index": idx,
+        "title": seo_res["title"],
+        "language": lang,
+        "url": yt_url,
+        "video_path": video_path,
+        "score": seo_res["score"],
+    }
 
     # Update schedule state
     state = load_schedule_state()
-    state["last_shorts_date"] = target_date
+    state_hours = state.get("shorts_hours_ist", [9, 12, 16, 19, 22])
+    sh_hour = state_hours[idx - 1] if idx <= len(state_hours) else 9
+    sh_key = f"last_short_pub_{target_date}_{sh_hour}"
     if not is_prerender:
-        for sh_h in state.get("shorts_hours_ist", [9, 12, 16, 19, 22]):
-            state[f"last_short_pub_{target_date}_{sh_h}"] = True
-    for r in results:
-        state["history_runs"].append({
-            "type": "short",
-            "title": r["title"],
-            "url": r["url"],
-            "date_ist": get_current_ist_time().isoformat(),
-            "score": r["score"],
-        })
+        state[sh_key] = True
+    state["history_runs"].append({
+        "type": "short",
+        "title": result["title"],
+        "url": result["url"],
+        "date_ist": get_current_ist_time().isoformat(),
+        "score": result["score"],
+    })
+    save_schedule_state(state)
+
+    print(f"\n✅ Short {idx}/5 Rendered and Processed! ({yt_url})\n")
+    return result
+
+
+def create_and_publish_shorts_batch(is_prerender: bool = False, for_date: str = None) -> list:
+    """
+    Generates and processes all 5 historical Shorts (3 in Hindi, 2 in English),
+    strictly aligned with today's Weekly Editorial Theme.
+    """
+    target_date = for_date or get_current_ist_time().strftime("%Y-%m-%d")
+    day_theme = config.get_weekly_theme(target_date)
+
+    print("\n" + "=" * 70)
+    print(f"  ⚡ YAAS Autonomous Pipeline: 5 Daily History Shorts Batch")
+    print(f"  📅 Weekly Theme ({day_theme['day']}): {day_theme['theme']} [{day_theme['theme_hi']}]")
+    print("=" * 70 + "\n")
+
+    results = []
+    for i in range(1, 6):
+        res = create_and_publish_single_short(index=i, is_prerender=is_prerender, for_date=target_date)
+        results.append(res)
+
+    state = load_schedule_state()
+    state["last_shorts_date"] = target_date
     save_schedule_state(state)
 
     print("\n✅ All 5 Daily History Shorts Rendered and Published!\n")
@@ -525,14 +563,26 @@ def publish_scheduled_short(index: int, target_date: str) -> str:
                 os.remove(manifest_path)
             except Exception:
                 pass
+            state = load_schedule_state()
+            state_hours = state.get("shorts_hours_ist", [9, 12, 16, 19, 22])
+            sh_hour = state_hours[index - 1] if index <= len(state_hours) else 9
+            state[f"last_short_pub_{target_date}_{sh_hour}"] = True
+            state["history_runs"].append({
+                "type": "short",
+                "title": data.get("title", f"Short {index}"),
+                "url": yt_url,
+                "date_ist": get_current_ist_time().isoformat(),
+                "score": data.get("score", 100),
+            })
+            save_schedule_state(state)
             return yt_url
         except Exception as e:
             print(f"   ⚠ Error uploading pre-rendered short {index}: {e}")
 
-    # Fallback if no pre-rendered video was found
+    # Fallback if no pre-rendered video was found: create and publish ONLY this specific short
     print(f"   ℹ No pre-rendered Short {index} found for {target_date} — creating on-demand now...")
-    res = create_and_publish_shorts_batch(is_prerender=False, for_date=target_date)
-    return res[0]["url"] if res else ""
+    res = create_and_publish_single_short(index=index, is_prerender=False, for_date=target_date)
+    return res.get("url", "")
 
 
 def publish_scheduled_longform(target_date: str) -> str:
@@ -556,19 +606,87 @@ def publish_scheduled_longform(target_date: str) -> str:
                 os.remove(manifest_path)
             except Exception:
                 pass
+            state = load_schedule_state()
+            state["last_longform_pub_date"] = target_date
+            state["last_longform_date"] = target_date
+            state["history_runs"].append({
+                "type": "longform",
+                "title": data.get("title", "15+ Min Documentary"),
+                "url": yt_url,
+                "date_ist": get_current_ist_time().isoformat(),
+                "score": data.get("score", 100),
+            })
+            save_schedule_state(state)
             return yt_url
         except Exception as e:
             print(f"   ⚠ Error uploading pre-rendered longform: {e}")
 
-    # Fallback if no pre-rendered video was found
+    # Fallback if no pre-rendered video was found: create and publish on-demand
     print(f"   ℹ No pre-rendered longform found for {target_date} — creating on-demand now...")
     res = create_and_publish_longform(is_prerender=False, for_date=target_date)
     return res.get("url", "")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  DAEMON & SCHEDULER
-# ══════════════════════════════════════════════════════════════════════════════
+def run_auto_catchup() -> dict:
+    """
+    Evaluates current IST time and catches up any due or overdue releases for today:
+    1. Shorts: any slot whose hour <= current IST hour and not yet published.
+    2. Long-Form: documentary if current IST hour >= longform_target_hour_ist and not yet published.
+    3. Pre-render: tomorrow's batch if current IST hour >= prerender_day_before_hour_ist and not yet done.
+    """
+    now_ist = get_current_ist_time()
+    today_str = now_ist.strftime("%Y-%m-%d")
+    tomorrow_str = (now_ist + timedelta(days=1)).strftime("%Y-%m-%d")
+    current_hour = now_ist.hour
+
+    print("\n" + "=" * 70)
+    print(f"  🔍 Checking Autonomous History Schedule Status (IST: {now_ist.strftime('%Y-%m-%d %H:%M:%S')})")
+    print("=" * 70)
+
+    state = load_schedule_state()
+    shorts_hours = state.get("shorts_hours_ist", [9, 12, 16, 19, 22])
+    target_long_hour = state.get("longform_target_hour_ist", 19)
+    prerender_hour = state.get("prerender_day_before_hour_ist", 20)
+
+    published_shorts = []
+    published_long = None
+
+    # 1. Process Shorts for today
+    for idx, sh_hour in enumerate(shorts_hours, 1):
+        sh_key = f"last_short_pub_{today_str}_{sh_hour}"
+        if current_hour >= sh_hour and not state.get(sh_key):
+            print(f"\n▶ [AUTO-CATCHUP] Short {idx}/5 (Slot {sh_hour}:00 IST) is due or overdue! Publishing now...")
+            url = publish_scheduled_short(index=idx, target_date=today_str)
+            state = load_schedule_state()
+            state[sh_key] = True
+            save_schedule_state(state)
+            published_shorts.append({"index": idx, "hour": sh_hour, "url": url})
+        else:
+            status = "✅ Published" if state.get(sh_key) else f"⏳ Scheduled for {sh_hour}:00 IST"
+            print(f"   • Short {idx}/5 ({sh_hour}:00 IST): {status}")
+
+    # 2. Process Long-Form Documentary for today
+    long_done = (state.get("last_longform_pub_date") == today_str or state.get("last_longform_date") == today_str)
+    if current_hour >= target_long_hour and not long_done:
+        print(f"\n▶ [AUTO-CATCHUP] Long-Form Documentary (Slot {target_long_hour}:00 IST) is due! Publishing now...")
+        url = publish_scheduled_longform(target_date=today_str)
+        published_long = url
+    else:
+        long_status = "✅ Published" if long_done else f"⏳ Scheduled for {target_long_hour}:00 IST"
+        print(f"   • Long-Form Documentary ({target_long_hour}:00 IST): {long_status}")
+
+    # 3. Check Pre-Render for tomorrow
+    if current_hour >= prerender_hour and state.get("last_prerender_date") != today_str:
+        print(f"\n▶ [AUTO-CATCHUP] Pre-rendering tomorrow's ({tomorrow_str}) content overnight...")
+        s_res = create_and_publish_shorts_batch(is_prerender=True, for_date=tomorrow_str)
+        l_res = create_and_publish_longform(is_prerender=True, for_date=tomorrow_str)
+        state = load_schedule_state()
+        state["last_prerender_date"] = today_str
+        save_schedule_state(state)
+
+    print("\n✅ Autonomous Catch-up Check Complete.\n")
+    return {"published_shorts": published_shorts, "published_long": published_long}
+
 
 def run_scheduler_daemon():
     """
@@ -576,7 +694,7 @@ def run_scheduler_daemon():
     1. Pre-rendering a day before (at 20:00 / 8:00 PM IST):
        - Step 1: Shorts FIRST (all 5 rendered in ~10 mins).
        - Step 2: 15+ Min Documentary rendered overnight.
-    2. Publishing on release day at target peak hours.
+    2. Publishing on release day at target peak hours (with automatic catch-up).
     """
     print("\n" + "=" * 70)
     print("  🚀 YAAS Autonomous History Daemon Started")
@@ -589,37 +707,40 @@ def run_scheduler_daemon():
             today_str = now_ist.strftime("%Y-%m-%d")
             tomorrow_str = (now_ist + timedelta(days=1)).strftime("%Y-%m-%d")
             current_hour = now_ist.hour
-            current_minute = now_ist.minute
 
             state = load_schedule_state()
             prerender_hour = state.get("prerender_day_before_hour_ist", 20)
             target_release_hour = state.get("longform_target_hour_ist", 19)
 
-            # ── 1. PRE-RENDER A DAY BEFORE (At 20:00 / 8:00 PM IST) ─────────────
-            # Order: 1st create all 5 Shorts (~10m), 2nd start 15+ min Long documentary (overnight)
+            # ── 1. PRE-RENDER A DAY BEFORE (At or after 20:00 / 8:00 PM IST) ─────
             if current_hour >= prerender_hour and state.get("last_prerender_date") != today_str:
                 print(f"\n[DAEMON PRE-RENDER TRIGGER] Time {now_ist.strftime('%H:%M IST')} — Pre-rendering tomorrow's ({tomorrow_str}) content a day before!")
                 print("  ▶ STEP 1: Creating 5 Daily History Shorts FIRST...")
                 create_and_publish_shorts_batch(is_prerender=True, for_date=tomorrow_str)
                 print("  ▶ STEP 2: Now creating 10–14 Minute Long-Form Documentary for tomorrow...")
                 create_and_publish_longform(is_prerender=True, for_date=tomorrow_str)
+                state = load_schedule_state()
                 state["last_prerender_date"] = today_str
                 save_schedule_state(state)
 
-            # ── 2. PUBLISH TODAY'S SHORTS AT DESIGNATED SCROLL WINDOWS ──────────
+            # ── 2. PUBLISH TODAY'S SHORTS AT DESIGNATED SCROLL WINDOWS (Catch-up aware) ──
             for idx, sh_hour in enumerate(state.get("shorts_hours_ist", [9, 12, 16, 19, 22]), 1):
                 sh_key = f"last_short_pub_{today_str}_{sh_hour}"
-                if current_hour == sh_hour and not state.get(sh_key):
-                    print(f"\n[DAEMON PUBLISH TRIGGER] Peak scroll window {now_ist.strftime('%H:%M IST')} — Publishing Short {idx}/5...")
+                if current_hour >= sh_hour and not state.get(sh_key):
+                    print(f"\n[DAEMON PUBLISH TRIGGER] Peak scroll window {now_ist.strftime('%H:%M IST')} — Publishing Short {idx}/5 (Slot {sh_hour}:00 IST)...")
                     publish_scheduled_short(index=idx, target_date=today_str)
+                    state = load_schedule_state()
                     state[sh_key] = True
                     save_schedule_state(state)
 
-            # ── 3. PUBLISH TODAY'S 10–14 MIN DOCUMENTARY AT TARGET PEAK HOUR ─────
-            if current_hour == target_release_hour and state.get("last_longform_pub_date") != today_str:
+            # ── 3. PUBLISH TODAY'S 10–14 MIN DOCUMENTARY AT TARGET PEAK HOUR (Catch-up aware) ──
+            long_done = (state.get("last_longform_pub_date") == today_str or state.get("last_longform_date") == today_str)
+            if current_hour >= target_release_hour and not long_done:
                 print(f"\n[DAEMON PUBLISH TRIGGER] Peak release time {now_ist.strftime('%H:%M IST')} — Publishing 10–14 Min Documentary...")
                 publish_scheduled_longform(target_date=today_str)
+                state = load_schedule_state()
                 state["last_longform_pub_date"] = today_str
+                state["last_longform_date"] = today_str
                 save_schedule_state(state)
 
             # Sleep 30 seconds before next check
@@ -680,6 +801,8 @@ def print_status():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="YAAS Autonomous History Studio")
     parser.add_argument("--daemon", action="store_true", help="Run continuous scheduler daemon")
+    parser.add_argument("--auto", action="store_true", help="Auto catch-up: evaluate current IST time and publish overdue/current content")
+    parser.add_argument("--run-short-slot", type=int, choices=[1, 2, 3, 4, 5], help="Execute specific Short slot (1 to 5) immediately")
     parser.add_argument("--prerender", action="store_true", help="Pre-render tomorrow's content now a day before")
     parser.add_argument("--run-shorts", action="store_true", help="Execute 5 daily Shorts generation immediately")
     parser.add_argument("--run-long", action="store_true", help="Execute 15+ min history video pipeline immediately")
@@ -690,6 +813,20 @@ if __name__ == "__main__":
 
     if args.daemon:
         run_scheduler_daemon()
+    elif args.auto:
+        res = run_auto_catchup()
+        try:
+            from notifier.email_notifier import send_upload_notification_email
+            send_upload_notification_email(longform_result=res.get("published_long"), shorts_results=res.get("published_shorts"))
+        except Exception as e:
+            print(f"   ℹ Email notification notice: {e}")
+    elif args.run_short_slot:
+        s_res = create_and_publish_single_short(index=args.run_short_slot)
+        try:
+            from notifier.email_notifier import send_upload_notification_email
+            send_upload_notification_email(shorts_results=[s_res])
+        except Exception as e:
+            print(f"   ℹ Email notification notice: {e}")
     elif args.prerender:
         tomorrow_str = (get_current_ist_time() + timedelta(days=1)).strftime("%Y-%m-%d")
         print(f"\n🚀 Pre-rendering tomorrow's ({tomorrow_str}) content a day before: Shorts FIRST, then Long-form...")
@@ -723,9 +860,11 @@ if __name__ == "__main__":
     else:
         print_status()
         print("Usage:")
-        print("  python automation.py --daemon      # Start continuous automated daily scheduler")
-        print("  python automation.py --prerender   # Pre-render tomorrow's content a day before")
-        print("  python automation.py --run-shorts  # Run 5 daily history shorts now")
-        print("  python automation.py --run-long    # Run 15+ min deep history video now")
-        print("  python automation.py --run-all     # Run Shorts FIRST, then Long-form now")
-        print("  python automation.py --status      # View schedule and performance metrics\n")
+        print("  python automation.py --daemon          # Start continuous automated daily scheduler")
+        print("  python automation.py --auto            # Auto catch-up & publish due content for current IST hour")
+        print("  python automation.py --run-short-slot N# Run single Short slot N (1 to 5) immediately")
+        print("  python automation.py --prerender       # Pre-render tomorrow's content a day before")
+        print("  python automation.py --run-shorts      # Run all 5 daily history shorts now")
+        print("  python automation.py --run-long        # Run 15+ min deep history video now")
+        print("  python automation.py --run-all         # Run Shorts FIRST, then Long-form now")
+        print("  python automation.py --status          # View schedule and performance metrics\n")
