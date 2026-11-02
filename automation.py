@@ -656,11 +656,14 @@ def run_auto_catchup() -> dict:
         sh_key = f"last_short_pub_{today_str}_{sh_hour}"
         if current_hour >= sh_hour and not state.get(sh_key):
             print(f"\n▶ [AUTO-CATCHUP] Short {idx}/5 (Slot {sh_hour}:00 IST) is due or overdue! Publishing now...")
-            url = publish_scheduled_short(index=idx, target_date=today_str)
-            state = load_schedule_state()
-            state[sh_key] = True
-            save_schedule_state(state)
-            published_shorts.append({"index": idx, "hour": sh_hour, "url": url})
+            try:
+                url = publish_scheduled_short(index=idx, target_date=today_str)
+                state = load_schedule_state()
+                state[sh_key] = True
+                save_schedule_state(state)
+                published_shorts.append({"index": idx, "hour": sh_hour, "url": url})
+            except Exception as e:
+                print(f"   ⚠ Failed to process Short {idx}/5 (will retry next check): {e}")
         else:
             status = "✅ Published" if state.get(sh_key) else f"⏳ Scheduled for {sh_hour}:00 IST"
             print(f"   • Short {idx}/5 ({sh_hour}:00 IST): {status}")
@@ -669,8 +672,11 @@ def run_auto_catchup() -> dict:
     long_done = (state.get("last_longform_pub_date") == today_str or state.get("last_longform_date") == today_str)
     if current_hour >= target_long_hour and not long_done:
         print(f"\n▶ [AUTO-CATCHUP] Long-Form Documentary (Slot {target_long_hour}:00 IST) is due! Publishing now...")
-        url = publish_scheduled_longform(target_date=today_str)
-        published_long = url
+        try:
+            url = publish_scheduled_longform(target_date=today_str)
+            published_long = url
+        except Exception as e:
+            print(f"   ⚠ Failed to process Long-Form Documentary (will retry next check): {e}")
     else:
         long_status = "✅ Published" if long_done else f"⏳ Scheduled for {target_long_hour}:00 IST"
         print(f"   • Long-Form Documentary ({target_long_hour}:00 IST): {long_status}")
@@ -678,11 +684,14 @@ def run_auto_catchup() -> dict:
     # 3. Check Pre-Render for tomorrow
     if current_hour >= prerender_hour and state.get("last_prerender_date") != today_str:
         print(f"\n▶ [AUTO-CATCHUP] Pre-rendering tomorrow's ({tomorrow_str}) content overnight...")
-        s_res = create_and_publish_shorts_batch(is_prerender=True, for_date=tomorrow_str)
-        l_res = create_and_publish_longform(is_prerender=True, for_date=tomorrow_str)
-        state = load_schedule_state()
-        state["last_prerender_date"] = today_str
-        save_schedule_state(state)
+        try:
+            s_res = create_and_publish_shorts_batch(is_prerender=True, for_date=tomorrow_str)
+            l_res = create_and_publish_longform(is_prerender=True, for_date=tomorrow_str)
+            state = load_schedule_state()
+            state["last_prerender_date"] = today_str
+            save_schedule_state(state)
+        except Exception as e:
+            print(f"   ⚠ Failed pre-render for tomorrow (will retry next check): {e}")
 
     print("\n✅ Autonomous Catch-up Check Complete.\n")
     return {"published_shorts": published_shorts, "published_long": published_long}
