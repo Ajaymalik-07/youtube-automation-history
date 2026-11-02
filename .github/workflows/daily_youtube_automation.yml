@@ -89,6 +89,18 @@ jobs:
             echo "ℹ Notice: youtube_token.pickle not found. Will save rendered output to pending_uploads."
           fi
 
+      - name: Ensure Queue Directory Exists
+        run: mkdir -p output/scheduled_queue
+
+      - name: Restore Pre-rendered Scheduled Queue Cache
+        uses: actions/cache/restore@v4
+        id: cache-scheduled-queue
+        with:
+          path: output/scheduled_queue
+          key: scheduled-queue-${{ github.run_id }}
+          restore-keys: |
+            scheduled-queue-
+
       - name: Run YouTube Studio Automation
         run: |
           ACTION="${{ github.event.inputs.action }}"
@@ -100,13 +112,24 @@ jobs:
             python automation.py --auto
           fi
 
+      - name: Save Pre-rendered Scheduled Queue Cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: output/scheduled_queue
+          key: scheduled-queue-${{ github.run_id }}
+
       - name: Persist Schedule State to Repository
         if: always()
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add output/automation_schedule.json || true
-          git diff --staged --quiet || (git commit -m "chore: persist automated publishing state [skip ci]" && git push)
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: persist automated publishing state [skip ci]"
+            git pull --rebase origin main || true
+            git push
+          fi
 
       - name: Upload Artifacts (Rendered Videos & Metadata)
         if: always()

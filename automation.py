@@ -274,12 +274,28 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
         q_dir = os.path.join(config.OUTPUT_DIR, "scheduled_queue")
         os.makedirs(q_dir, exist_ok=True)
         manifest_path = os.path.join(q_dir, f"longform_{target_date}.json")
+        queued_video = os.path.join(q_dir, f"longform_{target_date}.mp4")
+        queued_thumb = os.path.join(q_dir, f"longform_{target_date}.jpg")
+        try:
+            shutil.copy2(video_path, queued_video)
+            v_to_save = queued_video
+        except Exception:
+            v_to_save = video_path
+        try:
+            if os.path.exists(thumb_path):
+                shutil.copy2(thumb_path, queued_thumb)
+                t_to_save = queued_thumb
+            else:
+                t_to_save = thumb_path
+        except Exception:
+            t_to_save = thumb_path
+
         with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump({
                 "type": "longform",
                 "target_date": target_date,
-                "video_path": video_path,
-                "thumb_path": thumb_path,
+                "video_path": v_to_save,
+                "thumb_path": t_to_save,
                 "title": seo_result["title"],
                 "description": seo_result["description"],
                 "tags": seo_result["tags"],
@@ -460,12 +476,19 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
     # 6. Publish or Pre-Render Queue
     if is_prerender:
         manifest_path = os.path.join(q_dir, f"short_{idx}_{target_date}.json")
+        queued_video = os.path.join(q_dir, f"short_{idx}_{target_date}.mp4")
+        try:
+            shutil.copy2(video_path, queued_video)
+            v_to_save = queued_video
+        except Exception:
+            v_to_save = video_path
+
         with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump({
                 "type": "short",
                 "index": idx,
                 "target_date": target_date,
-                "video_path": video_path,
+                "video_path": v_to_save,
                 "title": seo_res["title"],
                 "description": seo_res["description"],
                 "tags": seo_res["tags"],
@@ -551,31 +574,42 @@ def publish_scheduled_short(index: int, target_date: str) -> str:
         try:
             with open(manifest_path, encoding="utf-8") as f:
                 data = json.load(f)
-            print(f"   🚀 Publishing pre-rendered Short {index}: {data.get('title')}")
-            yt_url = upload_to_youtube(
-                script={},
-                video_path=data["video_path"],
-                title=data["title"],
-                description=data["description"],
-                tags=data["tags"],
-            )
-            try:
-                os.remove(manifest_path)
-            except Exception:
-                pass
-            state = load_schedule_state()
-            state_hours = state.get("shorts_hours_ist", [9, 12, 16, 19, 22])
-            sh_hour = state_hours[index - 1] if index <= len(state_hours) else 9
-            state[f"last_short_pub_{target_date}_{sh_hour}"] = True
-            state["history_runs"].append({
-                "type": "short",
-                "title": data.get("title", f"Short {index}"),
-                "url": yt_url,
-                "date_ist": get_current_ist_time().isoformat(),
-                "score": data.get("score", 100),
-            })
-            save_schedule_state(state)
-            return yt_url
+            vpath = data.get("video_path", "")
+            if not vpath or not os.path.exists(vpath):
+                alt_vpath = os.path.join(q_dir, f"short_{index}_{target_date}.mp4")
+                if os.path.exists(alt_vpath):
+                    vpath = alt_vpath
+
+            if vpath and os.path.exists(vpath):
+                print(f"   🚀 Publishing pre-rendered Short {index}: {data.get('title')}")
+                yt_url = upload_to_youtube(
+                    script={},
+                    video_path=vpath,
+                    title=data["title"],
+                    description=data["description"],
+                    tags=data["tags"],
+                )
+                try:
+                    os.remove(manifest_path)
+                    if os.path.exists(vpath) and "scheduled_queue" in vpath:
+                        os.remove(vpath)
+                except Exception:
+                    pass
+                state = load_schedule_state()
+                state_hours = state.get("shorts_hours_ist", [9, 12, 16, 19, 22])
+                sh_hour = state_hours[index - 1] if index <= len(state_hours) else 9
+                state[f"last_short_pub_{target_date}_{sh_hour}"] = True
+                state["history_runs"].append({
+                    "type": "short",
+                    "title": data.get("title", f"Short {index}"),
+                    "url": yt_url,
+                    "date_ist": get_current_ist_time().isoformat(),
+                    "score": data.get("score", 100),
+                })
+                save_schedule_state(state)
+                return yt_url
+            else:
+                print(f"   ⚠ Pre-rendered media file for Short {index} not found on disk, falling back to on-demand render...")
         except Exception as e:
             print(f"   ⚠ Error uploading pre-rendered short {index}: {e}")
 
@@ -593,31 +627,49 @@ def publish_scheduled_longform(target_date: str) -> str:
         try:
             with open(manifest_path, encoding="utf-8") as f:
                 data = json.load(f)
-            print(f"   🚀 Publishing pre-rendered 15+ Min Documentary: {data.get('title')}")
-            yt_url = upload_to_youtube(
-                script={},
-                video_path=data["video_path"],
-                thumb_path=data.get("thumb_path"),
-                title=data["title"],
-                description=data["description"],
-                tags=data["tags"],
-            )
-            try:
-                os.remove(manifest_path)
-            except Exception:
-                pass
-            state = load_schedule_state()
-            state["last_longform_pub_date"] = target_date
-            state["last_longform_date"] = target_date
-            state["history_runs"].append({
-                "type": "longform",
-                "title": data.get("title", "15+ Min Documentary"),
-                "url": yt_url,
-                "date_ist": get_current_ist_time().isoformat(),
-                "score": data.get("score", 100),
-            })
-            save_schedule_state(state)
-            return yt_url
+            vpath = data.get("video_path", "")
+            if not vpath or not os.path.exists(vpath):
+                alt_vpath = os.path.join(q_dir, f"longform_{target_date}.mp4")
+                if os.path.exists(alt_vpath):
+                    vpath = alt_vpath
+            tpath = data.get("thumb_path", "")
+            if not tpath or not os.path.exists(tpath):
+                alt_tpath = os.path.join(q_dir, f"longform_{target_date}.jpg")
+                if os.path.exists(alt_tpath):
+                    tpath = alt_tpath
+
+            if vpath and os.path.exists(vpath):
+                print(f"   🚀 Publishing pre-rendered 15+ Min Documentary: {data.get('title')}")
+                yt_url = upload_to_youtube(
+                    script={},
+                    video_path=vpath,
+                    thumb_path=tpath if (tpath and os.path.exists(tpath)) else None,
+                    title=data["title"],
+                    description=data["description"],
+                    tags=data["tags"],
+                )
+                try:
+                    os.remove(manifest_path)
+                    if os.path.exists(vpath) and "scheduled_queue" in vpath:
+                        os.remove(vpath)
+                    if tpath and os.path.exists(tpath) and "scheduled_queue" in tpath:
+                        os.remove(tpath)
+                except Exception:
+                    pass
+                state = load_schedule_state()
+                state["last_longform_pub_date"] = target_date
+                state["last_longform_date"] = target_date
+                state["history_runs"].append({
+                    "type": "longform",
+                    "title": data.get("title", "15+ Min Documentary"),
+                    "url": yt_url,
+                    "date_ist": get_current_ist_time().isoformat(),
+                    "score": data.get("score", 100),
+                })
+                save_schedule_state(state)
+                return yt_url
+            else:
+                print(f"   ⚠ Pre-rendered media file for longform not found on disk, falling back to on-demand render...")
         except Exception as e:
             print(f"   ⚠ Error uploading pre-rendered longform: {e}")
 
