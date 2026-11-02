@@ -318,7 +318,7 @@ YOUTUBE_CLIENT_SECRET      = os.getenv("YOUTUBE_CLIENT_SECRET", "")  # Client Se
 YOUTUBE_SCOPES             = ["https://www.googleapis.com/auth/youtube.upload"]
 VIDEO_CATEGORY_ID          = "27"       # 27 = Education
 VIDEO_PRIVACY              = "public"   # "public" | "unlisted" | "private"
-MADE_FOR_KIDS              = True       # Yes, it's made for kids (child-friendly content)
+MADE_FOR_KIDS              = False      # "No, it's not made for kids" (enables comments, notifications, and full monetization)
 
 # ─────────────────────────────────────────
 #  Background Music

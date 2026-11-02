@@ -124,7 +124,7 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
         },
         "status": {
             "privacyStatus":           "private" if publish_at else (privacy or getattr(config, "VIDEO_PRIVACY", "public")),
-            "selfDeclaredMadeForKids": getattr(config, "MADE_FOR_KIDS", True),
+            "selfDeclaredMadeForKids": getattr(config, "MADE_FOR_KIDS", False),
         },
     }
     if publish_at:
