@@ -64,6 +64,13 @@
       "url": "https://www.youtube.com/watch?v=ZRpknITJ7IY",
       "date_ist": "2026-11-02T12:29:39.457850+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret Water Engineering Behind the Pyramids #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=NCGfUw6vZtc",
+      "date_ist": "2026-11-02T16:54:16.989099+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -104,5 +111,6 @@
   "last_short_pub_2026-10-30_19": true,
   "last_short_pub_2026-10-30_22": true,
   "last_short_pub_2026-11-02_9": true,
-  "last_short_pub_2026-11-02_12": true
+  "last_short_pub_2026-11-02_12": true,
+  "last_short_pub_2026-11-02_16": true
 }
