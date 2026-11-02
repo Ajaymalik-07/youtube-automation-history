@@ -43,10 +43,16 @@ def _close_brackets(s: str) -> str:
 def extract_json(raw: str, label: str = "Model") -> dict:
     text = re.sub(r"^```(?:json)?", "", raw.strip()).strip()
     text = re.sub(r"```$", "", text).strip()
-    start = text.find("{")
-    if start == -1:
+    start_obj = text.find("{")
+    start_arr = text.find("[")
+    if start_obj == -1 and start_arr == -1:
         raise ValueError(f"{label} returned no JSON.\nRaw:\n{raw[:600]}")
-    end = text.rfind("}")
+    if start_arr != -1 and (start_obj == -1 or start_arr < start_obj):
+        start = start_arr
+        end = text.rfind("]")
+    else:
+        start = start_obj
+        end = text.rfind("}")
     candidate = text[start:end + 1] if end > start else text[start:]
 
     try:
