@@ -484,6 +484,9 @@ def create_and_publish_shorts_batch(is_prerender: bool = False, for_date: str = 
     # Update schedule state
     state = load_schedule_state()
     state["last_shorts_date"] = target_date
+    if not is_prerender:
+        for sh_h in state.get("shorts_hours_ist", [9, 12, 16, 19, 22]):
+            state[f"last_short_pub_{target_date}_{sh_h}"] = True
     for r in results:
         state["history_runs"].append({
             "type": "short",

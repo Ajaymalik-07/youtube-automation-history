@@ -8,6 +8,7 @@ import json
 import pickle
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from googleapiclient.errors import HttpError
 from google_auth_oauthlib.flow import InstalledAppFlow
 import config
 
@@ -17,6 +18,8 @@ TOKEN_FILE = "youtube_token.pickle"
 def is_configured() -> bool:
     """Return True if OAuth credentials and token exist and are valid."""
     config.sync_client_secret_file()
+    if hasattr(config, "sync_youtube_token_file"):
+        config.sync_youtube_token_file()
     secret_file = getattr(config, "YOUTUBE_CLIENT_SECRET_FILE", "client_secret.json")
     if not os.path.exists(secret_file):
         return False
@@ -31,6 +34,8 @@ def is_configured() -> bool:
 
 def _get_service():
     """Return an authenticated YouTube service object with automatic token refresh."""
+    if hasattr(config, "sync_youtube_token_file"):
+        config.sync_youtube_token_file()
     creds = None
 
     if os.path.exists(TOKEN_FILE):
@@ -140,27 +145,64 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
 
     print(f"   → Uploading {os.path.basename(video_path)} directly as Public…")
     response = None
-    while response is None:
-        status, response = insert_req.next_chunk()
-        if status:
-            pct = int(status.progress() * 100)
-            print(f"   → {pct}% uploaded", end="\r")
+    try:
+        while response is None:
+            status, response = insert_req.next_chunk()
+            if status:
+                pct = int(status.progress() * 100)
+                print(f"   → {pct}% uploaded", end="\r")
 
-    print()
-    video_id = response["id"]
-    video_url = f"https://www.youtube.com/watch?v={video_id}"
-    print(f"   ✅ Video live on YouTube: {video_url}")
+        print()
+        video_id = response["id"]
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        print(f"   ✅ Video live on YouTube: {video_url}")
 
-    # Set custom thumbnail if provided
-    if thumb_path and os.path.exists(thumb_path):
-        try:
-            print("   → Setting video thumbnail…")
-            youtube.thumbnails().set(
-                videoId=video_id,
-                media_body=MediaFileUpload(thumb_path, mimetype="image/jpeg"),
-            ).execute()
-            print("   ✅ Thumbnail uploaded successfully.")
-        except Exception as e:
-            print(f"   ⚠ Thumbnail upload warning: {e}")
+        # Set custom thumbnail if provided
+        if thumb_path and os.path.exists(thumb_path):
+            try:
+                print("   → Setting video thumbnail…")
+                youtube.thumbnails().set(
+                    videoId=video_id,
+                    media_body=MediaFileUpload(thumb_path, mimetype="image/jpeg"),
+                ).execute()
+                print("   ✅ Thumbnail uploaded successfully.")
+            except Exception as e:
+                print(f"   ⚠ Thumbnail upload warning: {e}")
 
-    return video_url
+        return video_url
+
+    except HttpError as err:
+        err_str = str(err)
+        print(f"\n   ⚠ YouTube API Error during upload: {err}")
+        if "quotaExceeded" in err_str or "quota" in err_str.lower():
+            print("   🚨 Daily YouTube Data API Quota (10,000 units/day) has been reached.")
+            print("      Video is rendered and safely preserved for automated upload when quota resets.")
+        os.makedirs(os.path.join(config.OUTPUT_DIR, "pending_uploads"), exist_ok=True)
+        manifest_path = os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{os.path.basename(video_path)}.json")
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "video_path": video_path,
+                "thumb_path": thumb_path,
+                "title": final_title,
+                "description": final_desc,
+                "tags": final_tags,
+                "error": err_str,
+                "status": "pending_quota_reset",
+            }, f, indent=2)
+        print(f"   📦 Saved to pending queue: {manifest_path}")
+        return f"local://pending_quota_reset/{os.path.basename(video_path)}"
+    except Exception as e:
+        print(f"\n   ⚠ Unexpected upload failure: {e}")
+        os.makedirs(os.path.join(config.OUTPUT_DIR, "pending_uploads"), exist_ok=True)
+        manifest_path = os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{os.path.basename(video_path)}.json")
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "video_path": video_path,
+                "thumb_path": thumb_path,
+                "title": final_title,
+                "description": final_desc,
+                "tags": final_tags,
+                "error": str(e),
+                "status": "failed_retry",
+            }, f, indent=2)
+        return f"local://failed_upload/{os.path.basename(video_path)}"

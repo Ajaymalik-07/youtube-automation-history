@@ -82,8 +82,25 @@ def sync_client_secret_file() -> None:
             pass
 
 
+
+def sync_youtube_token_file() -> None:
+    """Restore youtube_token.pickle from YOUTUBE_TOKEN_BASE64 env var if missing."""
+    token_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "youtube_token.pickle")
+    if not os.path.exists(token_path):
+        tok_b64 = os.getenv("YOUTUBE_TOKEN_BASE64", "").strip()
+        if tok_b64:
+            try:
+                import base64
+                with open(token_path, "wb") as f:
+                    f.write(base64.b64decode(tok_b64))
+                print(f"   ✓ Restored youtube_token.pickle from YOUTUBE_TOKEN_BASE64 environment secret.")
+            except Exception as e:
+                print(f"   ⚠ Could not decode YOUTUBE_TOKEN_BASE64: {e}")
+
+
 _load_env()
 sync_client_secret_file()
+sync_youtube_token_file()
 
 # ─────────────────────────────────────────
 #  API Keys  (all free-tier — only Gemini is recommended; the rest are optional)
@@ -116,7 +133,7 @@ SMTP_PASSWORD      = os.getenv("SMTP_PASSWORD", "")
 ENV_KEYS = [
     "GEMINI_API_KEY", "PEXELS_API_KEY", "PIXABAY_API_KEY", "GROQ_API_KEY",
     "OPENROUTER_API_KEY", "YOUTUBE_API_KEY", "YOUTUBE_CHANNEL_ID",
-    "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET",
+    "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_TOKEN_BASE64",
     "NOTIFICATION_EMAIL", "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD",
 ]
 

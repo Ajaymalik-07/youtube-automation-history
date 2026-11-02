@@ -50,6 +50,9 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_TOKEN_BASE64: ${{ secrets.YOUTUBE_TOKEN_BASE64 }}
         run: |
           if [ -n "$DOT_ENV" ]; then
             echo "Using single DOT_ENV secret file..."
@@ -62,6 +65,18 @@ jobs:
             echo "GROQ_API_KEY=$GROQ_API_KEY" >> .env
             echo "YOUTUBE_API_KEY=$YOUTUBE_API_KEY" >> .env
             echo "YOUTUBE_CHANNEL_ID=$YOUTUBE_CHANNEL_ID" >> .env
+            echo "YOUTUBE_CLIENT_ID=$YOUTUBE_CLIENT_ID" >> .env
+            echo "YOUTUBE_CLIENT_SECRET=$YOUTUBE_CLIENT_SECRET" >> .env
+            echo "YOUTUBE_TOKEN_BASE64=$YOUTUBE_TOKEN_BASE64" >> .env
+          fi
+
+      - name: Restore YouTube OAuth Credentials & Token
+        run: |
+          python -c "import config; config.sync_client_secret_file(); config.sync_youtube_token_file()"
+          if [ -f "youtube_token.pickle" ]; then
+            echo "✅ youtube_token.pickle successfully loaded for live YouTube publishing."
+          else
+            echo "ℹ Notice: youtube_token.pickle not found. Will save rendered output to pending_uploads."
           fi
 
       - name: Run YouTube Studio Automation (Produce Shorts & Long-Form Video)
