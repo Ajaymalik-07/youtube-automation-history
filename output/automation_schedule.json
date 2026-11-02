@@ -1,0 +1,108 @@
+{
+  "longform_target_hour_ist": 19,
+  "longform_render_lead_hours": 5,
+  "candidate_longform_hours": [
+    17,
+    18,
+    19,
+    20,
+    21
+  ],
+  "shorts_hours_ist": [
+    9,
+    12,
+    16,
+    19,
+    22
+  ],
+  "history_runs": [
+    {
+      "type": "short",
+      "title": "The Secret of Battle Haldighati Maharana: The Battle of...",
+      "url": "local://scheduled_queue/2026-10-30/short_1",
+      "date_ist": "2026-10-30T09:10:23.912708+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Kalinga Carnage That: The Kalinga War 261 BC: The Carnage That...",
+      "url": "local://scheduled_queue/2026-10-30/short_2",
+      "date_ist": "2026-10-30T09:10:23.912708+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "First Battle Panipat: The First Battle of Panipat 1526: Gunpowder...",
+      "url": "local://scheduled_queue/2026-10-30/short_3",
+      "date_ist": "2026-10-30T09:10:23.912708+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Battle Tarain 1192: The Battle of Tarain 1192: The Turning Point...",
+      "url": "local://scheduled_queue/2026-10-30/short_4",
+      "date_ist": "2026-10-30T09:10:23.912708+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Battle Plassey 1757: The Battle of Plassey 1757: How 3,000 Men Won...",
+      "url": "local://scheduled_queue/2026-10-30/short_5",
+      "date_ist": "2026-10-30T09:10:23.912708+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Indus Valley Plumbing Was 4,000 Years Ahead of Europe! #Shorts...",
+      "url": "https://www.youtube.com/watch?v=zJr8A_RgJWc",
+      "date_ist": "2026-11-02T10:52:21.391596+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Lost 4000YearOld River: The Lost 4,000-Year-Old River Hidden Under...",
+      "url": "https://www.youtube.com/watch?v=ZRpknITJ7IY",
+      "date_ist": "2026-11-02T12:29:39.457850+05:30",
+      "score": 100
+    }
+  ],
+  "slot_performance": {
+    "17": {
+      "runs": 0,
+      "total_views": 0,
+      "avg_views": 0
+    },
+    "18": {
+      "runs": 0,
+      "total_views": 0,
+      "avg_views": 0
+    },
+    "19": {
+      "runs": 0,
+      "total_views": 0,
+      "avg_views": 0
+    },
+    "20": {
+      "runs": 0,
+      "total_views": 0,
+      "avg_views": 0
+    },
+    "21": {
+      "runs": 0,
+      "total_views": 0,
+      "avg_views": 0
+    }
+  },
+  "last_longform_date": null,
+  "last_shorts_date": "2026-10-30",
+  "last_short_pub_2026-10-29_9": true,
+  "last_short_pub_2026-10-29_12": true,
+  "last_longform_pub_date": "2026-10-30",
+  "last_short_pub_2026-10-30_9": true,
+  "last_short_pub_2026-10-30_12": true,
+  "last_short_pub_2026-10-30_16": true,
+  "last_short_pub_2026-10-30_19": true,
+  "last_short_pub_2026-10-30_22": true,
+  "last_short_pub_2026-11-02_9": true,
+  "last_short_pub_2026-11-02_12": true
+}

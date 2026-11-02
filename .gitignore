@@ -28,7 +28,8 @@ youtube_token.pickle
 assets/fonts/
 
 # ── Generated output — large files ───────
-output/
+output/*
+!output/automation_schedule.json
 output/images/
 *.mp4
 *.mp3
