@@ -47,10 +47,16 @@ def _get_service():
                 creds.refresh(Request())
                 with open(TOKEN_FILE, "wb") as f:
                     pickle.dump(creds, f)
-        except Exception:
+        except Exception as e:
+            print(f"   ⚠ Could not load/refresh token from {TOKEN_FILE}: {e}")
             creds = None
 
     if not creds or not creds.valid:
+        if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
+            raise RuntimeError(
+                "YouTube OAuth credentials are missing or could not be refreshed in headless CI environment. "
+                "Ensure YOUTUBE_TOKEN_BASE64 in your GitHub repository secrets is up to date."
+            )
         secret_file = getattr(config, "YOUTUBE_CLIENT_SECRET_FILE", "client_secret.json")
         if not os.path.exists(secret_file):
             raise FileNotFoundError(
@@ -64,8 +70,6 @@ def _get_service():
         creds = flow.run_local_server(bind_addr="0.0.0.0", port=8080, open_browser=True, timeout_seconds=180)
         with open(TOKEN_FILE, "wb") as f:
             pickle.dump(creds, f)
-
-    return build("youtube", "v3", credentials=creds)
 
     return build("youtube", "v3", credentials=creds)
 

@@ -84,18 +84,20 @@ def sync_client_secret_file() -> None:
 
 
 def sync_youtube_token_file() -> None:
-    """Restore youtube_token.pickle from YOUTUBE_TOKEN_BASE64 env var if missing."""
+    """Restore youtube_token.pickle from YOUTUBE_TOKEN_BASE64 env var if missing or to ensure it matches."""
     token_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "youtube_token.pickle")
-    if not os.path.exists(token_path):
-        tok_b64 = os.getenv("YOUTUBE_TOKEN_BASE64", "").strip()
-        if tok_b64:
-            try:
-                import base64
+    tok_b64 = os.getenv("YOUTUBE_TOKEN_BASE64", "").strip()
+    if tok_b64:
+        try:
+            import base64
+            raw_bytes = base64.b64decode(tok_b64)
+            # Only write if file doesn't exist or content differs
+            if not os.path.exists(token_path) or open(token_path, "rb").read() != raw_bytes:
                 with open(token_path, "wb") as f:
-                    f.write(base64.b64decode(tok_b64))
-                print(f"   ✓ Restored youtube_token.pickle from YOUTUBE_TOKEN_BASE64 environment secret.")
-            except Exception as e:
-                print(f"   ⚠ Could not decode YOUTUBE_TOKEN_BASE64: {e}")
+                    f.write(raw_bytes)
+                print(f"   ✓ Restored fresh youtube_token.pickle ({len(raw_bytes)} bytes) from YOUTUBE_TOKEN_BASE64.")
+        except Exception as e:
+            print(f"   ⚠ Could not decode YOUTUBE_TOKEN_BASE64: {e}")
 
 
 _load_env()
