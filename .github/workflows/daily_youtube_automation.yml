@@ -2,13 +2,14 @@ name: Daily YouTube Automation
 
 on:
   schedule:
-    # 5 Daily Shorts release windows + Longform (all UTC times convert to IST UTC+5:30)
+    # Continuous advance pipeline heartbeat: runs every 2 hours to ensure YouTube scheduled queue is always filled
+    - cron: '0 */2 * * *'
+    # Target release checkpoints (UTC+5:30)
     - cron: '30 3 * * *'   # 09:00 AM IST — Short 1/5
     - cron: '30 6 * * *'   # 12:00 PM IST — Short 2/5
     - cron: '30 10 * * *'  # 04:00 PM IST — Short 3/5
     - cron: '30 13 * * *'  # 07:00 PM IST — Short 4/5 + 15+ Min Longform Documentary
     - cron: '30 16 * * *'  # 10:00 PM IST — Short 5/5
-    - cron: '30 14 * * *'  # 08:00 PM IST — Pre-render tomorrow's batch overnight
   # Allows manual trigger anytime from the GitHub Actions tab
   workflow_dispatch:
     inputs:
@@ -19,8 +20,10 @@ on:
         type: choice
         options:
           - 'auto'
-          - 'run_now'
+          - 'today'
+          - 'tomorrow'
           - 'prerender'
+          - 'run_now'
 
 jobs:
   produce-and-publish:
@@ -106,6 +109,10 @@ jobs:
           ACTION="${{ github.event.inputs.action }}"
           if [ "$ACTION" = "run_now" ]; then
             python automation.py --run-all
+          elif [ "$ACTION" = "today" ]; then
+            python automation.py --today
+          elif [ "$ACTION" = "tomorrow" ]; then
+            python automation.py --tomorrow
           elif [ "$ACTION" = "prerender" ]; then
             python automation.py --prerender
           else

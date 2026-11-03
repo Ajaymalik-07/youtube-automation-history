@@ -138,7 +138,7 @@ def adapt_upload_slot(state: dict, slot_hour: int, recorded_views: int) -> int:
 #  LONG-FORM 15+ MINUTE PIPELINE
 # ══════════════════════════════════════════════════════════════════════════════
 
-def create_and_publish_longform(is_prerender: bool = False, for_date: str = None) -> dict:
+def create_and_publish_longform(is_prerender: bool = False, for_date: str = None, publish_at: str = None) -> dict:
     """
     Executes the complete end-to-end 15+ minute deep History documentary pipeline:
     1. Researches trending historical topic
@@ -306,7 +306,8 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
         print(f"   ✅ Saved ready-to-publish manifest: {manifest_path}")
         print(f"      Will publish automatically tomorrow at peak evening release!")
     else:
-        print("\n  [8/8] Automated Publishing (Public Direct)…")
+        status_label = f"Scheduled on YouTube for {publish_at}" if publish_at else "Public Direct"
+        print(f"\n  [8/8] Automated Publishing ({status_label})…")
         yt_url = upload_to_youtube(
             script=hindi_script,
             video_path=video_path,
@@ -314,6 +315,7 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
             title=seo_result["title"],
             description=seo_result["description"],
             tags=seo_result["tags"],
+            publish_at=publish_at,
         )
 
     # Archive run into library
@@ -410,7 +412,7 @@ Return ONLY a valid JSON array of 5 strings:
     return list(zip(fallback_titles[:5], langs))
 
 
-def create_and_publish_single_short(index: int, is_prerender: bool = False, for_date: str = None) -> dict:
+def create_and_publish_single_short(index: int, is_prerender: bool = False, for_date: str = None, publish_at: str = None) -> dict:
     """
     Generates and processes a SINGLE historical Short (index 1 to 5),
     strictly aligned with the Weekly Editorial Theme for the target date.
@@ -498,12 +500,15 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
         yt_url = f"local://scheduled_queue/{target_date}/short_{idx}"
         print(f"   📦 Short {idx} queued for tomorrow ({target_date}) scroll window.")
     else:
+        status_label = f"Scheduled on YouTube for {publish_at}" if publish_at else "Public Direct"
+        print(f"\n   Publishing Short {idx} to YouTube ({status_label})…")
         yt_url = upload_to_youtube(
             script=short_script,
             video_path=video_path,
             title=seo_res["title"],
             description=seo_res["description"],
             tags=seo_res["tags"],
+            publish_at=publish_at,
         )
 
     result = {
@@ -679,74 +684,121 @@ def publish_scheduled_longform(target_date: str) -> str:
     return res.get("url", "")
 
 
-def run_auto_catchup() -> dict:
+def get_slot_publish_at(target_date: str, slot_hour_ist: int) -> str | None:
     """
-    Evaluates current IST time and catches up any due or overdue releases for today:
-    1. Shorts: any slot whose hour <= current IST hour and not yet published.
-    2. Long-Form: documentary if current IST hour >= longform_target_hour_ist and not yet published.
-    3. Pre-render: tomorrow's batch if current IST hour >= prerender_day_before_hour_ist and not yet done.
+    Computes ISO-8601 UTC publishAt timestamp for a target release slot.
+    Returns None if the slot time is in the past (so it will publish immediately as Public).
+    """
+    try:
+        slot_dt = datetime.strptime(f"{target_date} {slot_hour_ist:02d}:00:00", "%Y-%m-%d %H:%M:%S").replace(tzinfo=IST)
+        now_ist = get_current_ist_time()
+        if slot_dt > now_ist:
+            return slot_dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except Exception as e:
+        print(f"   ⚠ Could not compute publish_at for {target_date} {slot_hour_ist}:00 IST: {e}")
+    return None
+
+
+def run_advance_pipeline(days_ahead: int = 1, check_yesterday: bool = True) -> dict:
+    """
+    Continuous advance buffer pipeline:
+    1. Checks yesterday for any missed releases and publishes them immediately.
+    2. Checks today: past slots published as Public, future slots scheduled on YouTube.
+    3. Checks tomorrow (days_ahead): pre-renders and schedules directly on YouTube via publishAt.
+       YouTube's cloud automatically makes each video Public on the exact second.
+    4. Quota-safe: stops gracefully if the 10,000 units/day limit is encountered.
     """
     now_ist = get_current_ist_time()
-    today_str = now_ist.strftime("%Y-%m-%d")
-    tomorrow_str = (now_ist + timedelta(days=1)).strftime("%Y-%m-%d")
-    current_hour = now_ist.hour
-
-    print("\n" + "=" * 70)
-    print(f"  🔍 Checking Autonomous History Schedule Status (IST: {now_ist.strftime('%Y-%m-%d %H:%M:%S')})")
-    print("=" * 70)
-
     state = load_schedule_state()
     shorts_hours = state.get("shorts_hours_ist", [9, 12, 16, 19, 22])
     target_long_hour = state.get("longform_target_hour_ist", 19)
-    prerender_hour = state.get("prerender_day_before_hour_ist", 20)
 
-    published_shorts = []
-    published_long = None
+    print("\n" + "=" * 70)
+    print(f"  🚀 YAAS Autonomous Advance YouTube Pipeline (IST: {now_ist.strftime('%Y-%m-%d %H:%M:%S')})")
+    print(f"  Strategy: YouTube Native Scheduling (publishAt) + {days_ahead}-Day Advance Buffer")
+    print("=" * 70)
 
-    # 1. Process Shorts for today
-    for idx, sh_hour in enumerate(shorts_hours, 1):
-        sh_key = f"last_short_pub_{today_str}_{sh_hour}"
-        if current_hour >= sh_hour and not state.get(sh_key):
-            print(f"\n▶ [AUTO-CATCHUP] Short {idx}/5 (Slot {sh_hour}:00 IST) is due or overdue! Publishing now...")
+    scheduled_results = []
+    quota_reached = False
+
+    start_offset = -1 if check_yesterday else 0
+    for offset in range(start_offset, days_ahead + 1):
+        if quota_reached:
+            break
+        target_dt = now_ist + timedelta(days=offset)
+        target_date = target_dt.strftime("%Y-%m-%d")
+        theme_info = config.get_weekly_theme(target_date)
+        day_label = "YESTERDAY" if offset == -1 else ("TODAY" if offset == 0 else "TOMORROW")
+        print(f"\n📅 [{day_label}] Checking Schedule Buffer for {target_date} ({theme_info['day']}: {theme_info['theme']})…")
+
+        # 1. Process 5 Shorts for target_date
+        for idx, sh_hour in enumerate(shorts_hours, 1):
+            sh_key = f"last_short_pub_{target_date}_{sh_hour}"
+            state = load_schedule_state()
+            if state.get(sh_key):
+                print(f"   • Short {idx}/5 ({sh_hour}:00 IST): ✅ Already Scheduled/Live")
+                continue
+
+            publish_at = get_slot_publish_at(target_date, sh_hour)
+            timing_desc = f"Schedule on YouTube for {sh_hour}:00 IST" if publish_at else f"Immediate Public (Slot {sh_hour}:00 IST passed)"
+            print(f"\n▶ [PIPELINE] Short {idx}/5 for {target_date} ({timing_desc}) — Processing now…")
+
             try:
-                url = publish_scheduled_short(index=idx, target_date=today_str)
+                res = create_and_publish_single_short(index=idx, publish_at=publish_at, for_date=target_date)
+                yt_url = res.get("url", "")
+                if "pending_quota_reset" in yt_url:
+                    print(f"   🚨 Daily YouTube quota reached while uploading Short {idx}/5. Halting for quota reset.")
+                    quota_reached = True
+                    break
+
                 state = load_schedule_state()
                 state[sh_key] = True
+                state[f"{sh_key}_url"] = yt_url
                 save_schedule_state(state)
-                published_shorts.append({"index": idx, "hour": sh_hour, "url": url})
+                scheduled_results.append({"type": "short", "date": target_date, "index": idx, "hour": sh_hour, "url": yt_url})
             except Exception as e:
-                print(f"   ⚠ Failed to process Short {idx}/5 (will retry next check): {e}")
+                print(f"   ⚠ Error processing Short {idx}/5 for {target_date}: {e}")
+
+        if quota_reached:
+            break
+
+        # 2. Process Long-Form Documentary for target_date
+        long_key = f"last_longform_pub_{target_date}"
+        state = load_schedule_state()
+        if state.get(long_key) or state.get("last_longform_pub_date") == target_date:
+            print(f"   • Long-Form Documentary ({target_long_hour}:00 IST): ✅ Already Scheduled/Live")
         else:
-            status = "✅ Published" if state.get(sh_key) else f"⏳ Scheduled for {sh_hour}:00 IST"
-            print(f"   • Short {idx}/5 ({sh_hour}:00 IST): {status}")
+            publish_at = get_slot_publish_at(target_date, target_long_hour)
+            timing_desc = f"Schedule on YouTube for {target_long_hour}:00 IST" if publish_at else f"Immediate Public ({target_long_hour}:00 IST passed)"
+            print(f"\n▶ [PIPELINE] Long-Form Documentary for {target_date} ({timing_desc}) — Processing now…")
 
-    # 2. Process Long-Form Documentary for today
-    long_done = (state.get("last_longform_pub_date") == today_str or state.get("last_longform_date") == today_str)
-    if current_hour >= target_long_hour and not long_done:
-        print(f"\n▶ [AUTO-CATCHUP] Long-Form Documentary (Slot {target_long_hour}:00 IST) is due! Publishing now...")
-        try:
-            url = publish_scheduled_longform(target_date=today_str)
-            published_long = url
-        except Exception as e:
-            print(f"   ⚠ Failed to process Long-Form Documentary (will retry next check): {e}")
-    else:
-        long_status = "✅ Published" if long_done else f"⏳ Scheduled for {target_long_hour}:00 IST"
-        print(f"   • Long-Form Documentary ({target_long_hour}:00 IST): {long_status}")
+            try:
+                l_res = create_and_publish_longform(publish_at=publish_at, for_date=target_date)
+                yt_url = l_res.get("url", "")
+                if "pending_quota_reset" in yt_url:
+                    print(f"   🚨 Daily YouTube quota reached while uploading Long-Form. Halting for quota reset.")
+                    quota_reached = True
+                    break
 
-    # 3. Check Pre-Render for tomorrow
-    if current_hour >= prerender_hour and state.get("last_prerender_date") != today_str:
-        print(f"\n▶ [AUTO-CATCHUP] Pre-rendering tomorrow's ({tomorrow_str}) content overnight...")
-        try:
-            s_res = create_and_publish_shorts_batch(is_prerender=True, for_date=tomorrow_str)
-            l_res = create_and_publish_longform(is_prerender=True, for_date=tomorrow_str)
-            state = load_schedule_state()
-            state["last_prerender_date"] = today_str
-            save_schedule_state(state)
-        except Exception as e:
-            print(f"   ⚠ Failed pre-render for tomorrow (will retry next check): {e}")
+                state = load_schedule_state()
+                state[long_key] = True
+                state["last_longform_pub_date"] = target_date
+                state["last_longform_date"] = target_date
+                state[f"{long_key}_url"] = yt_url
+                save_schedule_state(state)
+                scheduled_results.append({"type": "longform", "date": target_date, "url": yt_url})
+            except Exception as e:
+                print(f"   ⚠ Error processing Long-Form for {target_date}: {e}")
 
-    print("\n✅ Autonomous Catch-up Check Complete.\n")
-    return {"published_shorts": published_shorts, "published_long": published_long}
+    print("\n" + "=" * 70)
+    print(f"✅ Advance Pipeline Check Finished. Processed {len(scheduled_results)} items.")
+    print("=" * 70 + "\n")
+    return {"processed": scheduled_results, "quota_reached": quota_reached}
+
+
+def run_auto_catchup() -> dict:
+    """Entry point for automated checks: runs the continuous advance pipeline."""
+    return run_advance_pipeline(days_ahead=1, check_yesterday=True)
 
 
 def run_scheduler_daemon():
@@ -862,7 +914,10 @@ def print_status():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="YAAS Autonomous History Studio")
     parser.add_argument("--daemon", action="store_true", help="Run continuous scheduler daemon")
-    parser.add_argument("--auto", action="store_true", help="Auto catch-up: evaluate current IST time and publish overdue/current content")
+    parser.add_argument("--auto", action="store_true", help="Auto catch-up: evaluate current IST time and advance schedule content")
+    parser.add_argument("--advance", action="store_true", help="Advance buffer: render & schedule today + tomorrow on YouTube")
+    parser.add_argument("--today", action="store_true", help="Process and schedule today's remaining slots on YouTube")
+    parser.add_argument("--tomorrow", action="store_true", help="Render and schedule tomorrow's entire batch in advance on YouTube")
     parser.add_argument("--run-short-slot", type=int, choices=[1, 2, 3, 4, 5], help="Execute specific Short slot (1 to 5) immediately")
     parser.add_argument("--prerender", action="store_true", help="Pre-render tomorrow's content now a day before")
     parser.add_argument("--run-shorts", action="store_true", help="Execute 5 daily Shorts generation immediately")
@@ -874,13 +929,19 @@ if __name__ == "__main__":
 
     if args.daemon:
         run_scheduler_daemon()
-    elif args.auto:
-        res = run_auto_catchup()
+    elif args.auto or args.advance:
+        res = run_advance_pipeline(days_ahead=1, check_yesterday=True)
         try:
             from notifier.email_notifier import send_upload_notification_email
-            send_upload_notification_email(longform_result=res.get("published_long"), shorts_results=res.get("published_shorts"))
+            send_upload_notification_email(longform_result=res.get("published_long"), shorts_results=res.get("processed"))
         except Exception as e:
             print(f"   ℹ Email notification notice: {e}")
+    elif args.today:
+        res = run_advance_pipeline(days_ahead=0, check_yesterday=True)
+    elif args.tomorrow:
+        tomorrow_str = (get_current_ist_time() + timedelta(days=1)).strftime("%Y-%m-%d")
+        print(f"\n🚀 Advance scheduling tomorrow's ({tomorrow_str}) content on YouTube...")
+        res = run_advance_pipeline(days_ahead=1, check_yesterday=False)
     elif args.run_short_slot:
         s_res = create_and_publish_single_short(index=args.run_short_slot)
         try:
@@ -890,12 +951,11 @@ if __name__ == "__main__":
             print(f"   ℹ Email notification notice: {e}")
     elif args.prerender:
         tomorrow_str = (get_current_ist_time() + timedelta(days=1)).strftime("%Y-%m-%d")
-        print(f"\n🚀 Pre-rendering tomorrow's ({tomorrow_str}) content a day before: Shorts FIRST, then Long-form...")
-        s_res = create_and_publish_shorts_batch(is_prerender=True, for_date=tomorrow_str)
-        l_res = create_and_publish_longform(is_prerender=True, for_date=tomorrow_str)
+        print(f"\n🚀 Advance scheduling tomorrow's ({tomorrow_str}) batch directly onto YouTube...")
+        res = run_advance_pipeline(days_ahead=1, check_yesterday=False)
         try:
             from notifier.email_notifier import send_upload_notification_email
-            send_upload_notification_email(longform_result=l_res, shorts_results=s_res)
+            send_upload_notification_email(shorts_results=res.get("processed"))
         except Exception as e:
             print(f"   ℹ Email notification notice: {e}")
     elif args.run_shorts:
