@@ -719,6 +719,7 @@ def run_advance_pipeline(days_ahead: int = 1, check_yesterday: bool = True) -> d
     print("=" * 70)
 
     scheduled_results = []
+    errors = []
     quota_reached = False
 
     start_offset = -1 if check_yesterday else 0
@@ -748,6 +749,12 @@ def run_advance_pipeline(days_ahead: int = 1, check_yesterday: bool = True) -> d
                 yt_url = res.get("url", "")
                 if "pending_quota_reset" in yt_url:
                     print(f"   🚨 Daily YouTube quota reached while uploading Short {idx}/5. Halting for quota reset.")
+                    errors.append({
+                        "item": f"Short {idx}/5 ({target_date})",
+                        "title": res.get("title", f"Short {idx}"),
+                        "error": "Daily YouTube API upload quota (10,000 units/day) reached.",
+                        "action": "Rendered video safely saved in queue. Auto-upload will resume on ~12:30 PM IST reset."
+                    })
                     quota_reached = True
                     break
 
@@ -758,6 +765,12 @@ def run_advance_pipeline(days_ahead: int = 1, check_yesterday: bool = True) -> d
                 scheduled_results.append({"type": "short", "date": target_date, "index": idx, "hour": sh_hour, "url": yt_url})
             except Exception as e:
                 print(f"   ⚠ Error processing Short {idx}/5 for {target_date}: {e}")
+                errors.append({
+                    "item": f"Short {idx}/5 ({target_date})",
+                    "title": f"Short {idx}",
+                    "error": str(e),
+                    "action": "Will auto-retry on next hourly check."
+                })
 
         if quota_reached:
             break
@@ -777,6 +790,12 @@ def run_advance_pipeline(days_ahead: int = 1, check_yesterday: bool = True) -> d
                 yt_url = l_res.get("url", "")
                 if "pending_quota_reset" in yt_url:
                     print(f"   🚨 Daily YouTube quota reached while uploading Long-Form. Halting for quota reset.")
+                    errors.append({
+                        "item": f"Long-Form Documentary ({target_date})",
+                        "title": l_res.get("title", "Historical Documentary"),
+                        "error": "Daily YouTube API upload quota (10,000 units/day) reached.",
+                        "action": "Rendered video safely saved in queue. Auto-upload will resume on ~12:30 PM IST reset."
+                    })
                     quota_reached = True
                     break
 
@@ -789,11 +808,17 @@ def run_advance_pipeline(days_ahead: int = 1, check_yesterday: bool = True) -> d
                 scheduled_results.append({"type": "longform", "date": target_date, "url": yt_url})
             except Exception as e:
                 print(f"   ⚠ Error processing Long-Form for {target_date}: {e}")
+                errors.append({
+                    "item": f"Long-Form Documentary ({target_date})",
+                    "title": "Historical Documentary",
+                    "error": str(e),
+                    "action": "Will auto-retry on next hourly check."
+                })
 
     print("\n" + "=" * 70)
-    print(f"✅ Advance Pipeline Check Finished. Processed {len(scheduled_results)} items.")
+    print(f"✅ Advance Pipeline Check Finished. Processed {len(scheduled_results)} items. Notices/Errors: {len(errors)}.")
     print("=" * 70 + "\n")
-    return {"processed": scheduled_results, "quota_reached": quota_reached}
+    return {"processed": scheduled_results, "quota_reached": quota_reached, "errors": errors}
 
 
 def run_auto_catchup() -> dict:
@@ -933,11 +958,16 @@ if __name__ == "__main__":
         res = run_advance_pipeline(days_ahead=1, check_yesterday=False)
         try:
             from notifier.email_notifier import send_upload_notification_email
-            send_upload_notification_email(longform_result=res.get("published_long"), shorts_results=res.get("processed"))
+            send_upload_notification_email(longform_result=res.get("published_long"), shorts_results=res.get("processed"), errors=res.get("errors"))
         except Exception as e:
             print(f"   ℹ Email notification notice: {e}")
     elif args.today:
         res = run_advance_pipeline(days_ahead=0, check_yesterday=False)
+        try:
+            from notifier.email_notifier import send_upload_notification_email
+            send_upload_notification_email(longform_result=res.get("published_long"), shorts_results=res.get("processed"), errors=res.get("errors"))
+        except Exception as e:
+            print(f"   ℹ Email notification notice: {e}")
     elif args.tomorrow:
         tomorrow_str = (get_current_ist_time() + timedelta(days=1)).strftime("%Y-%m-%d")
         print(f"\n🚀 Advance scheduling tomorrow's ({tomorrow_str}) content on YouTube...")

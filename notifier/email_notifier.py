@@ -30,16 +30,71 @@ def _get_ist_time_str() -> str:
 
 
 def build_html_report(longform_result: dict = None, shorts_results: list = None,
-                      analytics: dict = None, recipient: str = None) -> str:
-    """Generates a responsive, visually stunning HTML email report."""
+                      analytics: dict = None, recipient: str = None, errors: list = None) -> str:
+    """Generates a responsive, visually stunning HTML email report with error diagnostics."""
     lf = longform_result or {}
     shorts = shorts_results or []
     an = analytics or {}
+    errs = errors or []
     to_email = recipient or getattr(config, "NOTIFICATION_EMAIL", "ajaymobulous@gmail.com")
     now_ist = _get_ist_time_str()
 
+    # Dynamic status badge
+    if errs:
+        badge_html = """
+        <span style="background-color: #dc2626; color: #ffffff; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;">
+          ⚠️ Notice / Action
+        </span>
+        """
+    else:
+        badge_html = """
+        <span style="background-color: #059669; color: #ffffff; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;">
+          🟢 Upload Success
+        </span>
+        """
+
+    # Errors section HTML
+    errors_html = ""
+    if errs:
+        err_rows = ""
+        for e in errs:
+            item_name = e.get("item", "Pipeline Task")
+            title = e.get("title", "")
+            err_msg = e.get("error", "Unknown error")
+            action = e.get("action", "Scheduled for automated retry")
+            err_rows += f"""
+            <tr style="border-bottom: 1px solid #7f1d1d;">
+              <td style="padding: 10px 12px; color: #fca5a5; font-weight: 700; font-size: 13px; width: 25%;">{item_name}</td>
+              <td style="padding: 10px 12px; color: #fee2e2; font-size: 13px;">
+                <strong>{title}</strong><br>
+                <span style="color: #f87171; font-family: monospace; font-size: 12px;">{err_msg}</span><br>
+                <span style="color: #a7f3d0; font-size: 12px;">➡ Action: {action}</span>
+              </td>
+            </tr>
+            """
+        errors_html = f"""
+        <!-- ERROR DIAGNOSTICS SECTION -->
+        <tr>
+          <td style="padding: 20px 35px 0 35px;">
+            <div style="background-color: #450a0a; border: 1px solid #ef4444; border-radius: 8px; padding: 16px 20px;">
+              <span style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: #f87171; letter-spacing: 1px;">
+                🚨 Automation Issue & Diagnostics Notice
+              </span>
+              <p style="margin: 6px 0 12px 0; color: #fca5a5; font-size: 13px;">
+                The autonomous pipeline encountered the following event during processing:
+              </p>
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #2b0c0c; border-radius: 6px; border-collapse: collapse;">
+                <tbody>
+                  {err_rows}
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+        """
+
     # Longform details
-    lf_title = lf.get("title", "5000 साल पुरानी खोई हुई सभ्यता जो रेगिस्तान के नीचे दबी है")
+    lf_title = lf.get("title", "Historical Documentary")
     lf_url = lf.get("url", "")
     lf_score = lf.get("score", 100)
     lf_link_html = (
@@ -58,7 +113,7 @@ def build_html_report(longform_result: dict = None, shorts_results: list = None,
             url_display = (
                 f'<a href="{s_url}" style="color: #6366f1; text-decoration: none; font-weight: 600;">Watch Short →</a>'
                 if s_url and not s_url.startswith("local://") else
-                '<span style="color: #9ca3af;">Scheduled for Peak Scroll</span>'
+                '<span style="color: #9ca3af;">Scheduled on YouTube</span>'
             )
             shorts_html += f"""
             <tr style="border-bottom: 1px solid #2d3748;">
@@ -115,9 +170,7 @@ def build_html_report(longform_result: dict = None, shorts_results: list = None,
                     </p>
                   </td>
                   <td align="right">
-                    <span style="background-color: #059669; color: #ffffff; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;">
-                      🟢 Upload Success
-                    </span>
+                    {badge_html}
                   </td>
                 </tr>
               </table>
@@ -135,6 +188,8 @@ def build_html_report(longform_result: dict = None, shorts_results: list = None,
               </table>
             </td>
           </tr>
+
+          {errors_html}
 
           <!-- SECTION 1: LONGFORM VIDEO -->
           <tr>
@@ -244,28 +299,41 @@ def build_html_report(longform_result: dict = None, shorts_results: list = None,
 
 
 def build_plain_text_report(longform_result: dict = None, shorts_results: list = None,
-                            analytics: dict = None, recipient: str = None) -> str:
+                            analytics: dict = None, recipient: str = None, errors: list = None) -> str:
     """Plain-text fallback version of the email."""
     lf = longform_result or {}
     shorts = shorts_results or []
     an = analytics or {}
+    errs = errors or []
     now_ist = _get_ist_time_str()
 
+    status_str = "Alert / Attention 🚨" if errs else "Upload Complete 🟢"
     lines = [
         "===================================================",
         "🎬 YAAS AUTONOMOUS STUDIO — DAILY UPLOAD REPORT",
         "===================================================",
         f"Timestamp : {now_ist}",
         f"Recipient : {recipient or getattr(config, 'NOTIFICATION_EMAIL', 'ajaymobulous@gmail.com')}",
-        f"Status    : Upload Complete 🟢",
+        f"Status    : {status_str}",
         "",
+    ]
+
+    if errs:
+        lines.append("--- ⚠️ PIPELINE NOTICES & ERROR DIAGNOSTICS ---")
+        for e in errs:
+            lines.append(f"  • {e.get('item')}: {e.get('title')}")
+            lines.append(f"    Cause  : {e.get('error')}")
+            lines.append(f"    Action : {e.get('action')}")
+        lines.append("")
+
+    lines.extend([
         "--- 1. FEATURED 15+ MIN LONG-FORM VIDEO (HINDI) ---",
         f"Title : {lf.get('title', 'Historical Documentary')}",
         f"Score : {lf.get('score', 100)}/100 (Grade A)",
         f"URL   : {lf.get('url', 'Available in Local Studio')}",
         "",
         f"--- 2. DAILY SHORTS BATCH ({len(shorts)} Videos) ---",
-    ]
+    ])
     for i, s in enumerate(shorts, 1):
         lines.append(f"  #{i} {s.get('title')} [{s.get('score', 100)}/100] -> {s.get('url', 'Pending')}")
 
@@ -287,18 +355,19 @@ def build_plain_text_report(longform_result: dict = None, shorts_results: list =
 
 
 def send_upload_notification_email(longform_result: dict = None, shorts_results: list = None,
-                                   recipient: str = None) -> bool:
+                                   recipient: str = None, errors: list = None) -> bool:
     """
     Builds the report, stores an archive copy in output/email_reports/,
     and dispatches via SMTP if credentials are configured.
     """
     to_email = recipient or getattr(config, "NOTIFICATION_EMAIL", "ajaymobulous@gmail.com")
+    errs = errors or []
     print(f"\n📧 Preparing automated email notification for {to_email}…")
 
     # Fetch analytics
     analytics = get_channel_and_last_video_analytics()
-    html_content = build_html_report(longform_result, shorts_results, analytics, to_email)
-    text_content = build_plain_text_report(longform_result, shorts_results, analytics, to_email)
+    html_content = build_html_report(longform_result, shorts_results, analytics, to_email, errors=errs)
+    text_content = build_plain_text_report(longform_result, shorts_results, analytics, to_email, errors=errs)
 
     # Always persist report locally
     reports_dir = os.path.join(config.OUTPUT_DIR, "email_reports")
@@ -329,7 +398,11 @@ def send_upload_notification_email(longform_result: dict = None, shorts_results:
 
     try:
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"🎬 YAAS Studio Upload: Videos Published + YouTube Analytics ({_get_ist_time_str()})"
+        if errs:
+            msg["Subject"] = f"🚨 YAAS Studio Alert: Upload Notice & Issue Diagnostics ({_get_ist_time_str()})"
+        else:
+            msg["Subject"] = f"🎬 YAAS Studio Upload: Videos Published + YouTube Analytics ({_get_ist_time_str()})"
+
         msg["From"] = f"YAAS Autonomous Studio <{smtp_user}>"
         msg["To"] = to_email
 
