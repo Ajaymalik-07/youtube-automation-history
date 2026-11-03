@@ -798,7 +798,7 @@ def run_advance_pipeline(days_ahead: int = 1, check_yesterday: bool = True) -> d
 
 def run_auto_catchup() -> dict:
     """Entry point for automated checks: runs the continuous advance pipeline."""
-    return run_advance_pipeline(days_ahead=1, check_yesterday=True)
+    return run_advance_pipeline(days_ahead=1, check_yesterday=False)
 
 
 def run_scheduler_daemon():
@@ -930,14 +930,14 @@ if __name__ == "__main__":
     if args.daemon:
         run_scheduler_daemon()
     elif args.auto or args.advance:
-        res = run_advance_pipeline(days_ahead=1, check_yesterday=True)
+        res = run_advance_pipeline(days_ahead=1, check_yesterday=False)
         try:
             from notifier.email_notifier import send_upload_notification_email
             send_upload_notification_email(longform_result=res.get("published_long"), shorts_results=res.get("processed"))
         except Exception as e:
             print(f"   ℹ Email notification notice: {e}")
     elif args.today:
-        res = run_advance_pipeline(days_ahead=0, check_yesterday=True)
+        res = run_advance_pipeline(days_ahead=0, check_yesterday=False)
     elif args.tomorrow:
         tomorrow_str = (get_current_ist_time() + timedelta(days=1)).strftime("%Y-%m-%d")
         print(f"\n🚀 Advance scheduling tomorrow's ({tomorrow_str}) content on YouTube...")
