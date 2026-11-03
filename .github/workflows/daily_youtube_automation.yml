@@ -2,8 +2,8 @@ name: Daily YouTube Automation
 
 on:
   schedule:
-    # Continuous advance pipeline heartbeat: runs every 2 hours to ensure YouTube scheduled queue is always filled
-    - cron: '0 */2 * * *'
+    # Continuous advance pipeline heartbeat: runs every 1 hour to ensure YouTube scheduled queue is always filled
+    - cron: '0 * * * *'
     # Target release checkpoints (UTC+5:30)
     - cron: '30 3 * * *'   # 09:00 AM IST — Short 1/5
     - cron: '30 6 * * *'   # 12:00 PM IST — Short 2/5
