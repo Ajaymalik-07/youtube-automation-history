@@ -183,6 +183,55 @@
       "url": "local://pending_quota_reset/final_short.mp4",
       "date_ist": "2026-11-03T23:36:03.083934+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Brutal Test That Created Gupta Empire Spies...",
+      "url": "local://pending_quota_reset/final_short.mp4",
+      "date_ist": "2026-11-04T01:32:19.032637+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Ancient History: \u0915\u0948\u0932\u093e\u0936 \u092e\u0902\u0926\u093f\u0930: \u090f\u0915 \u0930\u093e\u0924 \u092e\u0947\u0902 \u0915\u0948\u0938\u0947 \u092c\u0928\u093e? #Shorts #History",
+      "url": "local://scheduled_queue/2026-11-05/short_1",
+      "date_ist": "2026-11-04T01:37:11.644471+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "2000 \u0938\u093e\u0932 \u0938\u0947 \u091c\u0902\u0917 \u0915\u094d\u092f\u094b\u0902 \u0928\u0939\u0940\u0902 \u0932\u0917\u0940? #Shorts #History",
+      "url": "local://scheduled_queue/2026-11-05/short_2",
+      "date_ist": "2026-11-04T01:42:55.626105+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u0905\u091a\u0928\u0915 \u0909\u0928\u0928\u0924 \u0938\u092d\u092f\u0924: \u0905\u091a\u093e\u0928\u0915 \u0917\u093e\u092f\u092c \u0939\u0941\u0908 \u0926\u0941\u0928\u093f\u092f\u093e \u0915\u0940 \u0938\u092c\u0938\u0947 \u0909\u0928\u094d\u0928\u0924 \u0938\u092d\u094d\u092f\u0924\u093e?...",
+      "url": "local://scheduled_queue/2026-11-05/short_3",
+      "date_ist": "2026-11-04T01:50:20.250232+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u0930\u0939\u0938\u092f\u092e\u092f \u092a\u0924\u0925\u0930: \u092c\u093f\u0928\u093e \u091c\u094b\u0921\u093c \u0915\u0947 \u092c\u0928\u0947 \u092f\u0947 \u0930\u0939\u0938\u094d\u092f\u092e\u092f\u0940 \u0935\u093f\u0936\u093e\u0932 \u092a\u0924\u094d\u0925\u0930! #Shorts...",
+      "url": "local://scheduled_queue/2026-11-05/short_4",
+      "date_ist": "2026-11-04T01:57:30.036185+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of \u0905\u0928\u0938\u0932\u091d \u092a\u0930\u091a\u0928 \u092a\u0939\u0932\u092f: \u0906\u091c \u092d\u0940 \u0905\u0928\u0938\u0941\u0932\u091d\u0940 \u0939\u0948\u0902 \u0907\u0928 \u092a\u094d\u0930\u093e\u091a\u0940\u0928...",
+      "url": "local://scheduled_queue/2026-11-05/short_5",
+      "date_ist": "2026-11-04T02:03:29.280901+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Acoustic Blueprint Great: The Hidden Sound Machine Inside the...",
+      "url": "local://scheduled_queue/2026-11-05/longform",
+      "date_ist": "2026-11-04T02:43:26.542003+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -212,7 +261,7 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-04",
+  "last_longform_date": "2026-11-05",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
