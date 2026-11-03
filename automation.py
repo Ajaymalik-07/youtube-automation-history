@@ -158,6 +158,61 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
     target_date = for_date or get_current_ist_time().strftime("%Y-%m-%d")
     day_theme = config.get_weekly_theme(target_date)
 
+    q_dir = os.path.join(config.OUTPUT_DIR, "scheduled_queue")
+    manifest_path = os.path.join(q_dir, f"longform_{target_date}.json")
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, encoding="utf-8") as f:
+                q_data = json.load(f)
+            vpath = q_data.get("video_path", "")
+            tpath = q_data.get("thumb_path", "")
+            if not vpath or not os.path.exists(vpath):
+                alt_v = os.path.join(q_dir, f"longform_{target_date}.mp4")
+                if os.path.exists(alt_v):
+                    vpath = alt_v
+            if not tpath or not os.path.exists(tpath):
+                alt_t = os.path.join(q_dir, f"longform_{target_date}.jpg")
+                if os.path.exists(alt_t):
+                    tpath = alt_t
+            if vpath and os.path.exists(vpath):
+                if is_prerender:
+                    print(f"   📦 Long-form for {target_date} is already pre-rendered: {vpath}")
+                    return {"ok": True, "title": q_data.get("title", "15+ Min Documentary"), "url": f"local://scheduled_queue/{target_date}/longform", "video_path": vpath, "score": q_data.get("score", 100)}
+                print(f"   🚀 Reusing pre-rendered 15+ Min Documentary for {target_date}: {q_data.get('title')}")
+                status_label = f"Scheduled on YouTube for {publish_at}" if publish_at else "Public Direct"
+                yt_url = upload_to_youtube(
+                    script={},
+                    video_path=vpath,
+                    thumb_path=tpath if (tpath and os.path.exists(tpath)) else None,
+                    title=q_data.get("title", "Historical Documentary"),
+                    description=q_data.get("description", ""),
+                    tags=q_data.get("tags", []),
+                    publish_at=publish_at,
+                )
+                if yt_url.startswith("https://"):
+                    try:
+                        os.remove(manifest_path)
+                        if os.path.exists(vpath) and "scheduled_queue" in vpath:
+                            os.remove(vpath)
+                        if tpath and os.path.exists(tpath) and "scheduled_queue" in tpath:
+                            os.remove(tpath)
+                    except Exception:
+                        pass
+                    state = load_schedule_state()
+                    state["last_longform_pub_date"] = target_date
+                    state["last_longform_date"] = target_date
+                    state["history_runs"].append({
+                        "type": "longform",
+                        "title": q_data.get("title", "15+ Min Documentary"),
+                        "url": yt_url,
+                        "date_ist": get_current_ist_time().isoformat(),
+                        "score": q_data.get("score", 100),
+                    })
+                    save_schedule_state(state)
+                return {"ok": yt_url.startswith("https://"), "title": q_data.get("title", "15+ Min Documentary"), "url": yt_url, "video_path": vpath, "score": q_data.get("score", 100)}
+        except Exception as e:
+            print(f"   ⚠ Error reading pre-rendered longform: {e}")
+
     # 1. Topic Research
     print(f"  [1/8] Researching topic for {day_theme['day']}: {day_theme['theme']} ({day_theme['theme_hi']})…")
     research = research_topic(
@@ -341,7 +396,7 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
     # Update schedule state
     state = load_schedule_state()
     state["last_longform_date"] = target_date
-    if not is_prerender:
+    if not is_prerender and yt_url.startswith("https://"):
         state["last_longform_pub_date"] = target_date
     state["history_runs"].append({
         "type": "longform",
@@ -436,6 +491,55 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
     if is_prerender:
         os.makedirs(q_dir, exist_ok=True)
 
+    manifest_path = os.path.join(q_dir, f"short_{idx}_{target_date}.json")
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, encoding="utf-8") as f:
+                q_data = json.load(f)
+            vpath = q_data.get("video_path", "")
+            if not vpath or not os.path.exists(vpath):
+                alt_v = os.path.join(q_dir, f"short_{idx}_{target_date}.mp4")
+                if os.path.exists(alt_v):
+                    vpath = alt_v
+            if vpath and os.path.exists(vpath):
+                if is_prerender:
+                    print(f"   📦 Short {idx} for {target_date} is already pre-rendered: {vpath}")
+                    return {"ok": True, "index": idx, "title": q_data.get("title", f"Short {idx}"), "url": f"local://scheduled_queue/{target_date}/short_{idx}", "video_path": vpath, "score": q_data.get("score", 100)}
+                print(f"   🚀 Reusing pre-rendered Short {idx} for {target_date}: {q_data.get('title')}")
+                status_label = f"Scheduled on YouTube for {publish_at}" if publish_at else "Public Direct"
+                yt_url = upload_to_youtube(
+                    script={},
+                    video_path=vpath,
+                    title=q_data.get("title", f"Short {idx}"),
+                    description=q_data.get("description", ""),
+                    tags=q_data.get("tags", []),
+                    publish_at=publish_at,
+                )
+                if yt_url.startswith("https://"):
+                    try:
+                        os.remove(manifest_path)
+                        if os.path.exists(vpath) and "scheduled_queue" in vpath:
+                            os.remove(vpath)
+                    except Exception:
+                        pass
+                    state = load_schedule_state()
+                    state_hours = state.get("shorts_hours_ist", [9, 12, 16, 19, 22])
+                    sh_hour = state_hours[idx - 1] if idx <= len(state_hours) else 9
+                    sh_key = f"last_short_pub_{target_date}_{sh_hour}"
+                    state[sh_key] = True
+                    state[f"{sh_key}_url"] = yt_url
+                    state["history_runs"].append({
+                        "type": "short",
+                        "title": q_data.get("title", f"Short {idx}"),
+                        "url": yt_url,
+                        "date_ist": get_current_ist_time().isoformat(),
+                        "score": q_data.get("score", 100),
+                    })
+                    save_schedule_state(state)
+                return {"ok": yt_url.startswith("https://"), "index": idx, "title": q_data.get("title", f"Short {idx}"), "url": yt_url, "video_path": vpath, "score": q_data.get("score", 100)}
+        except Exception as e:
+            print(f"   ⚠ Error reading pre-rendered short {idx}: {e}")
+
     item_dir = os.path.join(shorts_dir, f"short_{idx:02d}")
     os.makedirs(item_dir, exist_ok=True)
 
@@ -526,8 +630,9 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
     state_hours = state.get("shorts_hours_ist", [9, 12, 16, 19, 22])
     sh_hour = state_hours[idx - 1] if idx <= len(state_hours) else 9
     sh_key = f"last_short_pub_{target_date}_{sh_hour}"
-    if not is_prerender:
+    if not is_prerender and yt_url.startswith("https://"):
         state[sh_key] = True
+        state[f"{sh_key}_url"] = yt_url
     state["history_runs"].append({
         "type": "short",
         "title": result["title"],
@@ -724,13 +829,11 @@ def run_advance_pipeline(days_ahead: int = 1, check_yesterday: bool = True) -> d
 
     start_offset = -1 if check_yesterday else 0
     for offset in range(start_offset, days_ahead + 1):
-        if quota_reached:
-            break
         target_dt = now_ist + timedelta(days=offset)
         target_date = target_dt.strftime("%Y-%m-%d")
         theme_info = config.get_weekly_theme(target_date)
         day_label = "YESTERDAY" if offset == -1 else ("TODAY" if offset == 0 else "TOMORROW")
-        print(f"\n📅 [{day_label}] Checking Schedule Buffer for {target_date} ({theme_info['day']}: {theme_info['theme']})…")
+        print(f"\n📅 [{day_label}] Checking Pipeline Buffer for {target_date} ({theme_info['day']}: {theme_info['theme']})…")
 
         # 1. Process 5 Shorts for target_date
         for idx, sh_hour in enumerate(shorts_hours, 1):
@@ -740,40 +843,70 @@ def run_advance_pipeline(days_ahead: int = 1, check_yesterday: bool = True) -> d
                 print(f"   • Short {idx}/5 ({sh_hour}:00 IST): ✅ Already Scheduled/Live")
                 continue
 
-            publish_at = get_slot_publish_at(target_date, sh_hour)
-            timing_desc = f"Schedule on YouTube for {sh_hour}:00 IST" if publish_at else f"Immediate Public (Slot {sh_hour}:00 IST passed)"
+            # If quota is reached, we cannot upload to YouTube; pre-render to local queue instead
+            should_prerender = quota_reached or (offset > 0 and quota_reached)
+            publish_at = None if should_prerender else get_slot_publish_at(target_date, sh_hour)
+
+            if should_prerender:
+                timing_desc = "Pre-render to local queue (Quota buffer for reset)"
+            elif publish_at:
+                timing_desc = f"Schedule on YouTube for {sh_hour}:00 IST"
+            else:
+                timing_desc = f"Immediate Public (Slot {sh_hour}:00 IST passed)"
+
             print(f"\n▶ [PIPELINE] Short {idx}/5 for {target_date} ({timing_desc}) — Processing now…")
 
             try:
-                res = create_and_publish_single_short(index=idx, publish_at=publish_at, for_date=target_date)
+                res = create_and_publish_single_short(
+                    index=idx,
+                    is_prerender=should_prerender,
+                    publish_at=publish_at,
+                    for_date=target_date,
+                )
                 yt_url = res.get("url", "")
+
                 if "pending_quota_reset" in yt_url:
-                    print(f"   🚨 Daily YouTube quota reached while uploading Short {idx}/5. Halting for quota reset.")
+                    print(f"   🚨 Daily YouTube quota reached while uploading Short {idx}/5. Halting YouTube uploads; queueing locally.")
                     errors.append({
                         "item": f"Short {idx}/5 ({target_date})",
                         "title": res.get("title", f"Short {idx}"),
                         "error": "Daily YouTube API upload quota (10,000 units/day) reached.",
-                        "action": "Rendered video safely saved in queue. Auto-upload will resume on ~12:30 PM IST reset."
+                        "action": "Video rendered safely into queue. Upload will resume automatically on ~12:30 PM IST reset."
                     })
                     quota_reached = True
-                    break
-
-                state = load_schedule_state()
-                state[sh_key] = True
-                state[f"{sh_key}_url"] = yt_url
-                save_schedule_state(state)
-                scheduled_results.append({"type": "short", "date": target_date, "index": idx, "hour": sh_hour, "url": yt_url})
+                elif yt_url.startswith("local://scheduled_queue"):
+                    scheduled_results.append({"type": "short_prerender", "date": target_date, "index": idx, "hour": sh_hour, "url": yt_url})
+                elif yt_url.startswith("local://failed_upload") or (not yt_url.startswith("https://") and not should_prerender):
+                    err_detail = "Failed to upload to YouTube (check OAuth or network)."
+                    try:
+                        vbase = os.path.basename(res.get("video_path", ""))
+                        mf = os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{vbase}.json")
+                        if os.path.exists(mf):
+                            with open(mf, encoding="utf-8") as f_mf:
+                                err_detail = json.load(f_mf).get("error", err_detail)
+                    except Exception:
+                        pass
+                    print(f"   🚨 Short {idx}/5 upload failure: {err_detail}")
+                    errors.append({
+                        "item": f"Short {idx}/5 ({target_date})",
+                        "title": res.get("title", f"Short {idx}"),
+                        "error": f"Upload Failed: {err_detail}",
+                        "action": "Rendered video saved. Will auto-retry on next hourly heartbeat."
+                    })
+                else:
+                    state = load_schedule_state()
+                    state[sh_key] = True
+                    state[f"{sh_key}_url"] = yt_url
+                    save_schedule_state(state)
+                    scheduled_results.append({"type": "short", "date": target_date, "index": idx, "hour": sh_hour, "url": yt_url})
             except Exception as e:
                 print(f"   ⚠ Error processing Short {idx}/5 for {target_date}: {e}")
                 errors.append({
                     "item": f"Short {idx}/5 ({target_date})",
                     "title": f"Short {idx}",
                     "error": str(e),
-                    "action": "Will auto-retry on next hourly check."
+                    "action": "Will auto-retry on next hourly heartbeat."
                 })
-
-        if quota_reached:
-            break
 
         # 2. Process Long-Form Documentary for target_date
         long_key = f"last_longform_pub_{target_date}"
@@ -781,38 +914,69 @@ def run_advance_pipeline(days_ahead: int = 1, check_yesterday: bool = True) -> d
         if state.get(long_key) or state.get("last_longform_pub_date") == target_date:
             print(f"   • Long-Form Documentary ({target_long_hour}:00 IST): ✅ Already Scheduled/Live")
         else:
-            publish_at = get_slot_publish_at(target_date, target_long_hour)
-            timing_desc = f"Schedule on YouTube for {target_long_hour}:00 IST" if publish_at else f"Immediate Public ({target_long_hour}:00 IST passed)"
+            should_prerender = quota_reached or (offset > 0 and quota_reached)
+            publish_at = None if should_prerender else get_slot_publish_at(target_date, target_long_hour)
+
+            if should_prerender:
+                timing_desc = "Pre-render to local queue (Quota buffer for reset)"
+            elif publish_at:
+                timing_desc = f"Schedule on YouTube for {target_long_hour}:00 IST"
+            else:
+                timing_desc = f"Immediate Public ({target_long_hour}:00 IST passed)"
+
             print(f"\n▶ [PIPELINE] Long-Form Documentary for {target_date} ({timing_desc}) — Processing now…")
 
             try:
-                l_res = create_and_publish_longform(publish_at=publish_at, for_date=target_date)
+                l_res = create_and_publish_longform(
+                    is_prerender=should_prerender,
+                    publish_at=publish_at,
+                    for_date=target_date,
+                )
                 yt_url = l_res.get("url", "")
+
                 if "pending_quota_reset" in yt_url:
-                    print(f"   🚨 Daily YouTube quota reached while uploading Long-Form. Halting for quota reset.")
+                    print(f"   🚨 Daily YouTube quota reached while uploading Long-Form. Halting YouTube uploads; queueing locally.")
                     errors.append({
                         "item": f"Long-Form Documentary ({target_date})",
                         "title": l_res.get("title", "Historical Documentary"),
                         "error": "Daily YouTube API upload quota (10,000 units/day) reached.",
-                        "action": "Rendered video safely saved in queue. Auto-upload will resume on ~12:30 PM IST reset."
+                        "action": "Documentary rendered safely into queue. Upload will resume automatically on ~12:30 PM IST reset."
                     })
                     quota_reached = True
-                    break
-
-                state = load_schedule_state()
-                state[long_key] = True
-                state["last_longform_pub_date"] = target_date
-                state["last_longform_date"] = target_date
-                state[f"{long_key}_url"] = yt_url
-                save_schedule_state(state)
-                scheduled_results.append({"type": "longform", "date": target_date, "url": yt_url})
+                elif yt_url.startswith("local://scheduled_queue"):
+                    scheduled_results.append({"type": "longform_prerender", "date": target_date, "url": yt_url})
+                elif yt_url.startswith("local://failed_upload") or (not yt_url.startswith("https://") and not should_prerender):
+                    err_detail = "Failed to upload to YouTube (check OAuth or network)."
+                    try:
+                        vbase = os.path.basename(l_res.get("video_path", ""))
+                        mf = os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{vbase}.json")
+                        if os.path.exists(mf):
+                            with open(mf, encoding="utf-8") as f_mf:
+                                err_detail = json.load(f_mf).get("error", err_detail)
+                    except Exception:
+                        pass
+                    print(f"   🚨 Long-Form upload failure: {err_detail}")
+                    errors.append({
+                        "item": f"Long-Form Documentary ({target_date})",
+                        "title": l_res.get("title", "Historical Documentary"),
+                        "error": f"Upload Failed: {err_detail}",
+                        "action": "Documentary saved. Will auto-retry on next hourly heartbeat."
+                    })
+                else:
+                    state = load_schedule_state()
+                    state[long_key] = True
+                    state["last_longform_pub_date"] = target_date
+                    state["last_longform_date"] = target_date
+                    state[f"{long_key}_url"] = yt_url
+                    save_schedule_state(state)
+                    scheduled_results.append({"type": "longform", "date": target_date, "url": yt_url})
             except Exception as e:
                 print(f"   ⚠ Error processing Long-Form for {target_date}: {e}")
                 errors.append({
                     "item": f"Long-Form Documentary ({target_date})",
                     "title": "Historical Documentary",
                     "error": str(e),
-                    "action": "Will auto-retry on next hourly check."
+                    "action": "Will auto-retry on next hourly heartbeat."
                 })
 
     print("\n" + "=" * 70)
@@ -952,70 +1116,88 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.daemon:
-        run_scheduler_daemon()
-    elif args.auto or args.advance:
-        res = run_advance_pipeline(days_ahead=1, check_yesterday=False)
+    try:
+        if args.daemon:
+            run_scheduler_daemon()
+        elif args.auto or args.advance or args.today:
+            res = run_advance_pipeline(days_ahead=1, check_yesterday=False)
+            try:
+                from notifier.email_notifier import send_upload_notification_email
+                send_upload_notification_email(
+                    longform_result=res.get("published_long"),
+                    shorts_results=res.get("processed"),
+                    errors=res.get("errors")
+                )
+            except Exception as e:
+                print(f"   ℹ Email notification notice: {e}")
+        elif args.tomorrow or args.prerender:
+            tomorrow_str = (get_current_ist_time() + timedelta(days=1)).strftime("%Y-%m-%d")
+            print(f"\n🚀 Advance scheduling tomorrow's ({tomorrow_str}) batch directly onto YouTube...")
+            res = run_advance_pipeline(days_ahead=1, check_yesterday=False)
+            try:
+                from notifier.email_notifier import send_upload_notification_email
+                send_upload_notification_email(
+                    longform_result=res.get("published_long"),
+                    shorts_results=res.get("processed"),
+                    errors=res.get("errors")
+                )
+            except Exception as e:
+                print(f"   ℹ Email notification notice: {e}")
+        elif args.run_short_slot:
+            s_res = create_and_publish_single_short(index=args.run_short_slot)
+            try:
+                from notifier.email_notifier import send_upload_notification_email
+                send_upload_notification_email(shorts_results=[s_res])
+            except Exception as e:
+                print(f"   ℹ Email notification notice: {e}")
+        elif args.run_shorts:
+            s_res = create_and_publish_shorts_batch()
+            try:
+                from notifier.email_notifier import send_upload_notification_email
+                send_upload_notification_email(shorts_results=s_res)
+            except Exception as e:
+                print(f"   ℹ Email notification notice: {e}")
+        elif args.run_long:
+            create_and_publish_longform()
+        elif args.run_all:
+            print("\n🚀 Executing full batch: Shorts FIRST, then Long-form documentary...")
+            s_res = create_and_publish_shorts_batch()
+            l_res = create_and_publish_longform()
+            try:
+                from notifier.email_notifier import send_upload_notification_email
+                send_upload_notification_email(longform_result=l_res, shorts_results=s_res)
+            except Exception as e:
+                print(f"   ℹ Email notification notice: {e}")
+        elif args.status:
+            print_status()
+        else:
+            print_status()
+            print("Usage:")
+            print("  python automation.py --daemon          # Start continuous automated daily scheduler")
+            print("  python automation.py --auto            # Auto catch-up & publish due content for current IST hour")
+            print("  python automation.py --today           # Upload/schedule today and pre-render tomorrow")
+            print("  python automation.py --tomorrow        # Render and schedule tomorrow's entire batch in advance")
+            print("  python automation.py --run-short-slot N# Run single Short slot N (1 to 5) immediately")
+            print("  python automation.py --prerender       # Pre-render tomorrow's content a day before")
+            print("  python automation.py --run-shorts      # Run all 5 daily history shorts now")
+            print("  python automation.py --run-long        # Run 15+ min deep history video now")
+            print("  python automation.py --run-all         # Run Shorts FIRST, then Long-form now")
+            print("  python automation.py --status          # View schedule and performance metrics\n")
+    except Exception as fatal_err:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"\n🚨 Fatal Pipeline Error: {fatal_err}\n{tb}")
         try:
             from notifier.email_notifier import send_upload_notification_email
-            send_upload_notification_email(longform_result=res.get("published_long"), shorts_results=res.get("processed"), errors=res.get("errors"))
-        except Exception as e:
-            print(f"   ℹ Email notification notice: {e}")
-    elif args.today:
-        res = run_advance_pipeline(days_ahead=0, check_yesterday=False)
-        try:
-            from notifier.email_notifier import send_upload_notification_email
-            send_upload_notification_email(longform_result=res.get("published_long"), shorts_results=res.get("processed"), errors=res.get("errors"))
-        except Exception as e:
-            print(f"   ℹ Email notification notice: {e}")
-    elif args.tomorrow:
-        tomorrow_str = (get_current_ist_time() + timedelta(days=1)).strftime("%Y-%m-%d")
-        print(f"\n🚀 Advance scheduling tomorrow's ({tomorrow_str}) content on YouTube...")
-        res = run_advance_pipeline(days_ahead=1, check_yesterday=False)
-    elif args.run_short_slot:
-        s_res = create_and_publish_single_short(index=args.run_short_slot)
-        try:
-            from notifier.email_notifier import send_upload_notification_email
-            send_upload_notification_email(shorts_results=[s_res])
-        except Exception as e:
-            print(f"   ℹ Email notification notice: {e}")
-    elif args.prerender:
-        tomorrow_str = (get_current_ist_time() + timedelta(days=1)).strftime("%Y-%m-%d")
-        print(f"\n🚀 Advance scheduling tomorrow's ({tomorrow_str}) batch directly onto YouTube...")
-        res = run_advance_pipeline(days_ahead=1, check_yesterday=False)
-        try:
-            from notifier.email_notifier import send_upload_notification_email
-            send_upload_notification_email(shorts_results=res.get("processed"))
-        except Exception as e:
-            print(f"   ℹ Email notification notice: {e}")
-    elif args.run_shorts:
-        s_res = create_and_publish_shorts_batch()
-        try:
-            from notifier.email_notifier import send_upload_notification_email
-            send_upload_notification_email(shorts_results=s_res)
-        except Exception as e:
-            print(f"   ℹ Email notification notice: {e}")
-    elif args.run_long:
-        create_and_publish_longform()
-    elif args.run_all:
-        print("\n🚀 Executing full batch: Shorts FIRST, then Long-form documentary...")
-        s_res = create_and_publish_shorts_batch()
-        l_res = create_and_publish_longform()
-        try:
-            from notifier.email_notifier import send_upload_notification_email
-            send_upload_notification_email(longform_result=l_res, shorts_results=s_res)
-        except Exception as e:
-            print(f"   ℹ Email notification notice: {e}")
-    elif args.status:
-        print_status()
-    else:
-        print_status()
-        print("Usage:")
-        print("  python automation.py --daemon          # Start continuous automated daily scheduler")
-        print("  python automation.py --auto            # Auto catch-up & publish due content for current IST hour")
-        print("  python automation.py --run-short-slot N# Run single Short slot N (1 to 5) immediately")
-        print("  python automation.py --prerender       # Pre-render tomorrow's content a day before")
-        print("  python automation.py --run-shorts      # Run all 5 daily history shorts now")
-        print("  python automation.py --run-long        # Run 15+ min deep history video now")
-        print("  python automation.py --run-all         # Run Shorts FIRST, then Long-form now")
-        print("  python automation.py --status          # View schedule and performance metrics\n")
+            send_upload_notification_email(
+                errors=[{
+                    "item": "Automation Pipeline Engine",
+                    "title": "Daily YouTube Automation Execution",
+                    "error": f"Crash Exception: {str(fatal_err)}\n\nTraceback:\n{tb[-600:]}",
+                    "action": "Execution halted with error. Detailed diagnostics captured. Will auto-retry on next hourly cron run."
+                }]
+            )
+        except Exception as em_err:
+            print(f"   ⚠ Could not dispatch crash notification email: {em_err}")
+        sys.exit(1)
+
