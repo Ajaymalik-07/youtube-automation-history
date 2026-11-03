@@ -227,12 +227,13 @@ async def _synthesise(text: str, audio_path: str, srt_path: str, voice_id: str =
         pass
 
     chosen_voice = voice_id or getattr(config, "VOICE_ID", "hi-IN-MadhurNeural")
-    communicate = edge_tts.Communicate(
-        text,
-        chosen_voice,
-        rate=config.VOICE_RATE,
-        pitch=config.VOICE_PITCH,
-    )
+    fallback_voice = "hi-IN-SwaraNeural" if "hi-" in chosen_voice else "en-US-ChristopherNeural"
+    
+    attempts = [
+        (chosen_voice, getattr(config, "VOICE_RATE", "-4%"), getattr(config, "VOICE_PITCH", "-2Hz")),
+        (chosen_voice, "+0%", "+0Hz"),
+        (fallback_voice, "+0%", "+0Hz"),
+    ]
 
     # Instantiate SubMaker (may not exist in very old edge-tts)
     try:
@@ -244,38 +245,66 @@ async def _synthesise(text: str, audio_path: str, srt_path: str, voice_id: str =
 
     audio_chunks = []
     word_events  = []   # manual fallback list
+    last_err = None
 
-    async for event in communicate.stream():
-        if event["type"] == "audio":
-            audio_chunks.append(event["data"])
+    for attempt_idx, (v_id, v_rate, v_pitch) in enumerate(attempts, 1):
+        try:
+            communicate = edge_tts.Communicate(
+                text,
+                v_id,
+                rate=v_rate,
+                pitch=v_pitch,
+            )
+            audio_chunks = []
+            word_events = []
+            if use_submaker:
+                try:
+                    submaker = edge_tts.SubMaker()
+                except Exception:
+                    pass
 
-        elif event["type"] == "WordBoundary":
-            # Feed SubMaker using whichever ingestion method this version has
-            if use_submaker and submaker is not None:
-                for feed_name in ("feed", "create_sub"):
-                    fn = getattr(submaker, feed_name, None)
-                    if not callable(fn):
-                        continue
-                    try:
-                        if feed_name == "feed":
-                            fn(event)   # 6.1.9+: takes the whole event dict
-                        else:
-                            fn(         # 6.1.0–6.1.8: takes (offset_tuple, text)
-                                (event["offset"], event["duration"]),
-                                event["text"],
-                            )
-                    except Exception:
-                        pass
-                    break
+            async for event in communicate.stream():
+                if event["type"] == "audio":
+                    audio_chunks.append(event["data"])
 
-            # Always collect manually too — used if SubMaker yields nothing
-            offset_ms   = event["offset"]   / 10_000   # 100-ns ticks → ms
-            duration_ms = event["duration"] / 10_000
-            word_events.append({
-                "word":     event["text"],
-                "start_ms": offset_ms,
-                "end_ms":   offset_ms + duration_ms,
-            })
+                elif event["type"] == "WordBoundary":
+                    if use_submaker and submaker is not None:
+                        for feed_name in ("feed", "create_sub"):
+                            fn = getattr(submaker, feed_name, None)
+                            if not callable(fn):
+                                continue
+                            try:
+                                if feed_name == "feed":
+                                    fn(event)
+                                else:
+                                    fn(
+                                        (event["offset"], event["duration"]),
+                                        event["text"],
+                                    )
+                            except Exception:
+                                pass
+                            break
+
+                    offset_ms   = event["offset"]   / 10_000
+                    duration_ms = event["duration"] / 10_000
+                    word_events.append({
+                        "word":     event["text"],
+                        "start_ms": offset_ms,
+                        "end_ms":   offset_ms + duration_ms,
+                    })
+
+            if audio_chunks:
+                break
+            else:
+                raise RuntimeError("Edge-TTS returned 0 audio chunks.")
+        except Exception as err:
+            last_err = err
+            print(f"   ⚠ Edge-TTS voiceover attempt {attempt_idx}/3 ({v_id}) retry: {err}")
+            if attempt_idx < len(attempts):
+                await asyncio.sleep(2)
+    else:
+        if last_err:
+            raise last_err
 
     # ── Save audio (must happen before any duration checks) ─────────────────
     with open(audio_path, "wb") as f:
