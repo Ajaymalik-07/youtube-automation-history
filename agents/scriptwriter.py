@@ -1,5 +1,5 @@
 """
-Script Writer Agent — generates cinematic 15+ minute long-form History documentaries
+Script Writer Agent — generates cinematic 8–13 minute long-form History documentaries (strictly under 15 minutes)
 and high-retention YouTube Shorts with multi-language support (Hindi primary + English auto-dub).
 Uses shared Gemini client with model fallback chain.
 """
@@ -40,11 +40,11 @@ def write_script(research: dict, video_type: str = "normal", language: str = "hi
     )
 
 
-def _write_longform_script(research: dict, language: str = "hi", min_minutes: int = 10, max_minutes: int = 14) -> dict:
+def _write_longform_script(research: dict, language: str = "hi", min_minutes: int = 8, max_minutes: int = 13) -> dict:
     """
-    Generates an epic 10–14 minute historical documentary script.
-    At ~120-130 words/minute, 10–14 minutes requires 1,200 to 1,500 words across 10-12 sections.
-    Guarantees the final video stays under YouTube's 15-minute limit.
+    Generates an epic 8–13 minute historical documentary script.
+    At ~120-130 words/minute, 8–13 minutes requires 950 to 1,250 words across 8-10 sections.
+    Guarantees the final video stays strictly under YouTube's 15-minute limit.
     """
     key_points_str = "\n".join(f"  {i+1}. {p}" for i, p in enumerate(research.get("key_points", [])))
 
@@ -66,10 +66,10 @@ Key points to cover:
 {_facts_block(research)}
 
 MANDATORY REQUIREMENT:
-The video must be between {min_minutes} and {max_minutes} MINUTES LONG (optimally 11–13 minutes, strictly under {max_minutes} minutes to comply with YouTube upload rules).
-You MUST write 10 to 12 comprehensive sections.
-Each section's narration must be 100–130 words long, resulting in a total narration of 1,200 to 1,500 words (~11–13.5 minutes of narrated speech).
-Do NOT exceed {max_minutes} minutes. Do NOT make it less than {min_minutes} minutes.
+The video must be LESS THAN 15 MINUTES LONG (target: {min_minutes} to {max_minutes} minutes, strictly under 14 minutes to comply with YouTube upload rules).
+You MUST write 8 to 10 comprehensive sections.
+Each section's narration must be 90–120 words long, resulting in a total narration of 950 to 1,250 words (~8–12.5 minutes of narrated speech).
+Do NOT exceed 14 minutes. Do NOT exceed 1,350 total words.
 
 {lang_instruction}
 
@@ -81,8 +81,7 @@ STORYTELLING & PACING STRUCTURE:
 - Sections 5 to 7 (Deep Historical Chronology): Strategic battles, court intrigues, primary texts, diary accounts, and archaeological clues.
 - Section 8 (The Climax & Collapse): The peak of the conflict, betrayal, or fall of the civilization.
 - Section 9 (Archaeological Findings & Modern Discoveries): What modern excavations, satellite scans, or carbon dating revealed.
-- Section 10 to 11 (Historical Lessons & Modern Parallels): The philosophical and existential mirror for our modern world.
-- Section 12 (Outro & Call to Action): Powerful final thought, thought-provoking question, and call to subscribe.
+- Section 10 (Outro & Call to Action): Powerful final thought, thought-provoking question, and call to subscribe.
 
 VISUAL REQUIREMENTS:
 - Every section MUST provide 3 distinct ENGLISH image queries (image_query, image_query_2, image_query_3) tailored to history:
@@ -110,7 +109,7 @@ Respond with ONLY a valid JSON object. No markdown fences, no extra text:
   ]
 }}
 """
-    print(f"   → Writing 15+ min epic history script ({'Hindi' if language == 'hi' else 'English'})…")
+    print(f"   → Writing epic history script (<15 min safe, target: 8–13 min) in {'Hindi' if language == 'hi' else 'English'}…")
     raw = generate(prompt)
     script = extract_json(raw, "Longform Scriptwriter")
 

@@ -198,7 +198,7 @@ def build_html_report(longform_result: dict = None, shorts_results: list = None,
                 <tr>
                   <td>
                     <span style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: #818cf8; letter-spacing: 1px;">
-                      🎬 Featured Long-Form Documentary (15+ Min)
+                      🎬 Featured Long-Form Documentary (Under 15 Min)
                     </span>
                     <h2 style="margin: 8px 0 12px 0; font-size: 20px; color: #ffffff; font-weight: 700; line-height: 1.3;">
                       {lf_title}
@@ -327,7 +327,7 @@ def build_plain_text_report(longform_result: dict = None, shorts_results: list =
         lines.append("")
 
     lines.extend([
-        "--- 1. FEATURED 15+ MIN LONG-FORM VIDEO (HINDI) ---",
+        "--- 1. FEATURED DOCUMENTARY (UNDER 15 MIN, HINDI) ---",
         f"Title : {lf.get('title', 'Historical Documentary')}",
         f"Score : {lf.get('score', 100)}/100 (Grade A)",
         f"URL   : {lf.get('url', 'Available in Local Studio')}",

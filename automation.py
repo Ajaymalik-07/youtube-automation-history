@@ -1,6 +1,6 @@
 """
 YAAS Autonomous History Studio Engine
-Fully autonomous daily publishing system for 15+ minute deep History documentaries
+Fully autonomous daily publishing system for 8–13 minute deep History documentaries (strictly under 15 minutes)
 and daily batches of 5 YouTube Shorts in Hindi and English.
 
 Key features:
@@ -135,14 +135,14 @@ def adapt_upload_slot(state: dict, slot_hour: int, recorded_views: int) -> int:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  LONG-FORM 15+ MINUTE PIPELINE
+#  LONG-FORM DOCUMENTARY PIPELINE (UNDER 15 MIN)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def create_and_publish_longform(is_prerender: bool = False, for_date: str = None, publish_at: str = None) -> dict:
     """
-    Executes the complete end-to-end 15+ minute deep History documentary pipeline:
+    Executes the complete end-to-end History documentary pipeline (strictly under 15 minutes):
     1. Researches trending historical topic
-    2. Writes 15+ minute script in Hindi (hi-IN-MadhurNeural)
+    2. Writes 8–13 minute script in Hindi (hi-IN-MadhurNeural, strictly <15 min)
     3. Writes English translated script for auto-dubbing
     4. Downloads historical B-roll
     5. Synthesizes voiceovers (Hindi + English)
@@ -151,7 +151,7 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
     8. Automatically uploads directly as Public to YouTube
     """
     print("\n" + "=" * 70)
-    print("  🎬 YAAS Autonomous Pipeline: 15+ Minute Deep History Documentary")
+    print("  🎬 YAAS Autonomous Pipeline: Historical Documentary (Under 15 Min)")
     print("=" * 70 + "\n")
 
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
@@ -177,8 +177,8 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
             if vpath and os.path.exists(vpath):
                 if is_prerender:
                     print(f"   📦 Long-form for {target_date} is already pre-rendered: {vpath}")
-                    return {"ok": True, "title": q_data.get("title", "15+ Min Documentary"), "url": f"local://scheduled_queue/{target_date}/longform", "video_path": vpath, "score": q_data.get("score", 100)}
-                print(f"   🚀 Reusing pre-rendered 15+ Min Documentary for {target_date}: {q_data.get('title')}")
+                    return {"ok": True, "title": q_data.get("title", "Documentary (Under 15 Min)"), "url": f"local://scheduled_queue/{target_date}/longform", "video_path": vpath, "score": q_data.get("score", 100)}
+                print(f"   🚀 Reusing pre-rendered Documentary for {target_date}: {q_data.get('title')}")
                 status_label = f"Scheduled on YouTube for {publish_at}" if publish_at else "Public Direct"
                 yt_url = upload_to_youtube(
                     script={},
@@ -203,13 +203,13 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
                     state["last_longform_date"] = target_date
                     state["history_runs"].append({
                         "type": "longform",
-                        "title": q_data.get("title", "15+ Min Documentary"),
+                        "title": q_data.get("title", "Documentary (Under 15 Min)"),
                         "url": yt_url,
                         "date_ist": get_current_ist_time().isoformat(),
                         "score": q_data.get("score", 100),
                     })
                     save_schedule_state(state)
-                return {"ok": yt_url.startswith("https://"), "title": q_data.get("title", "15+ Min Documentary"), "url": yt_url, "video_path": vpath, "score": q_data.get("score", 100)}
+                return {"ok": yt_url.startswith("https://"), "title": q_data.get("title", "Documentary (Under 15 Min)"), "url": yt_url, "video_path": vpath, "score": q_data.get("score", 100)}
         except Exception as e:
             print(f"   ⚠ Error reading pre-rendered longform: {e}")
 
@@ -223,8 +223,8 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
         json.dump(research, f, indent=2)
     print(f"   ✅ Topic: {research.get('video_title')}")
 
-    # 2. 15+ Minute Script in Hindi
-    print(f"  [2/8] Writing 15+ minute documentary script in Hindi (16-20 sections)…")
+    # 2. Script in Hindi (strictly < 15 min)
+    print(f"  [2/8] Writing documentary script in Hindi (8–10 sections, strictly <15 min)…")
     hindi_script = write_script(research, video_type="long", language="hi")
     with open(os.path.join(config.OUTPUT_DIR, "script_hi.json"), "w", encoding="utf-8") as f:
         json.dump(hindi_script, f, indent=2, ensure_ascii=False)
@@ -407,7 +407,7 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
     })
     save_schedule_state(state)
 
-    print(f"\n🎉 15+ Min History Video Pipeline Complete! ({yt_url})\n")
+    print(f"\n🎉 Historical Documentary Pipeline Complete! (<15 Min) ({yt_url})\n")
     res = {"ok": True, "title": seo_result["title"], "url": yt_url, "video_path": video_path, "score": seo_result["score"]}
     try:
         from notifier.email_notifier import send_upload_notification_email
@@ -730,7 +730,7 @@ def publish_scheduled_short(index: int, target_date: str) -> str:
 
 
 def publish_scheduled_longform(target_date: str) -> str:
-    """Publish the pre-rendered 15+ Min Documentary at peak evening release."""
+    """Publish the pre-rendered Documentary (Under 15 Min) at peak evening release."""
     q_dir = os.path.join(config.OUTPUT_DIR, "scheduled_queue")
     manifest_path = os.path.join(q_dir, f"longform_{target_date}.json")
     if os.path.exists(manifest_path):
@@ -749,7 +749,7 @@ def publish_scheduled_longform(target_date: str) -> str:
                     tpath = alt_tpath
 
             if vpath and os.path.exists(vpath):
-                print(f"   🚀 Publishing pre-rendered 15+ Min Documentary: {data.get('title')}")
+                print(f"   🚀 Publishing pre-rendered Documentary (<15 Min): {data.get('title')}")
                 yt_url = upload_to_youtube(
                     script={},
                     video_path=vpath,
@@ -771,7 +771,7 @@ def publish_scheduled_longform(target_date: str) -> str:
                 state["last_longform_date"] = target_date
                 state["history_runs"].append({
                     "type": "longform",
-                    "title": data.get("title", "15+ Min Documentary"),
+                    "title": data.get("title", "Documentary (Under 15 Min)"),
                     "url": yt_url,
                     "date_ist": get_current_ist_time().isoformat(),
                     "score": data.get("score", 100),
@@ -995,7 +995,7 @@ def run_scheduler_daemon():
     Continuous background loop that monitors IST time and triggers:
     1. Pre-rendering a day before (at 20:00 / 8:00 PM IST):
        - Step 1: Shorts FIRST (all 5 rendered in ~10 mins).
-       - Step 2: 15+ Min Documentary rendered overnight.
+       - Step 2: Documentary (<15 Min) rendered overnight.
     2. Publishing on release day at target peak hours (with automatic catch-up).
     """
     print("\n" + "=" * 70)
@@ -1110,7 +1110,7 @@ if __name__ == "__main__":
     parser.add_argument("--run-short-slot", type=int, choices=[1, 2, 3, 4, 5], help="Execute specific Short slot (1 to 5) immediately")
     parser.add_argument("--prerender", action="store_true", help="Pre-render tomorrow's content now a day before")
     parser.add_argument("--run-shorts", action="store_true", help="Execute 5 daily Shorts generation immediately")
-    parser.add_argument("--run-long", action="store_true", help="Execute 15+ min history video pipeline immediately")
+    parser.add_argument("--run-long", action="store_true", help="Execute deep history video pipeline (<15 min safe) immediately")
     parser.add_argument("--run-all", action="store_true", help="Execute Shorts FIRST, then Long-form immediately")
     parser.add_argument("--status", action="store_true", help="Display current status and adaptive metrics")
 
@@ -1180,7 +1180,7 @@ if __name__ == "__main__":
             print("  python automation.py --run-short-slot N# Run single Short slot N (1 to 5) immediately")
             print("  python automation.py --prerender       # Pre-render tomorrow's content a day before")
             print("  python automation.py --run-shorts      # Run all 5 daily history shorts now")
-            print("  python automation.py --run-long        # Run 15+ min deep history video now")
+            print("  python automation.py --run-long        # Run deep history video (<15 min safe) now")
             print("  python automation.py --run-all         # Run Shorts FIRST, then Long-form now")
             print("  python automation.py --status          # View schedule and performance metrics\n")
     except Exception as fatal_err:

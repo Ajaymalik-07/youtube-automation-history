@@ -976,6 +976,12 @@ def create_video(script: dict, audio_path: str, output_dir: str,
             final = final.subclip(0, audio.duration)
         final = final.set_audio(audio)
 
+        # Enforce strict <15 minute ceiling (cap at 14m 30s max to guarantee compliance with YouTube upload limit)
+        max_allowed_secs = min(float(getattr(config, "VIDEO_MAX_MINUTES", 13)) * 60.0, 870.0)
+        if final.duration > max_allowed_secs:
+            print(f"   ⚠ Video duration ({final.duration:.1f}s) exceeds safe limit ({max_allowed_secs:.1f}s). Clamping strictly under 15 minutes.")
+            final = final.subclip(0, max_allowed_secs)
+
         output_path = os.path.join(output_dir, "final_video.mp4")
 
     # ── WATERMARK (always on) ──────────────────────────────────

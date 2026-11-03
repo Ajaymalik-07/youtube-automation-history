@@ -166,7 +166,7 @@ ARXIV_CATEGORIES = ["astro-ph.CO", "gr-qc", "quant-ph", "cs.AI", "q-bio.NC"]
 # ─────────────────────────────────────────
 CHANNEL_DESCRIPTION = """
 A cinematic and deeply researched History documentary channel exploring the greatest mysteries of ancient civilizations, lost empires, legendary rulers, shocking archaeological discoveries, and pivotal historical battles that shaped humanity.
-Every video is an immersive 15+ minute deep-dive combining dramatic storytelling, verified historical records, rare insights, and intriguing what-if historical paradoxes.
+Every video is an immersive 8–13 minute deep-dive (strictly under 15 minutes) combining dramatic storytelling, verified historical records, rare insights, and intriguing what-if historical paradoxes.
 Tone: cinematic, gripping, authoritative, and awe-inspiring, catering to history enthusiasts in India and worldwide.
 """
 CHANNEL_NAME = "History Chronicles | इतिहास के रहस्य"   # shown on-screen and in upload metadata
@@ -204,8 +204,8 @@ VOICE_ID         = "hi-IN-MadhurNeural"
 VOICE_ID_EN      = "en-US-AndrewNeural"
 VOICE_RATE       = "-4%"     # slightly measured pace for historical gravity
 VOICE_PITCH      = "-2Hz"    # resonant documentary tone
-VIDEO_MIN_MINUTES = 10   # target duration for long videos (safe under YouTube's 15-min cap)
-VIDEO_MAX_MINUTES = 14   # maximum duration cap (10–14 minutes)
+VIDEO_MIN_MINUTES = 8    # target minimum duration for long videos (safe under YouTube's 15-min cap)
+VIDEO_MAX_MINUTES = 13   # target maximum duration cap (strictly under 15 minutes)
 
 # ─────────────────────────────────────────
 #  AI Model
