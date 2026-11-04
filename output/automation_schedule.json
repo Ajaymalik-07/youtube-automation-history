@@ -309,6 +309,48 @@
       "url": "https://www.youtube.com/watch?v=jrel8_hGVBs",
       "date_ist": "2026-11-04T12:49:01.501461+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Maharana Pratap Elephant: Why Did Maharana Pratap Put Elephant...",
+      "url": "https://www.youtube.com/watch?v=QZgVVs_LDT0",
+      "date_ist": "2026-11-05T02:04:52.067056+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The One Mistake That Lost Marathas Panipat! #Shorts...",
+      "url": "local://pending_quota_reset/final_short.mp4",
+      "date_ist": "2026-11-05T02:09:58.373385+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The secret trick that saved Maharana Pratap's life! #Shorts #History",
+      "url": "local://scheduled_queue/2026-11-06/short_3",
+      "date_ist": "2026-11-05T02:14:17.501686+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Tragic Betrayal That Handed India to Invaders!...",
+      "url": "local://scheduled_queue/2026-11-06/short_4",
+      "date_ist": "2026-11-05T02:18:37.062090+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Ancient Indian Tactics That Terrified Alexander! #Shorts #History",
+      "url": "local://scheduled_queue/2026-11-06/short_5",
+      "date_ist": "2026-11-05T02:23:33.300782+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Battle Hydaspes King: The Battle That Broke...",
+      "url": "local://scheduled_queue/2026-11-06/longform",
+      "date_ist": "2026-11-05T02:59:48.541371+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -338,7 +380,7 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-05",
+  "last_longform_date": "2026-11-06",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
@@ -386,5 +428,7 @@
   "last_short_pub_2026-11-05_22": true,
   "last_short_pub_2026-11-05_22_url": "https://www.youtube.com/watch?v=h11DMJ4S2jI",
   "last_longform_pub_2026-11-05": true,
-  "last_longform_pub_2026-11-05_url": "https://www.youtube.com/watch?v=jrel8_hGVBs"
+  "last_longform_pub_2026-11-05_url": "https://www.youtube.com/watch?v=jrel8_hGVBs",
+  "last_short_pub_2026-11-06_9": true,
+  "last_short_pub_2026-11-06_9_url": "https://www.youtube.com/watch?v=QZgVVs_LDT0"
 }
