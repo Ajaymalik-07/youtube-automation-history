@@ -372,6 +372,41 @@
       "url": "local://pending_quota_reset/final_short.mp4",
       "date_ist": "2026-11-05T07:33:45.842144+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Fatal Mistake That Cost Prithviraj Chauhan...",
+      "url": "https://www.youtube.com/watch?v=3ozq4sI_ubs",
+      "date_ist": "2026-11-05T14:32:09.635715+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The secret trick that saved Maharana Pratap's life! #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=TvLHN69dW58",
+      "date_ist": "2026-11-05T14:32:19.342646+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Tragic Betrayal That Handed India to Invaders!...",
+      "url": "https://www.youtube.com/watch?v=ZV8qeQ66cO4",
+      "date_ist": "2026-11-05T14:32:23.343770+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Ancient Indian Tactics That Terrified Alexander! #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=JdIKl2lOO8Y",
+      "date_ist": "2026-11-05T14:32:27.723657+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Battle Hydaspes King: The Battle That Broke...",
+      "url": "https://www.youtube.com/watch?v=aH0Bf6LM8dw",
+      "date_ist": "2026-11-05T14:33:18.862905+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -405,7 +440,7 @@
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-05",
+  "last_longform_pub_date": "2026-11-06",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -451,5 +486,15 @@
   "last_longform_pub_2026-11-05": true,
   "last_longform_pub_2026-11-05_url": "https://www.youtube.com/watch?v=jrel8_hGVBs",
   "last_short_pub_2026-11-06_9": true,
-  "last_short_pub_2026-11-06_9_url": "https://www.youtube.com/watch?v=QZgVVs_LDT0"
+  "last_short_pub_2026-11-06_9_url": "https://www.youtube.com/watch?v=QZgVVs_LDT0",
+  "last_short_pub_2026-11-06_12": true,
+  "last_short_pub_2026-11-06_12_url": "https://www.youtube.com/watch?v=3ozq4sI_ubs",
+  "last_short_pub_2026-11-06_16": true,
+  "last_short_pub_2026-11-06_16_url": "https://www.youtube.com/watch?v=TvLHN69dW58",
+  "last_short_pub_2026-11-06_19": true,
+  "last_short_pub_2026-11-06_19_url": "https://www.youtube.com/watch?v=ZV8qeQ66cO4",
+  "last_short_pub_2026-11-06_22": true,
+  "last_short_pub_2026-11-06_22_url": "https://www.youtube.com/watch?v=JdIKl2lOO8Y",
+  "last_longform_pub_2026-11-06": true,
+  "last_longform_pub_2026-11-06_url": "https://www.youtube.com/watch?v=aH0Bf6LM8dw"
 }
