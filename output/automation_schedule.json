@@ -407,6 +407,48 @@
       "url": "https://www.youtube.com/watch?v=aH0Bf6LM8dw",
       "date_ist": "2026-11-05T14:33:18.862905+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u0938\u092e\u0926\u0930 \u092d\u0917\u0935\u0928 \u0926\u0935\u0930\u0915: \u0938\u092e\u0941\u0926\u094d\u0930 \u092e\u0947\u0902 \u0921\u0942\u092c\u0940 \u092d\u0917\u0935\u093e\u0928 \u0915\u0943\u0937\u094d\u0923 \u0915\u0940 \u0926\u094d\u0935\u093e\u0930\u0915\u093e? #Shorts...",
+      "url": "https://www.youtube.com/watch?v=rd42I8KVGYc",
+      "date_ist": "2026-11-06T02:20:40.584302+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u092e\u0939\u0928\u091c\u0926\u0921 \u092a\u0930\u092e\u0923: \u0915\u094d\u092f\u093e \u092e\u094b\u0939\u0928\u091c\u094b-\u0926\u0921\u094b \u0915\u093e \u0905\u0902\u0924 \u092a\u0930\u092e\u093e\u0923\u0941 \u0939\u092e\u0932\u0947 \u0938\u0947 \u0939\u0941\u0906? #Shorts...",
+      "url": "https://www.youtube.com/watch?v=l0fv_yv26qE",
+      "date_ist": "2026-11-06T02:25:21.498345+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Rakhigarhi Forgotten Truth: Rakhigarhi: The Forgotten Truth of...",
+      "url": "https://www.youtube.com/watch?v=_U5iKjX3SaQ",
+      "date_ist": "2026-11-06T02:31:11.119620+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Petra They Build: Petra: How Did They Build This in a Cliff?...",
+      "url": "https://www.youtube.com/watch?v=bbQzEIT3Nbc",
+      "date_ist": "2026-11-06T02:36:49.060004+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Petra Built This: Petra: Who Built This Desert Mystery? #Shorts...",
+      "url": "https://www.youtube.com/watch?v=qJ3ExbxCUQI",
+      "date_ist": "2026-11-06T02:42:36.445215+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Why Sunken Kingdom Dwarka: The Sunken City of Dwarka: Proof of a Los",
+      "url": "local://pending_quota_reset/final_video.mp4",
+      "date_ist": "2026-11-06T03:26:09.945926+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -436,7 +478,7 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-06",
+  "last_longform_date": "2026-11-07",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
@@ -496,5 +538,15 @@
   "last_short_pub_2026-11-06_22": true,
   "last_short_pub_2026-11-06_22_url": "https://www.youtube.com/watch?v=JdIKl2lOO8Y",
   "last_longform_pub_2026-11-06": true,
-  "last_longform_pub_2026-11-06_url": "https://www.youtube.com/watch?v=aH0Bf6LM8dw"
+  "last_longform_pub_2026-11-06_url": "https://www.youtube.com/watch?v=aH0Bf6LM8dw",
+  "last_short_pub_2026-11-07_9": true,
+  "last_short_pub_2026-11-07_9_url": "https://www.youtube.com/watch?v=rd42I8KVGYc",
+  "last_short_pub_2026-11-07_12": true,
+  "last_short_pub_2026-11-07_12_url": "https://www.youtube.com/watch?v=l0fv_yv26qE",
+  "last_short_pub_2026-11-07_16": true,
+  "last_short_pub_2026-11-07_16_url": "https://www.youtube.com/watch?v=_U5iKjX3SaQ",
+  "last_short_pub_2026-11-07_19": true,
+  "last_short_pub_2026-11-07_19_url": "https://www.youtube.com/watch?v=bbQzEIT3Nbc",
+  "last_short_pub_2026-11-07_22": true,
+  "last_short_pub_2026-11-07_22_url": "https://www.youtube.com/watch?v=qJ3ExbxCUQI"
 }
