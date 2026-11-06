@@ -463,6 +463,13 @@
       "url": "local://pending_quota_reset/final_video.mp4",
       "date_ist": "2026-11-06T10:43:33.016757+05:30",
       "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Subterranean Metropolis Derinkuyu: The 18-Story Underground City...",
+      "url": "https://www.youtube.com/watch?v=V68_PYLcR4k",
+      "date_ist": "2026-11-06T18:30:53.594254+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -496,7 +503,7 @@
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-06",
+  "last_longform_pub_date": "2026-11-07",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -562,5 +569,7 @@
   "last_short_pub_2026-11-07_19": true,
   "last_short_pub_2026-11-07_19_url": "https://www.youtube.com/watch?v=bbQzEIT3Nbc",
   "last_short_pub_2026-11-07_22": true,
-  "last_short_pub_2026-11-07_22_url": "https://www.youtube.com/watch?v=qJ3ExbxCUQI"
+  "last_short_pub_2026-11-07_22_url": "https://www.youtube.com/watch?v=qJ3ExbxCUQI",
+  "last_longform_pub_2026-11-07": true,
+  "last_longform_pub_2026-11-07_url": "https://www.youtube.com/watch?v=V68_PYLcR4k"
 }
