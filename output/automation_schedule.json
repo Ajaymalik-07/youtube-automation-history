@@ -470,6 +470,48 @@
       "url": "https://www.youtube.com/watch?v=V68_PYLcR4k",
       "date_ist": "2026-11-06T18:30:53.594254+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Nalanda Burned Months: Nalanda Burned For 3 Months: What Was...",
+      "url": "https://www.youtube.com/watch?v=Bz5w5ho5WNA",
+      "date_ist": "2026-11-07T01:37:27.731891+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Kings Died Touching: 5 Kings Who Died Touching The Kohinoor...",
+      "url": "https://www.youtube.com/watch?v=pXVQlQIeBhs",
+      "date_ist": "2026-11-07T01:42:31.497397+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of Dark Curse KohiNoor: The Dark Curse of Koh-i-Noor No...",
+      "url": "https://www.youtube.com/watch?v=UWApGP_iBQU",
+      "date_ist": "2026-11-07T01:47:21.447627+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Lost Indian City Hidden Under the Ocean? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=kqJGWRyhgZs",
+      "date_ist": "2026-11-07T01:52:17.486509+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret Weapon That Terrified Alexander The Great! #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=REuiwv8uOys",
+      "date_ist": "2026-11-07T01:57:05.196898+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Submerged City Dwarka: The 9,000-Year-Old Sunken City That...",
+      "url": "local://pending_quota_reset/final_video.mp4",
+      "date_ist": "2026-11-07T02:33:18.233765+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -499,7 +541,7 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-07",
+  "last_longform_date": "2026-11-08",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
@@ -571,5 +613,15 @@
   "last_short_pub_2026-11-07_22": true,
   "last_short_pub_2026-11-07_22_url": "https://www.youtube.com/watch?v=qJ3ExbxCUQI",
   "last_longform_pub_2026-11-07": true,
-  "last_longform_pub_2026-11-07_url": "https://www.youtube.com/watch?v=V68_PYLcR4k"
+  "last_longform_pub_2026-11-07_url": "https://www.youtube.com/watch?v=V68_PYLcR4k",
+  "last_short_pub_2026-11-08_9": true,
+  "last_short_pub_2026-11-08_9_url": "https://www.youtube.com/watch?v=Bz5w5ho5WNA",
+  "last_short_pub_2026-11-08_12": true,
+  "last_short_pub_2026-11-08_12_url": "https://www.youtube.com/watch?v=pXVQlQIeBhs",
+  "last_short_pub_2026-11-08_16": true,
+  "last_short_pub_2026-11-08_16_url": "https://www.youtube.com/watch?v=UWApGP_iBQU",
+  "last_short_pub_2026-11-08_19": true,
+  "last_short_pub_2026-11-08_19_url": "https://www.youtube.com/watch?v=kqJGWRyhgZs",
+  "last_short_pub_2026-11-08_22": true,
+  "last_short_pub_2026-11-08_22_url": "https://www.youtube.com/watch?v=REuiwv8uOys"
 }
