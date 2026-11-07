@@ -512,6 +512,13 @@
       "url": "local://pending_quota_reset/final_video.mp4",
       "date_ist": "2026-11-07T02:33:18.233765+05:30",
       "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Lost Maritime Empire: \u0935\u0939 \u092d\u0942\u0932\u093e-\u092c\u093f\u0938\u0930\u093e \u0938\u093e\u092e\u094d\u0930\u093e\u091c\u094d\u092f \u091c\u093f\u0938\u0928\u0947...",
+      "url": "https://www.youtube.com/watch?v=BSuPeEMxaM0",
+      "date_ist": "2026-11-07T18:54:20.779171+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -545,7 +552,7 @@
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-07",
+  "last_longform_pub_date": "2026-11-08",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -623,5 +630,7 @@
   "last_short_pub_2026-11-08_19": true,
   "last_short_pub_2026-11-08_19_url": "https://www.youtube.com/watch?v=kqJGWRyhgZs",
   "last_short_pub_2026-11-08_22": true,
-  "last_short_pub_2026-11-08_22_url": "https://www.youtube.com/watch?v=REuiwv8uOys"
+  "last_short_pub_2026-11-08_22_url": "https://www.youtube.com/watch?v=REuiwv8uOys",
+  "last_longform_pub_2026-11-08": true,
+  "last_longform_pub_2026-11-08_url": "https://www.youtube.com/watch?v=BSuPeEMxaM0"
 }
