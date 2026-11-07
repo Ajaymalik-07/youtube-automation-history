@@ -519,6 +519,48 @@
       "url": "https://www.youtube.com/watch?v=BSuPeEMxaM0",
       "date_ist": "2026-11-07T18:54:20.779171+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "This Ancient River City Had Flush Toilets 4,500 Years Ago! #Shorts...",
+      "url": "https://www.youtube.com/watch?v=JQyk8YRiaQI",
+      "date_ist": "2026-11-08T02:00:10.733050+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Why Indias Lost Saraswati: Is India\u2019s Lost Saraswati River Still...",
+      "url": "https://www.youtube.com/watch?v=vzc4uh1_Sbg",
+      "date_ist": "2026-11-08T02:05:10.917268+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret Nile Machine That Controlled Ancient Egypt #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=B6DrhbFkDag",
+      "date_ist": "2026-11-08T02:09:29.903353+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of Worlds First Fought: The World\u2019s First War Was...",
+      "url": "https://www.youtube.com/watch?v=aIPF9u-HoR8",
+      "date_ist": "2026-11-08T02:13:59.814420+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Chinas Yellow River: Why Was China's Yellow River Called 'Sorrow'?...",
+      "url": "https://www.youtube.com/watch?v=IPbGyAHsjiQ",
+      "date_ist": "2026-11-08T02:18:41.515401+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Sarasvati River shifting: The Ghost River That Built\u2014And...",
+      "url": "https://www.youtube.com/watch?v=NoV2_TDsSNY",
+      "date_ist": "2026-11-08T02:56:55.767574+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -548,11 +590,11 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-08",
+  "last_longform_date": "2026-11-09",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-08",
+  "last_longform_pub_date": "2026-11-09",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -632,5 +674,17 @@
   "last_short_pub_2026-11-08_22": true,
   "last_short_pub_2026-11-08_22_url": "https://www.youtube.com/watch?v=REuiwv8uOys",
   "last_longform_pub_2026-11-08": true,
-  "last_longform_pub_2026-11-08_url": "https://www.youtube.com/watch?v=BSuPeEMxaM0"
+  "last_longform_pub_2026-11-08_url": "https://www.youtube.com/watch?v=BSuPeEMxaM0",
+  "last_short_pub_2026-11-09_9": true,
+  "last_short_pub_2026-11-09_9_url": "https://www.youtube.com/watch?v=JQyk8YRiaQI",
+  "last_short_pub_2026-11-09_12": true,
+  "last_short_pub_2026-11-09_12_url": "https://www.youtube.com/watch?v=vzc4uh1_Sbg",
+  "last_short_pub_2026-11-09_16": true,
+  "last_short_pub_2026-11-09_16_url": "https://www.youtube.com/watch?v=B6DrhbFkDag",
+  "last_short_pub_2026-11-09_19": true,
+  "last_short_pub_2026-11-09_19_url": "https://www.youtube.com/watch?v=aIPF9u-HoR8",
+  "last_short_pub_2026-11-09_22": true,
+  "last_short_pub_2026-11-09_22_url": "https://www.youtube.com/watch?v=IPbGyAHsjiQ",
+  "last_longform_pub_2026-11-09": true,
+  "last_longform_pub_2026-11-09_url": "https://www.youtube.com/watch?v=NoV2_TDsSNY"
 }
