@@ -561,6 +561,48 @@
       "url": "https://www.youtube.com/watch?v=NoV2_TDsSNY",
       "date_ist": "2026-11-08T02:56:55.767574+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Illegal Enter Bhangarh: Why Is It Illegal to Enter Bhangarh Fort...",
+      "url": "https://www.youtube.com/watch?v=nZAmDKeXEBk",
+      "date_ist": "2026-11-09T00:52:14.912888+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Dark Reason Entry Is Banned at Bhangarh Fort...",
+      "url": "https://www.youtube.com/watch?v=qMcxgHC6Wmw",
+      "date_ist": "2026-11-09T00:57:01.303463+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Haunted Fort Where a Prince Screams for Help...",
+      "url": "https://www.youtube.com/watch?v=dHeChHdOsvU",
+      "date_ist": "2026-11-09T01:01:36.348989+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Cursed Indian Fort Built Over a Mass Grave...",
+      "url": "https://www.youtube.com/watch?v=I1w0I4eec8s",
+      "date_ist": "2026-11-09T01:06:30.977480+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Cursed Fort That Wiped Out Entire Dynasties...",
+      "url": "https://www.youtube.com/watch?v=7FQe92KeJ6Y",
+      "date_ist": "2026-11-09T01:11:04.501150+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Necromanteion Acheron Ancient: Archaeologists Found...",
+      "url": "https://www.youtube.com/watch?v=spVIgOwV51k",
+      "date_ist": "2026-11-09T01:49:56.516638+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -590,11 +632,11 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-09",
+  "last_longform_date": "2026-11-10",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-09",
+  "last_longform_pub_date": "2026-11-10",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -686,5 +728,17 @@
   "last_short_pub_2026-11-09_22": true,
   "last_short_pub_2026-11-09_22_url": "https://www.youtube.com/watch?v=IPbGyAHsjiQ",
   "last_longform_pub_2026-11-09": true,
-  "last_longform_pub_2026-11-09_url": "https://www.youtube.com/watch?v=NoV2_TDsSNY"
+  "last_longform_pub_2026-11-09_url": "https://www.youtube.com/watch?v=NoV2_TDsSNY",
+  "last_short_pub_2026-11-10_9": true,
+  "last_short_pub_2026-11-10_9_url": "https://www.youtube.com/watch?v=nZAmDKeXEBk",
+  "last_short_pub_2026-11-10_12": true,
+  "last_short_pub_2026-11-10_12_url": "https://www.youtube.com/watch?v=qMcxgHC6Wmw",
+  "last_short_pub_2026-11-10_16": true,
+  "last_short_pub_2026-11-10_16_url": "https://www.youtube.com/watch?v=dHeChHdOsvU",
+  "last_short_pub_2026-11-10_19": true,
+  "last_short_pub_2026-11-10_19_url": "https://www.youtube.com/watch?v=I1w0I4eec8s",
+  "last_short_pub_2026-11-10_22": true,
+  "last_short_pub_2026-11-10_22_url": "https://www.youtube.com/watch?v=7FQe92KeJ6Y",
+  "last_longform_pub_2026-11-10": true,
+  "last_longform_pub_2026-11-10_url": "https://www.youtube.com/watch?v=spVIgOwV51k"
 }
