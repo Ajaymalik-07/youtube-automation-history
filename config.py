@@ -137,12 +137,13 @@ ENV_KEYS = [
     "OPENROUTER_API_KEY", "YOUTUBE_API_KEY", "YOUTUBE_CHANNEL_ID",
     "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_TOKEN_BASE64",
     "NOTIFICATION_EMAIL", "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD",
+    "CHANNEL_NAME", "DEFAULT_LANGUAGE", "SECONDARY_LANGUAGE", "TARGET_TIMEZONE",
 ]
 
 # ─────────────────────────────────────────
 #  Free API stack  (keyless — work out of the box)
 # ─────────────────────────────────────────
-# Ground every script in real facts from Wikipedia + arXiv, and cite them
+# Ground every script in real facts from verified historical archives, and cite them
 FACT_GROUNDING = True
 
 # When Gemini has no key or runs out of quota: Groq → OpenRouter → Pollinations
@@ -158,32 +159,37 @@ IMAGE_SOURCES = ["pixabay", "nasa", "openverse", "pollinations"]
 import certifi
 os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 
-# Trend Radar — Google Trends region and arXiv fields to watch
-TRENDS_GEO       = "IN"
-ARXIV_CATEGORIES = ["astro-ph.CO", "gr-qc", "quant-ph", "cs.AI", "q-bio.NC"]
+# Trend Radar — Google Trends region to watch
+TRENDS_GEO       = os.getenv("TRENDS_GEO", "IN")
+ARXIV_CATEGORIES = ["cs.DL", "cs.CL"]  # Digital libraries & computational linguistics (history text preservation)
 
 # ─────────────────────────────────────────
-#  Your Channel Identity — History & Ancient Civilizations
-#  The more specific you are, the better the AI's topic suggestions.
+#  Your Channel Identity — Canonical Configuration
+#  Default: Stories Malik (configurable via .env or GUI)
 # ─────────────────────────────────────────
-CHANNEL_DESCRIPTION = """
+CHANNEL_NAME        = os.getenv("CHANNEL_NAME", "Stories Malik")
+CHANNEL_DESCRIPTION = os.getenv("CHANNEL_DESCRIPTION", """
 A cinematic and deeply researched History documentary channel exploring the greatest mysteries of ancient civilizations, lost empires, legendary rulers, shocking archaeological discoveries, and pivotal historical battles that shaped humanity.
 Every video is an immersive 8–13 minute deep-dive (strictly under 15 minutes) combining dramatic storytelling, verified historical records, rare insights, and intriguing what-if historical paradoxes.
 Tone: cinematic, gripping, authoritative, and awe-inspiring, catering to history enthusiasts in India and worldwide.
-"""
-CHANNEL_NAME = "History Chronicles | इतिहास के रहस्य"   # shown on-screen and in upload metadata
+""".strip())
+
+TARGET_AUDIENCE     = os.getenv("TARGET_AUDIENCE", "Hindi-speaking viewers in India and worldwide interested in deep historical documentaries and ancient mysteries.")
+CONTENT_CATEGORY    = os.getenv("CONTENT_CATEGORY", "Historical documentaries, ancient civilizations, Indian history, world history, historical mysteries and evidence-based historical storytelling.")
+PUBLISHING_TIMEZONE = os.getenv("PUBLISHING_TIMEZONE", "Asia/Kolkata")
+TARGET_TIMEZONE     = PUBLISHING_TIMEZONE
 
 # On-video branding: the "▶ CHANNEL NAME" tag in the hook and on Shorts,
 # plus the channel line on thumbnails. Leave BRAND_TEXT empty to use CHANNEL_NAME.
-SHOW_CHANNEL_BRAND = True
-BRAND_TEXT         = ""
+SHOW_CHANNEL_BRAND = os.getenv("SHOW_CHANNEL_BRAND", "True").lower() in ("1", "true", "yes", "on")
+BRAND_TEXT         = os.getenv("BRAND_TEXT", "")
 
 # Default thumbnail style: "impact" | "cinematic" | "split" | "studio"
 # (you can switch per video on the Review page)
 THUMB_STYLE        = "cinematic"
 
 # Optional video watermark: text burnt into the corner of every video. Leave empty for no watermark.
-VIDEO_WATERMARK    = ""
+VIDEO_WATERMARK    = os.getenv("VIDEO_WATERMARK", "")
 
 # Adds attribution to descriptions
 CREDIT_YAAS        = False
@@ -198,16 +204,20 @@ def brand_text() -> str:
 # ─────────────────────────────────────────
 #  Language & Voice (Edge TTS — free, no API key)
 #  Default language: Hindi ("hi")
+#  Secondary language: English subtitles ("en")
 #  Hindi Primary Voice: hi-IN-MadhurNeural (deep, dramatic male voice)
 #  English Secondary Voice: en-US-AndrewNeural (warm, authoritative)
 # ─────────────────────────────────────────
-DEFAULT_LANGUAGE = "hi"
-VOICE_ID         = "hi-IN-MadhurNeural"
-VOICE_ID_EN      = "en-US-AndrewNeural"
-VOICE_RATE       = "-4%"     # slightly measured pace for historical gravity
-VOICE_PITCH      = "-2Hz"    # resonant documentary tone
-VIDEO_MIN_MINUTES = 8    # target minimum duration for long videos (safe under YouTube's 15-min cap)
-VIDEO_MAX_MINUTES = 13   # target maximum duration cap (strictly under 15 minutes)
+DEFAULT_LANGUAGE   = os.getenv("DEFAULT_LANGUAGE", "hi")
+SECONDARY_LANGUAGE = os.getenv("SECONDARY_LANGUAGE", "en")
+VOICE_ID           = os.getenv("VOICE_ID", "hi-IN-MadhurNeural")
+VOICE_ID_EN        = os.getenv("VOICE_ID_EN", "en-US-AndrewNeural")
+VOICE_RATE         = os.getenv("VOICE_RATE", "-4%")     # slightly measured pace for historical gravity
+VOICE_PITCH        = os.getenv("VOICE_PITCH", "-2Hz")    # resonant documentary tone
+VIDEO_MIN_MINUTES  = 8    # target minimum duration for long videos (safe under YouTube's 15-min cap)
+VIDEO_MAX_MINUTES  = 13   # target maximum duration cap (strictly under 15 minutes)
+SHORTS_MIN_SECONDS = 25   # target minimum duration for YouTube Shorts
+SHORTS_MAX_SECONDS = 60   # target maximum duration cap for YouTube Shorts
 
 # ─────────────────────────────────────────
 #  AI Model

@@ -4,6 +4,7 @@ If any check fails, it auto-corrects the title, description, tags, chapters, and
 """
 import re
 import json
+import config
 from apis import seo
 
 _CURIOSITY_WORDS = ["Secret", "Why", "How", "Lost", "Truth", "Hidden", "Mystery", "What", "Unknown"]
@@ -78,7 +79,8 @@ def optimize_for_100_percent(title: str, description: str, tags: list,
         description = hook_lead + description
 
     # 5. Call to Action
-    cta_text = "\n\n🔔 Subscribe to History Chronicles for weekly deep-dives into ancient secrets!\n💬 Leave a comment with your thoughts.\n"
+    brand_name = getattr(config, "CHANNEL_NAME", "Stories Malik")
+    cta_text = f"\n\n🔔 Subscribe to {brand_name} for weekly deep-dives into ancient secrets and historical truth!\n💬 Leave a comment with your thoughts.\n"
     if not any(w in description.lower() for w in ("subscribe", "comment", "follow")):
         description += cta_text
 
