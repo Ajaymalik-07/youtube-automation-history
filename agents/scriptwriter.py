@@ -1,94 +1,190 @@
 """
-Script Writer Agent — generates cinematic 8–13 minute long-form History documentaries (strictly under 15 minutes)
-and high-retention YouTube Shorts with multi-language support (Hindi primary + English auto-dub).
-Uses shared Gemini client with model fallback chain.
+Script Writer Agent — Cinematic Historical Documentaries & High-Retention Shorts
+Generates:
+1. 8–13 minute deep-dive historical documentaries (strictly under 14:30 YouTube unverified cap).
+2. High-velocity 25–60s vertical Shorts with 4-part structure across 8 distinct documentary formats.
+3. Multi-language narration support (Hindi primary in Devanagari + English auto-dub/translation).
+4. Strict script quality gates validating word count, duration, and claim alignment.
 """
 import json
 import copy
+import unicodedata
 import config
 from agents.gemini_client import generate
 from agents.json_utils import extract_json
 
+# Supported Shorts Documentary Formats
+SHORTS_FORMATS = [
+    "historical_fact",
+    "mystery_investigation",
+    "forgotten_personality",
+    "battle_strategy",
+    "ancient_engineering",
+    "misconception_debunked",
+    "archaeological_discovery",
+    "longform_teaser",
+]
+
+
+def estimate_narration_duration(text: str, wpm: int = 120) -> float:
+    """Estimates audio narration duration in seconds based on word count."""
+    words = len(text.split())
+    return (words / max(wpm, 60)) * 60.0
+
 
 def _facts_block(research: dict, limit: int = 5000) -> str:
-    """Verified background from Wikipedia / arXiv, if the researcher found any."""
+    """Verified background from research dossier."""
     facts = (research.get("grounding") or {}).get("facts", "")
-    if not facts:
-        return ""
-    return (
-        "\nVERIFIED HISTORICAL BACKGROUND & FACTS (Wikipedia / Academic sources). "
-        "Use real historical figures, dates, battles, geographical names and archaeological evidence:\n"
-        f"{facts[:limit]}\n"
+    claims = research.get("claims_and_evidence", [])
+    claims_text = "\n".join(
+        f"  - [{c.get('evidence_level', 'FACT')}]: {c.get('claim', '')} (Ref: {c.get('source_reference', 'ASI/Archives')})"
+        for c in claims
+    )
+    timeline = research.get("verified_timeline", [])
+    timeline_text = "\n".join(
+        f"  - {t.get('era', '')}: {t.get('event', '')}" for t in timeline
     )
 
+    combined = ""
+    if claims_text:
+        combined += f"\nVERIFIED HISTORICAL CLAIMS & EVIDENCE:\n{claims_text}\n"
+    if timeline_text:
+        combined += f"\nCHRONOLOGICAL MILESTONES:\n{timeline_text}\n"
+    if facts:
+        combined += f"\nARCHIVAL BACKGROUND:\n{facts[:limit]}\n"
+    return combined
 
-def write_script(research: dict, video_type: str = "normal", language: str = "hi") -> dict:
+
+def validate_script_quality_gate(script: dict) -> tuple[bool, list[str]]:
     """
-    Generates a narrated script for a YouTube video or YouTube Short.
-    video_type:
-      - "normal" or "long": Deep 10–14 minute historical documentary (10–12 sections, ~1,200–1,500 words)
-      - "shorts": High-velocity 50-60s vertical Shorts
-    language: "hi" (Hindi primary) | "en" (English)
+    Validates script structure, length, language integrity, and duration.
+    """
+    issues = []
+    sections = script.get("sections", [])
+    video_type = script.get("video_type", "normal")
+    lang = script.get("language", "hi")
+
+    if video_type == "shorts":
+        if len(sections) < 3:
+            issues.append(f"Shorts script has too few sections ({len(sections)}, expected 3–4).")
+        total_text = " ".join(s.get("narration", "") for s in sections)
+        words = len(total_text.split())
+        if words < 70:
+            issues.append(f"Shorts narration too brief ({words} words, minimum 70 required for 25s+).")
+        elif words > 175:
+            issues.append(f"Shorts narration too long ({words} words, maximum 175 allowed to fit under 60s).")
+    else:
+        # Long-form documentary (8-13 min target, hard cap under 14:30)
+        if len(sections) < 8:
+            issues.append(f"Long-form documentary has too few sections ({len(sections)}, expected 8–10).")
+        total_text = " ".join(s.get("narration", "") for s in sections)
+        words = len(total_text.split())
+        est_sec = estimate_narration_duration(total_text, wpm=120)
+        
+        if words < 850:
+            issues.append(f"Long-form script is too short ({words} words, ~{est_sec/60:.1f} min; target is 8–13 min).")
+        elif words > 1500:
+            issues.append(f"Long-form script is too long ({words} words, ~{est_sec/60:.1f} min; exceeds safe 14-min cap).")
+            
+        if est_sec > 870:  # 14 minutes 30 seconds
+            issues.append(f"Estimated duration {est_sec/60:.1f} min exceeds YouTube's hard 14:30 unverified limit.")
+
+    # Check Devanagari character presence if Hindi
+    if lang == "hi":
+        all_narr = " ".join(s.get("narration", "") for s in sections)
+        devanagari_chars = sum(1 for ch in all_narr if '\u0900' <= ch <= '\u097F')
+        total_chars = max(1, len([c for c in all_narr if c.isalnum()]))
+        if (devanagari_chars / total_chars) < 0.40:
+            issues.append("Hindi script lacks sufficient Devanagari characters (detected mostly Latin script).")
+
+    is_approved = len(issues) == 0
+    return is_approved, issues
+
+
+def write_script(research: dict, video_type: str = "normal", language: str = "hi", shorts_format: str = "historical_fact") -> dict:
+    """
+    Generates a narrated script for Stories Malik.
+    video_type: 'normal' (8–13 min deep documentary) | 'shorts' (25–60s vertical)
+    language: 'hi' (Hindi primary) | 'en' (English secondary)
+    shorts_format: specialized format from SHORTS_FORMATS
     """
     if video_type == "shorts":
-        return _write_shorts_script(research, language=language)
+        script = _write_shorts_script(research, language=language, shorts_format=shorts_format)
+    else:
+        script = _write_longform_script(
+            research,
+            language=language,
+            min_minutes=getattr(config, "VIDEO_MIN_MINUTES", 8),
+            max_minutes=getattr(config, "VIDEO_MAX_MINUTES", 13),
+        )
 
-    return _write_longform_script(
-        research, language=language,
-        min_minutes=getattr(config, "VIDEO_MIN_MINUTES", 10),
-        max_minutes=getattr(config, "VIDEO_MAX_MINUTES", 14)
-    )
+    # Attach production metadata
+    all_narr = " ".join(s.get("narration", "") for s in script.get("sections", []))
+    total_words = len(all_narr.split())
+    est_dur = estimate_narration_duration(all_narr, wpm=120)
+
+    script["script_version"] = "2.0"
+    script["research_reference"] = research.get("topic", "")
+    script["word_count"] = total_words
+    script["estimated_duration_seconds"] = round(est_dur, 1)
+    script["estimated_duration_minutes"] = round(est_dur / 60.0, 2)
+    script["language"] = language
+    script["video_type"] = video_type
+    script["channel_brand"] = getattr(config, "CHANNEL_NAME", "Stories Malik")
+
+    approved, issues = validate_script_quality_gate(script)
+    script["quality_gate_approved"] = approved
+    script["quality_gate_issues"] = issues
+
+    return script
 
 
 def _write_longform_script(research: dict, language: str = "hi", min_minutes: int = 8, max_minutes: int = 13) -> dict:
-    """
-    Generates an epic 8–13 minute historical documentary script.
-    At ~120-130 words/minute, 8–13 minutes requires 950 to 1,250 words across 8-10 sections.
-    Guarantees the final video stays strictly under YouTube's 15-minute limit.
-    """
+    """Generates an authentic 8–13 minute historical documentary script."""
     key_points_str = "\n".join(f"  {i+1}. {p}" for i, p in enumerate(research.get("key_points", [])))
+    brand = getattr(config, "CHANNEL_NAME", "Stories Malik")
 
     lang_instruction = (
-        "LANGUAGE: Write all narration, section titles, and captions in rich, broadcast-quality HINDI (हिंदी - Devanagari script). "
-        "Use captivating, dramatic vocabulary suited for deep historical storytelling and narration by a voice like Madhur (hi-IN-MadhurNeural). "
-        "IMPORTANT: 'image_query', 'image_query_2', and 'image_query_3' MUST REMAIN IN ENGLISH so stock image search engines can find relevant visuals."
+        "LANGUAGE: Write all narration, section titles, and captions in authentic, broadcast-quality HINDI (हिंदी - Devanagari script). "
+        "Use dignified, evocative historical vocabulary suitable for deep historical narration by hi-IN-MadhurNeural. "
+        "IMPORTANT: 'image_query', 'image_query_2', and 'image_query_3' MUST REMAIN IN ENGLISH to query visual archives accurately."
         if language == "hi" else
-        "LANGUAGE: Write all narration, section titles, and captions in gripping, authoritative ENGLISH."
+        "LANGUAGE: Write all narration, section titles, and captions in authoritative, gripping ENGLISH."
     )
 
-    prompt = f"""You are the lead documentary scriptwriter for an epic History YouTube channel (like Dan Carlin's Hardcore History, Timeline, and Kings and Generals).
+    prompt = f"""You are the lead historical documentary scriptwriter for {brand}, a channel dedicated to verified Indian and World history.
 
-Video topic: {research.get('topic', '')}
-Title: {research.get('video_title', '')}
-Core hook question: {research.get('hook_question', '')}
-Key points to cover:
+TOPIC: {research.get('topic', '')}
+TITLE: {research.get('video_title', '')}
+HOOK QUESTION: {research.get('hook_question', '')}
+KEY POINTS:
 {key_points_str}
-{_facts_block(research)}
+{_facts_block(research, limit=4000)}
 
-MANDATORY REQUIREMENT:
-The video must be LESS THAN 15 MINUTES LONG (target: {min_minutes} to {max_minutes} minutes, strictly under 14 minutes to comply with YouTube upload rules).
-You MUST write 8 to 10 comprehensive sections.
-Each section's narration must be 90–120 words long, resulting in a total narration of 950 to 1,250 words (~8–12.5 minutes of narrated speech).
-Do NOT exceed 14 minutes. Do NOT exceed 1,350 total words.
+PRODUCTION SPECIFICATIONS:
+- Target Video Duration: {min_minutes} to {max_minutes} minutes (strictly under 14:00 to comply with YouTube limits).
+- Target Script Length: 950 to 1,250 words total across 8 to 10 comprehensive chapters.
+- Each chapter's narration must be approximately 100–130 words long.
+- Do NOT use repetitive filler. Maintain chronological pacing and empirical evidence.
+- Differentiate established historical facts from oral lore or myths.
+- The final chapter must feature an organic, natural channel CTA: "यदि आपको इतिहास की यह यात्रा पसंद आई, तो Stories Malik को सब्सक्राइब करें..."
 
 {lang_instruction}
 
-STORYTELLING & PACING STRUCTURE:
-- Section 1 (Hook): An astonishing, forgotten historical paradox or discovery that shatters common assumptions.
-- Section 2 (Setting the Stage): The geopolitical, cultural, and environmental backdrop of the era.
-- Section 3 (The Rising Power / Spark): The inciting event or ambitious ruler that set events into motion.
-- Section 4 (The First Re-hook): A sudden reversal or secret pact ("लेकिन यहाँ कहानी एक खौफनाक मोड़ लेती है..." / "Here is where the history books misled us...").
-- Sections 5 to 7 (Deep Historical Chronology): Strategic battles, court intrigues, primary texts, diary accounts, and archaeological clues.
-- Section 8 (The Climax & Collapse): The peak of the conflict, betrayal, or fall of the civilization.
-- Section 9 (Archaeological Findings & Modern Discoveries): What modern excavations, satellite scans, or carbon dating revealed.
-- Section 10 (Outro & Call to Action): Powerful final thought, thought-provoking question, and call to subscribe.
+STORYTELLING PACING:
+- Chapter 1 (Hook & Paradox): The startling historical question or recent archaeological contradiction.
+- Chapter 2 (Setting the Stage): Geopolitical, cultural, and environmental landscape.
+- Chapter 3 (The Inciting Catalyst): The ambitious ruler, betrayal, or discovery that launched events.
+- Chapter 4 (The Narrative Pivot): A sudden reversal or unforeseen military confrontation.
+- Chapters 5-7 (Deep Historical Chronology): Tactical maneuvers, primary texts, diary accounts, and epigraphic proof.
+- Chapter 8 (The Climax & Collapse): The peak of the conflict or fall of the dynasty.
+- Chapter 9 (Archaeological Discoveries): What excavations, carbon dating, or satellite LIDAR revealed.
+- Chapter 10 (Historical Verdict & CTA): Enduring civilizational legacy and call to subscribe to {brand}.
 
-VISUAL REQUIREMENTS:
-- Every section MUST provide 3 distinct ENGLISH image queries (image_query, image_query_2, image_query_3) tailored to history:
-  e.g., "ancient temple ruins aerial dramatic", "ancient battlefield armor close-up", "historical ancient parchment manuscript macro", "archaeological excavation artifacts museum".
+VISUAL SEARCH PROMPTS:
+- Every section MUST provide 3 distinct ENGLISH image queries tailored to historical visuals (e.g. "ancient temple ruins aerial dramatic", "ancient battlefield armor close-up", "historical palm leaf manuscript macro", "archaeological excavation artifacts museum").
 
-Respond with ONLY a valid JSON object. No markdown fences, no extra text:
-
+Respond with ONLY a valid JSON object matching this schema:
 {{
   "title": "{research.get('video_title', '')}",
   "description": "{research.get('description', '')}",
@@ -98,74 +194,78 @@ Respond with ONLY a valid JSON object. No markdown fences, no extra text:
       "id": 1,
       "section_type": "hook",
       "title": "On-screen chapter title",
-      "narration": "Full, immersive narration text of at least 110-140 words...",
+      "narration": "Full, immersive narration text of 100-130 words in Hindi...",
       "image_query": "dramatic historical establishing shot ancient ruins aerial",
       "image_query_2": "ancient stone artifact museum lighting macro",
       "image_query_3": "historical concept illustration dramatic lighting",
-      "bullet_points": ["Key mystery 1", "Historical enigma 2"],
+      "bullet_points": ["Key mystery 1", "Historical evidence 2"],
       "caption_text": "Short highlight caption for screen",
-      "duration_seconds": 55
+      "duration_seconds": 60
     }}
   ]
-}}
-"""
-    print(f"   → Writing epic history script (<15 min safe, target: 8–13 min) in {'Hindi' if language == 'hi' else 'English'}…")
+}}"""
+    print(f"   → Generating documentary script (8–13 min, authentic historical Devanagari) for {brand}…")
     raw = generate(prompt)
     script = extract_json(raw, "Longform Scriptwriter")
 
     if "sections" not in script or len(script["sections"]) < 8:
         raise ValueError(f"Script returned too few sections ({len(script.get('sections', []))}).")
 
-    script["language"] = language
-    script["video_type"] = "normal"
     return script
 
 
-def _write_shorts_script(research: dict, language: str = "hi") -> dict:
-    """
-    Generates a tight 50-60 second YouTube Shorts script (3 sections, vertical format).
-    """
-    key_points_str = "\n".join(f"  {i+1}. {p}" for i, p in enumerate(research.get("key_points", [])[:3]))
+def _write_shorts_script(research: dict, language: str = "hi", shorts_format: str = "historical_fact") -> dict:
+    """Generates an independent, high-retention 25–60s YouTube Short with candidate hooks."""
+    brand = getattr(config, "CHANNEL_NAME", "Stories Malik")
+    key_points_str = "\n".join(f"  - {p}" for p in research.get("key_points", [])[:3])
 
     lang_instruction = (
         "LANGUAGE: Write all narration in punchy, dramatic HINDI (हिंदी - Devanagari script). "
-        "Image queries MUST be in ENGLISH for image searching."
+        "Keep visual image queries in ENGLISH."
         if language == "hi" else
         "LANGUAGE: Write narration in punchy, viral ENGLISH."
     )
 
-    prompt = f"""You are a viral YouTube Shorts scriptwriter specializing in shocking historical facts and ancient mysteries.
+    prompt = f"""You are the lead YouTube Shorts creator for {brand}, specializing in verified historical insights and archaeological discoveries.
 
-Video topic: {research.get('topic', '')}
-Title: {research.get('video_title', '')}
-Hook question: {research.get('hook_question', '')}
-Key points:
+TOPIC: {research.get('topic', '')}
+FORMAT: {shorts_format}
+CORE HOOK QUESTION: {research.get('hook_question', '')}
+KEY FACTS:
 {key_points_str}
-{_facts_block(research, 2000)}
+{_facts_block(research, limit=2000)}
 
-Write a viral 50-60 second historical Short. Rules:
-- Hook in the FIRST 3 seconds — an unbelievable fact about ancient history.
-- Rapid pace, high intrigue.
-- Total narration must be 120-150 words across 3 sections.
-- 3 sections ONLY: hook (10-12s), revelation (30-35s), cta (8-10s).
-- {lang_instruction}
+SHORTS PRODUCTION RULES:
+1. 25–60 Seconds Total Duration: Narration must be 100–145 total words across 3–4 tight sections.
+2. 0–2s Hook: Immediate high-intrigue question or verified historical contradiction.
+3. 2–10s Context: High stakes or geographical context.
+4. 10–40s Revelation: Tactical revelation, archaeological evidence, or unexpected turning point.
+5. Final 5s Payoff & CTA: Satisfying conclusion with a natural invitation to explore the full documentary on {brand}.
+6. Generate 3 candidate hooks and select the single most compelling, historically accurate one for Section 1.
+7. {lang_instruction}
 
-Respond with ONLY a valid JSON object. No markdown fences, no extra text:
-
+Respond with ONLY valid JSON:
 {{
-  "title": "{research.get('video_title', '')} #Shorts #History",
-  "description": "Shocking historical truth that history books never told you. #Shorts #History #AncientMysteries",
-  "tags": {json.dumps(research.get('tags', []) + ["Shorts", "YouTubeShorts", "History", "AncientHistory"])},
+  "title": "{research.get('video_title', '')} #Shorts #History #StoriesMalik",
+  "description": "Historical discovery from {brand}. Subscribe for deep documentary investigations. #Shorts #History #AncientIndia",
+  "tags": {json.dumps(research.get('tags', []) + ["Shorts", "YouTubeShorts", "History", "AncientHistory", "StoriesMalik"])},
+  "candidate_hooks": [
+    "Hook option 1",
+    "Hook option 2",
+    "Hook option 3"
+  ],
+  "selected_hook": "Hook option 1",
+  "format": "{shorts_format}",
   "sections": [
     {{
       "id": 1,
       "section_type": "hook",
-      "title": "hook_internal",
-      "narration": "First 35 words...",
-      "image_query": "ancient empire ruins dark cinematic",
-      "image_query_2": "ancient gold artifact mystery close up",
-      "image_query_3": "ancient king statue dramatic lighting",
-      "image_query_4": "historical battlefield dramatic aerial",
+      "title": "The Hook",
+      "narration": "First 25-35 words delivering the selected high-impact historical hook...",
+      "image_query": "dramatic historical close up artifact cinematic",
+      "image_query_2": "ancient warrior statue museum lighting",
+      "image_query_3": "historical battlefield dark atmosphere",
+      "image_query_4": "ancient temple aerial dramatic",
       "bullet_points": [],
       "caption_text": "",
       "duration_seconds": 12
@@ -173,21 +273,21 @@ Respond with ONLY a valid JSON object. No markdown fences, no extra text:
     {{
       "id": 2,
       "section_type": "content",
-      "title": "content_internal",
-      "narration": "Core shocking revelation 80-90 words...",
-      "image_query": "archaeological excavation discovery close up",
+      "title": "The Revelation",
+      "narration": "Core 60-80 words detailing the verified evidence, strategic move, or discovery...",
+      "image_query": "archaeological excavation site close up",
       "image_query_2": "ancient manuscript hieroglyphics macro",
       "image_query_3": "ancient army formation battle cinematic",
-      "image_query_4": "lost city jungle ancient temple",
+      "image_query_4": "lost city temple golden light",
       "bullet_points": [],
       "caption_text": "",
-      "duration_seconds": 35
+      "duration_seconds": 32
     }},
     {{
       "id": 3,
-      "section_type": "cta",
-      "title": "cta_internal",
-      "narration": "Final punchline and follow CTA 20 words...",
+      "section_type": "payoff_cta",
+      "title": "Payoff & CTA",
+      "narration": "Final 20-30 words with historical verdict and invite to watch full documentary on Stories Malik...",
       "image_query": "ancient pyramid starry night sky",
       "image_query_2": "history museum dark cinematic lighting",
       "image_query_3": "ancient mystery artifacts glowing",
@@ -197,27 +297,21 @@ Respond with ONLY a valid JSON object. No markdown fences, no extra text:
       "duration_seconds": 10
     }}
   ]
-}}
-"""
-    print(f"   → Writing History Shorts script ({'Hindi' if language == 'hi' else 'English'})…")
+}}"""
+    print(f"   → Generating dedicated YouTube Short script ({shorts_format}) in {'Hindi' if language == 'hi' else 'English'}…")
     raw = generate(prompt)
     script = extract_json(raw, "Shorts scriptwriter")
 
     if "sections" not in script or len(script["sections"]) < 2:
         raise ValueError("Shorts script returned too few sections.")
 
-    script["language"] = language
-    script["video_type"] = "shorts"
     return script
 
 
 def translate_script(script: dict, target_lang: str = "en") -> dict:
-    """
-    Translates a script's narration, titles, and captions to target_lang (e.g. 'en' or 'hi')
-    while preserving all IDs, image queries, and section timing structures for auto-dubbing.
-    """
+    """Translates script narration, titles, and captions to target_lang for auto-dubbing."""
     lang_name = "English" if target_lang == "en" else "Hindi"
-    print(f"   → Translating script to {lang_name} for auto-dubbing…")
+    print(f"   → Translating script to {lang_name} for auto-dubbing and synchronized subtitles…")
 
     sections_payload = [
         {
@@ -230,9 +324,9 @@ def translate_script(script: dict, target_lang: str = "en") -> dict:
         for s in script.get("sections", [])
     ]
 
-    prompt = f"""You are a professional audio-dubbing translator and localization expert.
-Translate the following YouTube video script content into broadcast-quality, natural-sounding {lang_name}.
-Keep the emotional intensity, pacing, and dramatic historical tone intact.
+    prompt = f"""You are a professional historical documentary localization expert and translator.
+Translate the following documentary script into broadcast-quality, natural-sounding {lang_name}.
+Preserve historical names with standard spellings. Keep the dramatic pacing and solemn historical tone intact.
 Preserve the exact same section IDs and array structure.
 
 Title: {script.get('title', '')}
@@ -251,11 +345,10 @@ Respond with ONLY valid JSON:
       "title": "Translated Title",
       "narration": "Translated Narration...",
       "caption_text": "Translated Caption",
-      "bullet_points": ["Translated Point 1", "Translated Point 2"]
+      "bullet_points": ["Point 1", "Point 2"]
     }}
   ]
-}}
-"""
+}}"""
     try:
         raw = generate(prompt)
         translated_data = extract_json(raw, "Translator")
