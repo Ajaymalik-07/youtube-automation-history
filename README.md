@@ -1,282 +1,205 @@
 <div align="center">
 
-<img src="docs/screenshots/banner.png" alt="YAAS: 100% free, $0 per video. Seven agents: Research, Fact-check, Script, Visuals, Voice, Render, Publish" width="100%">
+# YAAS: YouTube Agentic AI Studio
+### Stories Malik — Hindi-First Historical Documentary & Shorts Engine
 
-# YAAS: Youtube Agentic Ai Studio
-
-**Type an idea. Get a finished, fact-checked YouTube video. Free.**
-
-YAAS researches a topic, checks the facts, writes the script, records a voiceover, finds visuals, renders the video, and helps you title, tag and publish it, all from one simple local app.
+**A reliable, evidence-grounded, Hindi-first YouTube production system for long-form historical documentaries and dedicated YouTube Shorts.**
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Channel](https://img.shields.io/badge/Channel-Stories%20Malik-red?style=flat-square&logo=youtube)](https://youtube.com)
+[![Language](https://img.shields.io/badge/Primary%20Language-Hindi%20(Devanagari)-orange?style=flat-square)](docs/HINDI_RENDERING_STANDARD.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Cost](https://img.shields.io/badge/Cost-$0%20per%20video-brightgreen?style=flat-square)](SETUP.md)
-[![Free APIs](https://img.shields.io/badge/Free%20APIs-19-ff70f3?style=flat-square)](#-the-free-api-stack)
-[![Tests](https://github.com/raunakpatil/youtube-agentic-ai-studio/actions/workflows/tests.yml/badge.svg)](https://github.com/raunakpatil/youtube-agentic-ai-studio/actions/workflows/tests.yml)
-[![Stars](https://img.shields.io/github/stars/raunakpatil/youtube-agentic-ai-studio?style=flat-square)](https://github.com/raunakpatil/youtube-agentic-ai-studio/stargazers)
+[![Tests](https://img.shields.io/badge/Tests-88%20Passing-brightgreen?style=flat-square)](tests/)
 
-[**Quick start**](#-quick-start) · [**How it works**](#-how-it-works) · [**Free APIs**](#-the-free-api-stack) · [**Setup guide**](SETUP.md) · [**FAQ**](#-faq)
+[**Quick Start**](#-quick-start) · [**Architecture & Standards**](#-standards--documentation) · [**Content Pillars**](#-10-historical-content-pillars) · [**Publishing Safety**](#-publishing-safety-gate) · [**Analytics**](#-youtube-analytics-v2)
 
 </div>
 
 ---
 
-## ⚡ Quick start
+## ⚡ Quick Start
 
+### 1. Clone & Set Up
 ```bash
-git clone https://github.com/raunakpatil/youtube-agentic-ai-studio.git
-cd youtube-agentic-ai-studio
+git clone https://github.com/Ajaymalik-07/youtube-automation-history.git
+cd youtube-automation-history
 pip install -r requirements.txt
-python gui.py          # opens http://localhost:7070
 ```
 
-Then type a topic on the Home screen and press **Make video**. That's it.
-
-No keys are required to try it. A free [Gemini key](https://aistudio.google.com/apikey) (1 minute to get) makes the scripts much better. Paste it in **Settings** and it's stored locally in `.env`. Uploading straight to YouTube needs a one-time Google setup, covered in the [Setup guide](SETUP.md). You can always download the MP4 and upload it yourself instead.
-
----
-
-## 🧭 How it works
-
-The app has three screens, in the order you use them:
-
-| Screen | What you do there |
-|---|---|
-| **Home** | Type a topic, or press **Let AI pick a topic**, or click a **trending idea**. Choose long video or Short. Watch plain-English progress: *researching → writing → finding visuals → recording voice → rendering*. |
-| **Review & publish** | Five numbered steps: **1** watch it, **2** polish the title (or let AI suggest 6 better ones), **3** edit description & tags (with real YouTube search suggestions), **4** make a thumbnail (photo or new AI artwork), **5** upload now or schedule. A live *How easy is it to find?* score tells you what to fix. |
-| **My videos** | Every finished video is saved automatically, with **Long videos** and **Shorts** in separate sections. Re-open, re-edit, re-publish, download or delete. |
-
-**Settings** (top right) holds your channel name, voice, optional keys and advanced options. Everything has a sensible default.
-
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/home.png" alt="Home: one box to type your video idea"><br><sub><b>Home</b>: type an idea, or let AI pick one</sub></td>
-<td width="50%"><img src="docs/screenshots/home-progress.png" alt="Progress while a video is being made"><br><sub><b>Making a video</b>: plain-English progress, step by step</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/review.png" alt="Review and publish page"><br><sub><b>Review &amp; publish</b>: watch, title, findability score</sub></td>
-<td width="50%"><img src="docs/screenshots/thumbnail-designer.png" alt="Thumbnail designer"><br><sub><b>Thumbnail designer</b>: text, 4 styles, any background</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/library.png" alt="My videos with long videos and Shorts separated"><br><sub><b>My videos</b>: long videos and Shorts kept apart</sub></td>
-<td width="50%" align="center"><img src="docs/screenshots/mobile-home.png" alt="Home on a phone" width="45%"><br><sub><b>Works at phone width</b></sub></td>
-</tr>
-</table>
-
-![The four thumbnail styles in 16:9 and 9:16](docs/screenshots/thumbnail-styles.png)
-
-Behind the scenes:
-
-```
-topic ──► Research ──► Fact-check ──► Script ──► Visuals ──► Voice ──► Render ──► Review ──► Publish
-          (AI +        (Wikipedia    (AI)       (Pexels →   (Edge     (MoviePy)   (title lab,  (YouTube
-          trends)       + arXiv)                 NASA → …)   TTS)                  SEO score)   API)
-```
-
----
-
-## ✨ Features
-
-| | |
-|---|---|
-| 🧠 **Trend-aware topics** | Live ideas from Google Trends, Wikipedia, Hacker News, Spaceflight News and arXiv. Click one, or let the AI ride a trend that fits your niche. |
-| 📚 **Fact-checked scripts** | Before writing, YAAS pulls background from Wikipedia and arXiv, tells the AI not to contradict it, and lists the sources in your description. |
-| ✍️ **Never-stuck AI** | Gemini model chain → Groq → OpenRouter → Pollinations (keyless), so a quota error doesn't kill the run. Broken JSON from models is repaired automatically. |
-| 🖼️ **Visuals without a key** | Pexels → Pixabay → NASA (public domain, space topics) → Openverse (CC, credited) → AI-generated images. Credits are written into the description for you. |
-| 🎙️ **Free voice** | Microsoft Edge neural voices with word-synced captions. |
-| 🎞️ **Long videos & Shorts** | 16:9 with chapters, Ken Burns motion and B-roll cuts, or 9:16 Shorts with big captions. Each format gets matching thumbnails and its own section in My videos. |
-| 🏷️ **Your brand** | Your channel name appears in the intro, on Shorts and on thumbnails. Change the text or switch it off in Settings. |
-| ✦ **Title Lab** | 6 alternative titles written from what people actually search, each scored. |
-| 🔎 **Findability score** | 11 checks based on YouTube best practice (length, keyword placement, chapters, tags, hashtags, call to action), each with a tip. |
-| 🔤 **Keyword ideas** | Real YouTube autocomplete suggestions + related terms, one click to add as tags. |
-| 🖌️ **Thumbnail designer** | 4 styles (Impact, Cinematic, Split, Studio) with live previews, short punchy text with a highlighted word, AI text ideas, and any photo from the video or brand-new AI artwork as the background. 1280×720 for long videos, 1080×1920 for Shorts, always under YouTube's 2 MB limit. |
-| 📅 **Schedule uploads** | Upload now or pick a time. Downloads for MP4, thumbnail and captions (SRT). |
-| 📊 **Your stats** | Production history, plus live subscribers and views per upload with a free YouTube Data API key. |
-| 🗂️ **My videos** | Every render archived with its script, sources, photos and metadata. |
-| ©️ **Credits** | Every video carries a semi-transparent **raunakpatil.com** watermark, and descriptions end with *Made with YAAS by Raunak Patil · raunakpatil.com*. |
-| 🎵 **Background music** | Drop MP3s in `music library/` and they're shuffled and looped to fit. |
-
----
-
-## 🔌 The free API stack
-
-Everything below is free. **Keyless** ones work out of the box; the others need a free sign-up and are optional.
-
-| Service | Used for | Key |
-|---|---|---|
-| Google Gemini | Research, scripts, titles | free key, recommended |
-| Groq | Fast backup AI | free key, optional |
-| OpenRouter | Backup AI (free models) | free key, optional |
-| Pollinations (text) | Last-resort backup AI | keyless |
-| Edge TTS | Neural voiceover | keyless |
-| Pexels | Stock photos | free key, optional |
-| Pixabay | Stock photos | free key, optional |
-| NASA Image Library | Public-domain space imagery | keyless |
-| Openverse | Creative Commons images (credited) | keyless |
-| Pollinations (image) | AI B-roll & thumbnail art | keyless |
-| Wikipedia | Fact-checking + trending ideas | keyless |
-| arXiv | Fact-checking + new research ideas | keyless |
-| Google Trends RSS | Search spikes | keyless |
-| Hacker News (Algolia) | Tech trends | keyless |
-| Spaceflight News API | Space & science news | keyless |
-| YouTube autocomplete | Keyword research | keyless |
-| Datamuse | Related keywords | keyless |
-| YouTube Data API | Channel stats | free key, optional |
-| YouTube upload (OAuth) | Publishing | one-time setup |
-
-Home → **Connected services → Test connections** pings every service and shows what's working.
-
-> Free, keyless services can rate-limit or change without notice. YAAS retries, then falls through to the next source, and the run only fails if every option for a step is down.
-
----
-
-## 🔑 Keys and settings
-
-Keys live in `.env` (git-ignored) and nothing else stores them. Either paste them in **Settings** or copy `.env.example`:
-
+### 2. Configure Environment
+Copy `.env.example` to `.env` and provide your free keys:
 ```bash
 cp .env.example .env
 ```
+Key configuration items:
+- `GEMINI_API_KEY`: Free tier Google Gemini API key (recommended for historical script generation).
+- `PEXELS_API_KEY`: Optional free key for authentic historical stock imagery.
+- `YOUTUBE_CLIENT_SECRET_FILE`: Path to OAuth credentials (`client_secret.json`) for publishing and analytics.
 
-Non-secret settings (voice, channel description, video style) are saved to `config.py`, which is also documented line by line.
+### 3. Launch Modes
+- **Interactive Web Studio (GUI):**
+  ```bash
+  python gui.py
+  # Access at http://localhost:7070
+  ```
+- **Autonomous Historical Pipeline:**
+  ```bash
+  python automation.py --help
+  # Test longform documentary generation
+  python automation.py --longform
+  # Generate daily 5-Shorts batch
+  python automation.py --shorts-batch
+  ```
+- **Run Automated Test Suite (88 tests):**
+  ```bash
+  pytest
+  ```
 
 ---
 
-## 📁 Project structure
+## 🏛 10 Historical Content Pillars
+
+1. **Ancient Indian Civilizations:** Indus Valley, Vedic culture, Megalithic sites.
+2. **Indian Kings, Empires & Dynasties:** Mauryas, Guptas, Cholas, Marathas, Rajputs.
+3. **Historical Battles & Military Strategy:** Tactical breakdowns, fort defenses, sieges.
+4. **Lost Cities & Archaeological Discoveries:** Marine archaeology, excavation reports.
+5. **Ancient Technology, Architecture & Engineering:** Stepwells, temple acoustics, metallurgy.
+6. **Historical Mysteries & Unresolved Questions:** Decipherment challenges, disappearance theories.
+7. **World Civilizations & Forgotten History:** Mesopotamia, Persia, Silk Road connections.
+8. **Historical Personalities & Unsung Heroes:** Chronicled biographies grounded in records.
+9. **History Behind Famous Monuments:** Construction history, inscriptions, architectural secrets.
+10. **Myths, Legends & Historical Origins:** Distinguishing verified archaeological fact from oral folklore.
+
+---
+
+## 📚 Multi-Tier Historical Evidence Framework
+
+The system rejects unsupported speculation and science/astrophysics miscategorizations. Research sources strictly follow this hierarchy:
+1. **Tier 1 (Official Records):** Government archives, Archaeological Survey of India (ASI).
+2. **Tier 2 (Institutions):** Recognized museums, National Archives, state repositories.
+3. **Tier 3 (Academic & Peer-Reviewed):** Crossref university publications, JSTOR, scholarly papers.
+4. **Tier 4 (Excavation Reports):** Field archaeology monographs and survey publications.
+5. **Tier 5 (Primary Sources):** Contemporary epigraphy, rock edicts, translated traveler logs (Faxian, Xuanzang, Megasthenes, Al-Biruni).
+6. **Tier 6 (Preliminary Discovery):** Wikipedia and encyclopedia indexes for topic scoping (not treated as primary proof).
+
+*A research quality gate (`validate_research_quality_gate`) blocks scripts if central claims lack verifiable evidence.*
+
+---
+
+## 🔤 Devanagari Hindi Subtitle & Font Engine
+
+- **Unicode NFC Normalization:** All Hindi narration text is normalized to NFC form prior to wrapping and shaping.
+- **Grapheme Cluster Preservation:** Consonants with vowel signs (matras), viramas, and nuktas are never split across line breaks.
+- **Font Stack:** Bundled `assets/fonts/NotoSansDevanagari-Bold.ttf` prioritized for complete Devanagari glyph coverage.
+- **Contrast & Legibility:** Charcoal semi-transparent bounding boxes (`rgba(10, 10, 20, 0.72)`) guarantee caption readability across vibrant or dark historical backgrounds.
+- **Independent Shorts Safe Zones:** Dynamic framing calculations keep vertical captions within mobile safe areas (120px to 380px from bottom edge).
+
+---
+
+## 🛡️ Publishing Safety Gate
+
+To guarantee brand integrity and prevent accidental unauthorized public uploads:
+1. **Deterministic 10-State Machine:**
+   `DRAFT` ➔ `RESEARCH_APPROVED` ➔ `SCRIPT_APPROVED` ➔ `VIDEO_RENDERED` ➔ `REVIEW_PENDING` ➔ `APPROVED` ➔ `SCHEDULED` ➔ `PUBLISHED`
+2. **Mandatory Human Approval:**
+   `uploader/youtube.py` strictly verifies human approval in `uploader/safety.py`. Unapproved videos are blocked and held in `output/pending_uploads/`.
+3. **Private Default Privacy:**
+   New uploads default to `privacyStatus: "private"` (or `"unlisted"` for review), never public.
+4. **Graceful Review Server:**
+   The review server runs on a background `werkzeug` daemon thread and shuts down cleanly upon decision receipt, eliminating abrupt process terminations (`os.kill`).
+
+---
+
+## 📊 YouTube Analytics v2 & Growth Analyst
+
+- **Official API Integration (`apis/youtube_analytics.py`):**
+  Collects watch time, average view duration (AVD), average percentage viewed (APV), impressions CTR, and traffic source distributions.
+- **Snapshot Intervals:** Automatically persists metrics at **24h, 48h, 7d, and 28d** post-upload in `output/analytics_snapshots.json`.
+- **Weekly Growth Analysis (`agents/growth_analyst.py`):**
+  Diagnoses retention drop-offs, clusters topic performance across the 10 pillars, and produces evidence-based production recommendations.
+
+---
+
+## 📁 Repository Structure
 
 ```
-├── gui.py                  ← run this: the app (Flask, http://localhost:7070)
-├── pipeline.py             ← headless CLI version of the pipeline
-├── config.py               ← every setting, documented (+ .env loader)
-├── .env.example            ← copy to .env for your keys
-│
-├── apis/                   ← free API integrations (all fail-soft)
-│   ├── trends.py           ← Google Trends, Wikipedia, HN, Spaceflight News, arXiv
-│   ├── knowledge.py        ← Wikipedia + arXiv fact grounding
-│   ├── seo.py              ← YouTube autocomplete, Datamuse, findability score
-│   ├── images.py           ← Pixabay, NASA, Openverse, Pollinations
-│   ├── llm.py              ← Groq → OpenRouter → Pollinations fallback
-│   └── youtube_stats.py    ← public channel stats
+├── config.py                   ← Canonical settings (Stories Malik, Hindi-first, Asia/Kolkata)
+├── automation.py               ← Autonomous production engine & adaptive scheduler
+├── pipeline.py                 ← Headless end-to-end documentary pipeline
+├── gui.py                      ← Interactive web studio (Flask, http://localhost:7070)
 │
 ├── agents/
-│   ├── gemini_client.py    ← Gemini model chain + fallback hand-off
-│   ├── json_utils.py       ← repairs broken JSON from models
-│   ├── researcher.py       ← topic research (trend-aware, grounded)
-│   └── scriptwriter.py     ← script writing
+│   ├── researcher.py           ← Multi-tier historical evidence researcher & quality gate
+│   ├── scriptwriter.py         ← Long-form documentary engine & 8-format Shorts pipeline
+│   ├── topic_discovery.py      ← 10 content pillars, transparent scoring & deduplication
+│   ├── seo_optimizer.py        ← 3 title candidates, chapter generation & authentic metadata
+│   └── growth_analyst.py       ← Weekly performance analysis & retention diagnostics
+│
+├── apis/
+│   ├── knowledge.py            ← Archive.org, Crossref & historical evidence discovery
+│   ├── trends.py               ← On-this-day historical events & archaeological feeds
+│   ├── youtube_analytics.py    ← Official YouTube Analytics API v2 & snapshot engine
+│   └── seo.py                  ← Hindi/English keyword discovery & metadata validator
 │
 ├── video/
-│   ├── narrator.py         ← Edge TTS voiceover + captions
-│   ├── stock.py            ← image download chain + credits
-│   ├── creator.py          ← renderer (Ken Burns, captions, Shorts, watermark)
-│   ├── thumbnail.py        ← thumbnail designer (4 styles, 16:9 + 9:16)
-│   ├── fonts.py            ← Google Fonts download + fallbacks
-│   └── music.py            ← background music mixer
+│   ├── fonts.py                ← Devanagari Unicode NFC normalization & grapheme preservation
+│   ├── creator.py              ← 16:9 & 9:16 video renderer with dynamic caption safe zones
+│   ├── stock.py                ← Historical architectural fallbacks & image downloads
+│   ├── thumbnail.py            ← Search, Story & Curiosity thumbnail concept generator
+│   └── narrator.py             ← Edge-TTS voiceover & word-level caption alignment
 │
-├── uploader/youtube.py     ← YouTube upload (used by pipeline.py)
-├── gui_templates/index.html← the whole UI
-├── tests/                  ← pytest suite (offline, no keys needed)
-├── docs/screenshots/       ← README images
-└── output/                 ← generated files (git-ignored)
-    └── library/            ← every finished video, archived
+├── uploader/
+│   ├── safety.py               ← Publishing state machine, approval tokens & duplicate protection
+│   └── youtube.py              ← YouTube Data API v3 uploader with private defaults
+│
+├── review/
+│   └── app.py                  ← Local review dashboard with graceful Werkzeug shutdown
+│
+├── docs/                       ← Comprehensive architectural standards & reports
+│   ├── AUDIT_REPORT.md
+│   ├── CHANNEL_CONFIGURATION.md
+│   ├── HISTORICAL_RESEARCH_STANDARD.md
+│   ├── CONTENT_STRATEGY.md
+│   ├── LONG_FORM_SCRIPT_STANDARD.md
+│   ├── SHORTS_CONTENT_STANDARD.md
+│   ├── HINDI_RENDERING_STANDARD.md
+│   ├── VIDEO_PRODUCTION_STANDARD.md
+│   ├── TITLE_THUMBNAIL_STANDARD.md
+│   ├── YOUTUBE_METADATA_STANDARD.md
+│   ├── YOUTUBE_ANALYTICS_STANDARD.md
+│   ├── GROWTH_ANALYSIS_STANDARD.md
+│   ├── PUBLISHING_SAFETY_STANDARD.md
+│   ├── PUBLISHING_EXPERIMENT_PLAN.md
+│   ├── IMPLEMENTATION_PLAN.md
+│   └── CHANGELOG.md
+│
+└── tests/                      ← 88 automated pytest tests
 ```
 
 ---
 
-## 🧪 Running the tests
+## 📜 Standards & Documentation
 
-```bash
-pip install pytest
-pytest
-```
-
-The suite runs offline with no API keys. It covers JSON repair, the findability score, every thumbnail style in both shapes, descriptions and credits, the watermark, `.env` handling and the AI model chain. GitHub Actions runs it on every push and pull request.
-
----
-
-## ❓ FAQ
-
-<details>
-<summary><b>Does this cost anything?</b></summary>
-
-No. Every service has a free tier or needs no account, and rendering runs on your own machine.
-</details>
-
-<details>
-<summary><b>Do I need any API keys?</b></summary>
-
-Not to try it. Without keys, scripts come from the keyless backup AI and visuals from NASA / Openverse / AI images. A free Gemini key is strongly recommended for script quality and reliability.
-</details>
-
-<details>
-<summary><b>How long does one video take?</b></summary>
-
-Research and script take under a minute. A Short renders in a few minutes; a 6–8 minute video in roughly 3–10 minutes depending on your CPU and the *Render quality* setting.
-</details>
-
-<details>
-<summary><b>The voiceover step fails with a 403 error</b></summary>
-
-Microsoft periodically changes its free speech service. Update the voice library: `pip install -U edge-tts`.
-</details>
-
-<details>
-<summary><b>Can I use it without uploading to YouTube?</b></summary>
-
-Yes. Download the MP4, thumbnail and captions from **Review & publish** and upload them however you like.
-</details>
-
-<details>
-<summary><b>Can I turn off the raunakpatil.com watermark?</b></summary>
-
-No. The small semi-transparent watermark is part of every video YAAS renders, as credit for the free tool. The description credit line can be switched off in **Settings → Music & publishing**.
-</details>
-
-<details>
-<summary><b>Why is moviepy pinned to 1.0.3?</b></summary>
-
-MoviePy 2.x removed `moviepy.editor` and changed the API, and NumPy must stay below 2.0 for it. Don't upgrade either.
-</details>
-
-<details>
-<summary><b>The video has tiny or ugly text</b></summary>
-
-Your system is missing the fonts the renderer looks for. Install DejaVu (`sudo apt install fonts-dejavu` on Ubuntu). Windows already has them.
-</details>
-
-<details>
-<summary><b>YouTube upload fails with "access denied"</b></summary>
-
-Delete `youtube_token.pickle` and upload again to redo sign-in. Make sure your Google account is a **Test user** on the OAuth consent screen.
-</details>
+For detailed architectural guidelines, consult the `docs/` suite:
+- [Repository Audit Report](docs/AUDIT_REPORT.md)
+- [Channel Configuration Guide](docs/CHANNEL_CONFIGURATION.md)
+- [Historical Research Standard](docs/HISTORICAL_RESEARCH_STANDARD.md)
+- [Content Strategy Standard](docs/CONTENT_STRATEGY.md)
+- [Long-Form Scriptwriting Standard](docs/LONG_FORM_SCRIPT_STANDARD.md)
+- [Shorts Content Standard](docs/SHORTS_CONTENT_STANDARD.md)
+- [Hindi Rendering Standard](docs/HINDI_RENDERING_STANDARD.md)
+- [Video Production Standard](docs/VIDEO_PRODUCTION_STANDARD.md)
+- [Title & Thumbnail Standard](docs/TITLE_THUMBNAIL_STANDARD.md)
+- [YouTube Metadata Standard](docs/YOUTUBE_METADATA_STANDARD.md)
+- [YouTube Analytics Standard](docs/YOUTUBE_ANALYTICS_STANDARD.md)
+- [Growth Analysis Standard](docs/GROWTH_ANALYSIS_STANDARD.md)
+- [Publishing Safety Standard](docs/PUBLISHING_SAFETY_STANDARD.md)
+- [30-Day Publishing Experiment Plan](docs/PUBLISHING_EXPERIMENT_PLAN.md)
+- [Full Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
+- [Release Changelog](docs/CHANGELOG.md)
 
 ---
 
-## 🗺️ Roadmap
+## ⚖️ License & Attribution
 
-- [x] Thumbnail designer (4 styles, AI text ideas, AI artwork)
-- [x] Scheduled uploads
-- [x] Analytics (channel stats + production history)
-- [x] Trend-aware topics and fact-checked scripts
-- [ ] Stock video B-roll (Pexels / Pixabay video)
-- [ ] Multi-channel profiles
-- [ ] Custom intro/outro clips
-- [ ] Caption upload to YouTube
-
----
-
-## 🎬 Made with YAAS
-
-**[Eldritch Lore](https://www.youtube.com/@EldritchLore)** runs on this pipeline: science, history and "what if" videos.
-
-## 🤝 Contributing
-
-Pull requests welcome. Open an issue first for big changes. See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-<div align="center">
-
-Made by <a href="https://raunakpatil.com">Raunak Patil</a> · UI styled after <a href="https://raunakpatil.com">raunakpatil.com</a>
-
-</div>
- 
-# youtube-automation-history
-
+This project is open-source under the [MIT License](LICENSE). Built for the **Stories Malik** channel.
