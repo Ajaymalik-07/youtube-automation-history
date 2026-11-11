@@ -11,6 +11,11 @@ from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
 from google_auth_oauthlib.flow import InstalledAppFlow
 import config
+from uploader.safety import (
+    is_approved_for_upload,
+    record_production_state,
+    PublishingState,
+)
 
 TOKEN_FILE = "youtube_token.pickle"
 
@@ -76,13 +81,14 @@ def _get_service():
 
 def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
                       title: str = None, description: str = None, tags: list = None,
-                      privacy: str = None, publish_at: str = None) -> str:
+                      privacy: str = None, publish_at: str = None,
+                      bypass_approval: bool = False) -> str:
     """
-    Uploads the video with 100/100 optimized title, description, tags, and thumbnail.
-    Guarantees 100/100 SEO checklist compliance before publishing.
+    Uploads the video with verified title, description, tags, and thumbnail.
+    Phase 12 Safety Gate: Enforces mandatory human approval unless bypass_approval is True.
+    Defaults privacyStatus to 'private' or 'unlisted' to prevent accidental premature public release.
     Supports scheduled publishing via publish_at (RFC 3339 / ISO 8601 UTC timestamp).
     """
-    # Auto-optimize to 100/100 before publishing
     from agents.seo_optimizer import optimize_for_100_percent
     topic = script.get("topic") or script.get("title", "")
     is_shorts = (script.get("video_type") == "shorts" or "short" in os.path.basename(video_path).lower())
@@ -97,11 +103,36 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
     final_title = opt["title"]
     final_desc = opt["description"]
     final_tags = opt["tags"]
-    print(f"   🎯 Pre-Publish SEO Score: {opt['score']}/100 (100% Verified)")
+
+    # --- Phase 12 Mandatory Approval Gate ---
+    if not bypass_approval and not is_approved_for_upload(video_path):
+        print(f"   🚨 Upload blocked by Publishing Safety Gate: Human approval not recorded for '{os.path.basename(video_path)}'")
+        record_production_state(video_path, PublishingState.REVIEW_PENDING.value, metadata={
+            "title": final_title,
+            "blocked_reason": "Pending human approval before upload",
+        })
+        os.makedirs(os.path.join(config.OUTPUT_DIR, "pending_uploads"), exist_ok=True)
+        manifest_path = os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{os.path.basename(video_path)}.json")
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "video_path": video_path,
+                "thumb_path": thumb_path,
+                "title": final_title,
+                "description": final_desc,
+                "tags": final_tags,
+                "publish_at": publish_at,
+                "status": "awaiting_human_approval",
+            }, f, indent=2)
+        print(f"      Preserved in pending review queue: {manifest_path}")
+        return f"local://pending_approval/{os.path.basename(video_path)}"
+
+    # Default to 'private' for unreviewed/new uploads if not specified
+    default_privacy = getattr(config, "VIDEO_PRIVACY", "private")
+    target_privacy = "private" if publish_at else (privacy or default_privacy)
 
     if not is_configured():
         print("   ℹ YouTube OAuth credentials not yet linked or token missing.")
-        print(f"      Video {video_path} is rendered and 100/100 verified.")
+        print(f"      Video {video_path} is rendered and verified.")
         os.makedirs(os.path.join(config.OUTPUT_DIR, "pending_uploads"), exist_ok=True)
         manifest_path = os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{os.path.basename(video_path)}.json")
         with open(manifest_path, "w", encoding="utf-8") as f:
@@ -127,7 +158,7 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
             "categoryId":  config.VIDEO_CATEGORY_ID,
         },
         "status": {
-            "privacyStatus":           "private" if publish_at else (privacy or getattr(config, "VIDEO_PRIVACY", "public")),
+            "privacyStatus":           target_privacy,
             "selfDeclaredMadeForKids": getattr(config, "MADE_FOR_KIDS", False),
         },
     }
@@ -147,7 +178,7 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
         media_body=media,
     )
 
-    print(f"   → Uploading {os.path.basename(video_path)} directly as Public…")
+    print(f"   → Uploading {os.path.basename(video_path)} with privacy: {target_privacy}…")
     response = None
     try:
         while response is None:
@@ -173,6 +204,14 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
             except Exception as e:
                 print(f"   ⚠ Thumbnail upload warning: {e}")
 
+        # Phase 12 State Transition: Mark as PUBLISHED
+        record_production_state(video_path, PublishingState.PUBLISHED.value, metadata={
+            "youtube_id": video_id,
+            "youtube_url": video_url,
+            "privacy": target_privacy,
+            "title": final_title,
+        })
+
         return video_url
 
     except HttpError as err:
@@ -181,6 +220,10 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
         if "quotaExceeded" in err_str or "quota" in err_str.lower():
             print("   🚨 Daily YouTube Data API Quota (10,000 units/day) has been reached.")
             print("      Video is rendered and safely preserved for automated upload when quota resets.")
+        record_production_state(video_path, PublishingState.FAILED.value, metadata={
+            "error": err_str,
+            "reason": "YouTube API HttpError",
+        })
         os.makedirs(os.path.join(config.OUTPUT_DIR, "pending_uploads"), exist_ok=True)
         manifest_path = os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{os.path.basename(video_path)}.json")
         with open(manifest_path, "w", encoding="utf-8") as f:
@@ -197,6 +240,10 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
         return f"local://pending_quota_reset/{os.path.basename(video_path)}"
     except Exception as e:
         print(f"\n   ⚠ Unexpected upload failure: {e}")
+        record_production_state(video_path, PublishingState.FAILED.value, metadata={
+            "error": str(e),
+            "reason": "Unexpected upload exception",
+        })
         os.makedirs(os.path.join(config.OUTPUT_DIR, "pending_uploads"), exist_ok=True)
         manifest_path = os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{os.path.basename(video_path)}.json")
         with open(manifest_path, "w", encoding="utf-8") as f:

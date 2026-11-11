@@ -2,6 +2,8 @@
 Review Server
 Spins up a local Flask web app so you can watch the video,
 read the script, and approve or reject before uploading.
+Phase 12 Overhaul: Replaced unsafe os.kill with cooperative Werkzeug shutdown,
+and records human approval tokens in the uploader safety database.
 """
 import os
 import json
@@ -9,7 +11,13 @@ import threading
 import webbrowser
 import time
 from flask import Flask, render_template, jsonify, request, send_file, abort
+from werkzeug.serving import make_server
 import config
+from uploader.safety import (
+    record_human_approval,
+    record_production_state,
+    PublishingState,
+)
 
 app = Flask(__name__, template_folder="templates")
 
@@ -18,6 +26,22 @@ _state = {
     "review_data": {},
     "decision": None,     # "approved" | "rejected"
 }
+_server = None
+
+
+class ServerThread(threading.Thread):
+    """Clean daemon server thread using werkzeug make_server for non-destructive shutdown."""
+    def __init__(self, flask_app, port):
+        super().__init__()
+        self.server = make_server("127.0.0.1", port, flask_app)
+        self.ctx = flask_app.app_context()
+        self.ctx.push()
+
+    def run(self):
+        self.server.serve_forever()
+
+    def shutdown(self):
+        self.server.shutdown()
 
 
 @app.route("/")
@@ -44,20 +68,38 @@ def serve_video():
 @app.route("/api/approve", methods=["POST"])
 def approve():
     _state["decision"] = "approved"
-    # Give the browser time to get the response before we shut down
-    threading.Timer(0.5, _shutdown).start()
+    video_path = _state["review_data"].get("video_path", "")
+    req_json = request.get_json(silent=True) or {}
+    reviewer = req_json.get("reviewer", "human_editor")
+    notes = req_json.get("notes", "Approved via Review Dashboard")
+
+    if video_path:
+        record_human_approval(video_path, reviewer=reviewer, notes=notes)
+
+    # Cooperative shutdown gives browser time to render confirmation banner
+    threading.Timer(0.8, _shutdown).start()
     return jsonify({"status": "approved"})
 
 
 @app.route("/api/reject", methods=["POST"])
 def reject():
     _state["decision"] = "rejected"
-    threading.Timer(0.5, _shutdown).start()
+    video_path = _state["review_data"].get("video_path", "")
+    req_json = request.get_json(silent=True) or {}
+    reason = req_json.get("reason", "Rejected via Review Dashboard")
+
+    if video_path:
+        record_production_state(video_path, PublishingState.REJECTED.value, metadata={"rejection_reason": reason})
+
+    threading.Timer(0.8, _shutdown).start()
     return jsonify({"status": "rejected"})
 
 
 def _shutdown():
-    os.kill(os.getpid(), 9)   # hard exit — pipeline catches this
+    """Graceful shutdown without killing the host process."""
+    global _server
+    if _server:
+        _server.shutdown()
 
 
 def start_review_server(review_data: dict) -> bool:
@@ -66,19 +108,20 @@ def start_review_server(review_data: dict) -> bool:
     until the user clicks Approve or Reject.
     Returns True if approved, False if rejected.
     """
+    global _server
     _state["review_data"] = review_data
+    _state["decision"] = None
 
     def open_browser():
-        time.sleep(1.8)
+        time.sleep(1.5)
         webbrowser.open(f"http://localhost:{config.REVIEW_PORT}")
 
     threading.Thread(target=open_browser, daemon=True).start()
+    print(f"   → Review dashboard ready at http://localhost:{config.REVIEW_PORT}")
 
-    print(f"   → Review dashboard at http://localhost:{config.REVIEW_PORT}")
-
-    try:
-        app.run(port=config.REVIEW_PORT, debug=False, use_reloader=False)
-    except SystemExit:
-        pass
+    _server = ServerThread(app, config.REVIEW_PORT)
+    _server.start()
+    _server.join()
 
     return _state.get("decision") == "approved"
+
