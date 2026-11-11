@@ -687,6 +687,48 @@
       "url": "https://www.youtube.com/watch?v=cfGb_aUgVN4",
       "date_ist": "2026-11-11T15:25:16.309521+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u092e\u0939\u0930\u0923 \u092a\u0930\u0924\u092a: \u092e\u0939\u093e\u0930\u093e\u0923\u093e \u092a\u094d\u0930\u0924\u093e\u092a \u0915\u093e 81 \u0915\u093f\u0932\u094b \u0915\u093e \u0915\u0935\u091a \u0915\u094d\u092f\u094b\u0902 \u0925\u093e? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=iMs-rmQNBPs",
+      "date_ist": "2026-11-12T01:50:24.483057+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of \u092a\u0928\u092a\u0924: \u092a\u093e\u0928\u0940\u092a\u0924 \u092e\u0947\u0902 \u0932\u093e\u0936\u094b\u0902 \u0938\u0947 \u092a\u091f \u0917\u092f\u093e \u0925\u093e \u092a\u0942\u0930\u093e \u092e\u0948\u0926\u093e\u0928!...",
+      "url": "https://www.youtube.com/watch?v=sxfrtgSGV4U",
+      "date_ist": "2026-11-12T01:53:26.908538+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Ancient History: \u0915\u0932\u093f\u0902\u0917 \u092f\u0941\u0926\u094d\u0927 \u0915\u093e \u0935\u094b \u0938\u091a \u091c\u094b \u0905\u0936\u094b\u0915 \u0915\u094b \u0930\u0941\u0932\u093e \u0917\u092f\u093e #Shorts...",
+      "url": "https://www.youtube.com/watch?v=LG1D9EyrNpQ",
+      "date_ist": "2026-11-12T01:58:10.019422+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of \u0924\u0930\u0907\u0928: \u0924\u0930\u093e\u0907\u0928 \u0915\u093e \u0935\u0939 \u0927\u094b\u0916\u093e \u091c\u093f\u0938\u0928\u0947 \u092d\u093e\u0930\u0924 \u0915\u094b \u0917\u0941\u0932\u093e\u092e \u092c\u0928\u093e \u0926\u093f\u092f\u093e...",
+      "url": "https://www.youtube.com/watch?v=gvAfModdX8Q",
+      "date_ist": "2026-11-12T02:01:32.523591+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Ancient Tactics these: Ancient Tactics: Why these armies were...",
+      "url": "local://pending_quota_reset/final_short.mp4",
+      "date_ist": "2026-11-12T02:06:20.700730+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Siege Alesia Vercingetorixs: The Siege That Should...",
+      "url": "local://scheduled_queue/2026-11-13/longform",
+      "date_ist": "2026-11-12T02:33:59.924330+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -716,7 +758,7 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-12",
+  "last_longform_date": "2026-11-13",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
@@ -848,5 +890,13 @@
   "last_short_pub_2026-11-12_22": true,
   "last_short_pub_2026-11-12_22_url": "https://www.youtube.com/watch?v=QnbtBIU2YzI",
   "last_longform_pub_2026-11-12": true,
-  "last_longform_pub_2026-11-12_url": "https://www.youtube.com/watch?v=cfGb_aUgVN4"
+  "last_longform_pub_2026-11-12_url": "https://www.youtube.com/watch?v=cfGb_aUgVN4",
+  "last_short_pub_2026-11-13_9": true,
+  "last_short_pub_2026-11-13_9_url": "https://www.youtube.com/watch?v=iMs-rmQNBPs",
+  "last_short_pub_2026-11-13_12": true,
+  "last_short_pub_2026-11-13_12_url": "https://www.youtube.com/watch?v=sxfrtgSGV4U",
+  "last_short_pub_2026-11-13_16": true,
+  "last_short_pub_2026-11-13_16_url": "https://www.youtube.com/watch?v=LG1D9EyrNpQ",
+  "last_short_pub_2026-11-13_19": true,
+  "last_short_pub_2026-11-13_19_url": "https://www.youtube.com/watch?v=gvAfModdX8Q"
 }
