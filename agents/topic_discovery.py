@@ -322,6 +322,13 @@ def generate_weekly_topic_research_report(
     valid_shorts = [t for t in scored_shorts if not t["is_duplicate"]]
     valid_shorts.sort(key=lambda x: x["composite_opportunity_score"], reverse=True)
 
+    diversity_info = {}
+    try:
+        from agents.diversity_monitor import audit_channel_content_diversity
+        diversity_info = audit_channel_content_diversity([])
+    except Exception:
+        pass
+
     return {
         "report_generated_for": config.CHANNEL_NAME,
         "content_pillars_evaluated": len(CONTENT_PILLARS),
@@ -331,4 +338,5 @@ def generate_weekly_topic_research_report(
         "all_shorts_topics": scored_shorts,
         "top_3_recommended_longform": valid_longform[:3],
         "top_5_recommended_shorts": valid_shorts[:5],
+        "channel_diversity": diversity_info,
     }

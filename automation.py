@@ -50,6 +50,7 @@ from uploader.safety import (
     record_production_state,
 )
 from agents.growth_analyst import get_adaptive_production_brief
+from agents.adaptive_engine import get_production_run_brief
 from apis.growth_database import get_performance_db
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -219,8 +220,12 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
         except Exception as e:
             print(f"   ⚠ Error reading pre-rendered longform: {e}")
 
-    # 1. Topic Research with Adaptive Growth Intelligence
+    # 1. Topic Research with Adaptive Growth Intelligence & Narrative Directives
     growth_brief = get_adaptive_production_brief()
+    prod_brief = get_production_run_brief("longform")
+    if prod_brief.get("narrative_directive"):
+        growth_brief["longform_pacing_directive"] = prod_brief["narrative_directive"].get("pacing_directive", growth_brief.get("longform_pacing_directive"))
+
     print(f"  [1/8] Researching topic for {day_theme['day']}: {day_theme['theme']} ({day_theme['theme_hi']})…")
     research = research_topic(
         channel_description=config.CHANNEL_DESCRIPTION,
@@ -594,6 +599,10 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
 
     # 1. Write Short Script with Adaptive Pacing Directives
     growth_brief = get_adaptive_production_brief()
+    prod_brief = get_production_run_brief("shorts")
+    if prod_brief.get("narrative_directive"):
+        growth_brief["shorts_pacing_directive"] = prod_brief["narrative_directive"].get("pacing_directive", growth_brief.get("shorts_pacing_directive"))
+
     short_script = write_script(
         research,
         video_type="shorts",

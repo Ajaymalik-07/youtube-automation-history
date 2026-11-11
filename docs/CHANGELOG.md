@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.4.0] - 2026-11-11 - Phase 20: Adaptive AI Content Optimization Engine
+
+### Added
+- **Advanced Statistical Validation Engine (`agents/statistical_validator.py`):**
+  - Sample size tiers enforcing rigorous conclusions: Insufficient (<3), Preliminary (3-4), Moderate (5-9), Sound (10+).
+  - Two-tailed 95% confidence intervals utilizing Student's $t$-distribution critical values based on degrees of freedom.
+  - Interquartile Range (IQR) outlier detection to filter viral anomalies from skewing baseline editorial decisions.
+  - Duration-Adjusted Watch-Time Efficiency (WPMD = watch time / video duration) for unbiased long-form format comparisons.
+  - Welch's two-sample $t$-test with Satterthwaite degrees of freedom and two-tailed $p$-values.
+  - Logarithmic time-decay views normalization to compare fresh releases with mature library videos.
+- **Channel Content Diversity & Repetition Control (`agents/diversity_monitor.py`):**
+  - Entity frequency tracking across 24 historical personalities and 22 civilizations/dynasties.
+  - Content pillar concentration monitor flagging any pillar exceeding 25% of recent uploads.
+  - Underrepresented pillar detection prioritizing neglected eras for upcoming production cycles.
+  - Jaccard token similarity engine flagging duplicate or repetitive opening hooks ($\ge 0.60$ threshold).
+- **Adaptive Topic Opportunity Engine (`agents/adaptive_engine.py`):**
+  - Generates weekly opportunity reports with 20 candidate topics (10 recommended Shorts, 5 long-form, 5 reserve).
+  - Scored across 5 dimensions: pillar historical strength, retention trajectory, civilizational novelty, visual storytelling potential, and evidence depth.
+  - Strict enforcement of Historical Research Quality Gate.
+- **Adaptive Shorts Engine (`agents/adaptive_engine.py`, `agents/scriptwriter.py`):**
+  - 8 canonical documentary formats with multi-factor hook evaluation across 7 criteria (clarity, visual storytelling, historical grounding, curiosity, audience relevance, time to payoff, narrative completeness).
+- **Evidence-Grounded Long-Form Directives (`agents/adaptive_engine.py`, `agents/scriptwriter.py`):**
+  - Dynamic subject-tailored reveal directives (stratigraphic/sonar trench layers for excavations, tactical terrain maps for military battles, metallurgy cross-sections for ancient architecture).
+  - Abolished rigid "minute-3 map reveal" rule in favor of organic historical pacing.
+- **Automated Controlled Experimentation (`agents/adaptive_engine.py`, `agents/experiment_tracker.py`):**
+  - Single-variable experiment selector prioritizing active hypotheses with lowest sample size without confounding variables.
+- **Adaptive Strategy Dossiers (`output/adaptive_content_strategy.json`, `output/adaptive_content_strategy.md`):**
+  - Automated weekly strategy reporting covering statistical metrics, diversity health, top topics, and experiment progress.
+- **Comprehensive Test Suite (`tests/test_adaptive_content_engine.py`):**
+  - 15 new unit and integration tests covering statistical validation, diversity monitoring, hook ranking, dynamic directives, experiments, dossiers, and security.
+
+### Changed
+- `agents/topic_discovery.py`: Integrated `diversity_monitor` audit directly into weekly research reports.
+- `agents/scriptwriter.py`: Connected multi-factor hook evaluator and dynamic long-form directives.
+- `automation.py`: Integrated `get_production_run_brief()` into automated Shorts and long-form workflows.
+- Test suite expanded from 123 to **138 passing tests** (100% pass rate).
+
+---
+
 ## [2.3.0] - 2026-11-11 - Phase 19: Stories Malik YouTube Growth Intelligence Engine
 
 ### Added

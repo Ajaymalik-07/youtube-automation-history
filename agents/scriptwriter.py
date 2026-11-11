@@ -333,6 +333,17 @@ Respond with ONLY valid JSON:
     if "sections" not in script or len(script["sections"]) < 2:
         raise ValueError("Shorts script returned too few sections.")
 
+    # Phase 20: Multi-factor candidate hook evaluation
+    cand_hooks = script.get("candidate_hooks", [])
+    if cand_hooks:
+        try:
+            from agents.adaptive_engine import evaluate_hook_candidates
+            hook_eval = evaluate_hook_candidates(research.get("topic", ""), cand_hooks)
+            script["selected_hook"] = hook_eval["selected_hook"]
+            script["hook_evaluation"] = hook_eval
+        except Exception:
+            pass
+
     return script
 
 
