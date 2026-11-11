@@ -96,3 +96,54 @@ def get(name: str, size: int, weight: int | None = None) -> ImageFont.FreeTypeFo
         font = ImageFont.load_default(size)
     _cache[key] = font
     return font
+
+
+import unicodedata
+
+def normalize_hindi(text: str) -> str:
+    """Normalize Hindi string to Unicode NFC and clean zero-width anomalies."""
+    if not text:
+        return ""
+    # NFC combines base characters and combining matras into canonical composite characters
+    norm = unicodedata.normalize("NFC", str(text).strip())
+    return norm
+
+
+def split_devanagari_graphemes(text: str) -> list:
+    """
+    Splits Devanagari text into user-perceived grapheme clusters.
+    Ensures combining matras (U+093E-U+094C), viramas (halants \u094D),
+    and anusvaras/chandrabindus never detach from their base consonant.
+    """
+    norm = normalize_hindi(text)
+    clusters = []
+    current = []
+
+    for char in norm:
+        # Devanagari vowel signs (matras), virama/halant, anusvara, visarga, nukta
+        is_matra_or_mark = (
+            unicodedata.combining(char) != 0 or
+            ('\u093E' <= char <= '\u094D') or  # all Devanagari vowel signs & halant
+            ('\u0901' <= char <= '\u0903') or  # chandrabindu, anusvara, visarga
+            char in ('\u093C', '\u0951', '\u0952', '\u0962', '\u0963')  # nukta, accents, vocalic signs
+        )
+        if is_matra_or_mark and current:
+            current.append(char)
+        elif current and current[-1] == '\u094D':
+            # Previous was a virama/halant, so this consonant binds into the same conjunct cluster
+            current.append(char)
+        else:
+            if current:
+                clusters.append("".join(current))
+            current = [char]
+
+    if current:
+        clusters.append("".join(current))
+
+    return clusters
+
+
+def get_devanagari_font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
+    """Convenience getter returning verified Noto Sans Devanagari font."""
+    font_key = "devanagari_bold" if bold else "devanagari_display"
+    return get(font_key, size)

@@ -8,7 +8,7 @@ Shorts  : Fast-paced 1080×1920, image slideshow (cuts every 2-3 s),
 
 Runs fully offline: MoviePy 1.0.3 + Pillow + NumPy.
 """
-import os, sys, re, math
+import os, sys, re, math, unicodedata
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from moviepy.editor import VideoClip, AudioFileClip, concatenate_videoclips
@@ -177,6 +177,10 @@ def _shadow_text(draw, pos, text, font, fill, shadow_color=(0, 0, 0), shadow_off
 _wrap_cache: dict = {}
 
 def _wrap_text(draw, text, font, max_width):
+    if not text:
+        return [""]
+    # Normalize to Unicode NFC to keep Devanagari matras, halants, and conjuncts intact
+    text = unicodedata.normalize("NFC", str(text).strip())
     key = (text, max_width, getattr(font, "size", 0))
     if key in _wrap_cache:
         return _wrap_cache[key]
@@ -648,24 +652,25 @@ def _draw_shorts_caption(frame_img: Image.Image, text: str) -> Image.Image:
 
     # Work in RGBA from the start
     base_rgba = frame_img.convert("RGBA")
+    fw, fh = frame_img.size
 
     # Measure text before drawing
     measure_draw = ImageDraw.Draw(base_rgba)
     font         = _load_font("bold", CAP_FONT_SIZE)
-    max_w        = W - 80
+    max_w        = fw - 80
     lines        = _wrap_text(measure_draw, text.upper(), font, max_w)
 
     line_h  = CAP_FONT_SIZE + 12
-    block_y = int(H * 0.72)     # sit in lower quarter of 9:16 frame
+    block_y = int(fh * 0.72)     # sit in lower quarter of 9:16 frame
     pad     = 20
 
     # Build pill-background overlay
-    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    overlay = Image.new("RGBA", (fw, fh), (0, 0, 0, 0))
     od      = ImageDraw.Draw(overlay)
     for i, line in enumerate(lines):
         bbox = measure_draw.textbbox((0, 0), line, font=font)
         lw   = bbox[2] - bbox[0]
-        lx   = (W - lw) // 2
+        lx   = (fw - lw) // 2
         ly   = block_y + i * line_h
         od.rounded_rectangle(
             [lx - pad, ly - 6, lx + lw + pad, ly + line_h - 4],

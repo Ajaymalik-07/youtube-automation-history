@@ -290,8 +290,10 @@ COLORS = {
 }
 
 # Fonts — add your own .ttf paths for best results; system falls back gracefully
+_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_PATHS = {
     "bold":    [
+        os.path.join(_ROOT_DIR, "assets", "fonts", "NotoSansDevanagari-Bold.ttf"),
         "C:/Windows/Fonts/Nirmala.ttc",
         "C:/Windows/Fonts/segoeuib.ttf",
         "C:/Windows/Fonts/arialbd.ttf",
@@ -302,6 +304,7 @@ FONT_PATHS = {
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     ],
     "regular": [
+        os.path.join(_ROOT_DIR, "assets", "fonts", "NotoSansDevanagari-Bold.ttf"),
         "C:/Windows/Fonts/Nirmala.ttc",
         "C:/Windows/Fonts/segoeui.ttf",
         "C:/Windows/Fonts/arial.ttf",
