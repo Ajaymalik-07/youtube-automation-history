@@ -19,12 +19,12 @@ from apis import images as image_apis
 PEXELS_SEARCH = "https://api.pexels.com/v1/search"
 
 FALLBACK_QUERIES = [
-    "space universe stars galaxy",
-    "science technology futuristic",
-    "earth atmosphere clouds aerial",
-    "abstract light particles dark",
-    "dramatic landscape nature",
-    "neon city night lights",
+    "ancient temple ruins dramatic",
+    "historical fortress stone architecture aerial",
+    "archaeological artifacts museum stone sculpture",
+    "ancient parchment manuscript historical map",
+    "epic ancient valley landscape sunrise dramatic",
+    "ancient civilization stone monuments heritage",
 ]
 
 # Every image downloaded this run → credits.json
