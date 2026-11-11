@@ -9,9 +9,9 @@
 [![Channel](https://img.shields.io/badge/Channel-Stories%20Malik-red?style=flat-square&logo=youtube)](https://youtube.com)
 [![Language](https://img.shields.io/badge/Primary%20Language-Hindi%20(Devanagari)-orange?style=flat-square)](docs/HINDI_RENDERING_STANDARD.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-98%20Passing-brightgreen?style=flat-square)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-111%20Passing-brightgreen?style=flat-square)](tests/)
 
-[**Quick Start**](#-quick-start) · [**Standards & Documentation**](#-standards--documentation) · [**Production Readiness Audit**](docs/PHASE_18_PRODUCTION_READINESS.md) · [**Autonomous Publishing**](#-autonomous-publishing--quality-gates) · [**Analytics**](#-youtube-analytics-v2)
+[**Quick Start**](#-quick-start) · [**Standards & Documentation**](#-standards--documentation) · [**Production Readiness Audit**](docs/PHASE_18_PRODUCTION_READINESS.md) · [**Phase 18.1 OAuth & Analytics**](docs/PHASE_18_1_OAUTH_ANALYTICS.md) · [**Autonomous Publishing**](#-autonomous-publishing--quality-gates) · [**Analytics**](#-youtube-analytics-v2)
 
 </div>
 
@@ -55,7 +55,7 @@ Key configuration items:
   ```bash
   python pipeline.py
   ```
-- **Run Automated Test Suite (95 tests):**
+- **Run Automated Test Suite (111 tests):**
   ```bash
   pytest
   ```
@@ -163,7 +163,8 @@ Phase 17 removes all mandatory manual approval dependencies. The production work
 │
 ├── uploader/
 │   ├── safety.py               ← Publishing state machine, approval tokens & duplicate protection
-│   └── youtube.py              ← YouTube Data API v3 uploader with private defaults
+│   ├── oauth_manager.py        ← Safe OAuth scope auditing, credential refresh & reauthorization
+│   └── youtube.py              ← YouTube Data API v3 uploader & video processing verification
 │
 ├── review/
 │   └── app.py                  ← Local review dashboard with graceful Werkzeug shutdown
@@ -182,11 +183,14 @@ Phase 17 removes all mandatory manual approval dependencies. The production work
 │   ├── YOUTUBE_ANALYTICS_STANDARD.md
 │   ├── GROWTH_ANALYSIS_STANDARD.md
 │   ├── PUBLISHING_SAFETY_STANDARD.md
+│   ├── AUTOMATED_PUBLISHING_STANDARD.md
+│   ├── PHASE_18_PRODUCTION_READINESS.md
+│   ├── PHASE_18_1_OAUTH_ANALYTICS.md
 │   ├── PUBLISHING_EXPERIMENT_PLAN.md
 │   ├── IMPLEMENTATION_PLAN.md
 │   └── CHANGELOG.md
 │
-└── tests/                      ← 88 automated pytest tests
+└── tests/                      ← 111 automated pytest tests
 ```
 
 ---
@@ -209,6 +213,7 @@ For detailed architectural guidelines, consult the `docs/` suite:
 - [Publishing Safety Standard](docs/PUBLISHING_SAFETY_STANDARD.md)
 - [Automated Publishing Standard](docs/AUTOMATED_PUBLISHING_STANDARD.md)
 - [Phase 18 Production Readiness Audit](docs/PHASE_18_PRODUCTION_READINESS.md)
+- [Phase 18.1 OAuth & Analytics Verification](docs/PHASE_18_1_OAUTH_ANALYTICS.md)
 - [30-Day Publishing Experiment Plan](docs/PUBLISHING_EXPERIMENT_PLAN.md)
 - [Full Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
 - [Release Changelog](docs/CHANGELOG.md)

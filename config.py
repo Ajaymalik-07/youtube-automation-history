@@ -96,21 +96,29 @@ def sync_client_secret_file() -> None:
 
 
 
-def sync_youtube_token_file() -> None:
-    """Restore youtube_token.pickle from YOUTUBE_TOKEN_BASE64 env var if missing or to ensure it matches."""
+def sync_youtube_token_file(force: bool = False) -> None:
+    """Restore youtube_token.pickle from YOUTUBE_TOKEN_BASE64 env var if missing."""
     token_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "youtube_token.pickle")
     tok_b64 = os.getenv("YOUTUBE_TOKEN_BASE64", "").strip()
     if tok_b64:
         try:
             import base64
             raw_bytes = base64.b64decode(tok_b64)
-            # Only write if file doesn't exist or content differs
-            if not os.path.exists(token_path) or open(token_path, "rb").read() != raw_bytes:
+            # Only restore if file doesn't exist on disk, or if force=True
+            if not os.path.exists(token_path) or force:
                 with open(token_path, "wb") as f:
                     f.write(raw_bytes)
                 print(f"   ✓ Restored fresh youtube_token.pickle ({len(raw_bytes)} bytes) from YOUTUBE_TOKEN_BASE64.")
         except Exception as e:
             print(f"   ⚠ Could not decode YOUTUBE_TOKEN_BASE64: {e}")
+
+
+def update_youtube_token_env(token_bytes: bytes) -> None:
+    """Updates YOUTUBE_TOKEN_BASE64 in .env and runtime environment."""
+    import base64
+    b64_str = base64.b64encode(token_bytes).decode("ascii")
+    save_env({"YOUTUBE_TOKEN_BASE64": b64_str})
+
 
 
 _load_env()
@@ -345,7 +353,7 @@ YOUTUBE_CLIENT_SECRET_FILE = "client_secret.json"   # OAuth credentials file pat
 YOUTUBE_CLIENT_SECRET      = os.getenv("YOUTUBE_CLIENT_SECRET", "")  # Client Secret string
 YOUTUBE_SCOPES             = [
     "https://www.googleapis.com/auth/youtube.upload",
-    "https://www.googleapis.com/auth/youtube",
+    "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/yt-analytics.readonly",
 ]
 VIDEO_CATEGORY_ID          = "27"       # 27 = Education

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.1] - 2026-11-11 - Phase 18.1: Google OAuth Reauthorization & Live Analytics Completion
+
+### Added
+- **OAuth Manager & Security Governance (`uploader/oauth_manager.py`):**
+  - Scope auditing (`audit_token_scopes`) identifying granted vs missing scopes with descriptive purposes.
+  - Safe reauthorization flow (`reauthorize_channel`) featuring automatic backup (`.bak`), safe rollback on cancel/error, and synchronization to `.env`.
+- **Enhanced Video Processing Verification (`uploader/youtube.py`):**
+  - Checks channel ownership against authenticated channel ID.
+  - Detects processing failures and upload rejections (`is_processing_failed`), halts publication, and records `PublishingState.FAILED`.
+- **YouTube Analytics API v2 Engine Overhaul (`apis/youtube_analytics.py`):**
+  - Structured queries for 7 official core metrics and traffic source breakdown.
+  - Format-separated reporting (`generate_weekly_format_report`) evaluating Shorts vs Long-form against retention benchmarks (45% long-form, 70% Shorts) and proposing future experiments.
+  - Canonical persistence of structured analytics to `output/analytics_snapshots.json`.
+- **Phase 18.1 Completion Report (`docs/PHASE_18_1_OAUTH_ANALYTICS.md`):**
+  - Canonical documentation of scope audit, reauthorization steps, and integration statuses.
+
+### Changed
+- `config.py`: Enforced required scopes (`youtube.upload`, `youtube.readonly`, `yt-analytics.readonly`) and added `update_youtube_token_env()`.
+- `authorize_youtube.py`: Upgraded to interactive scope auditor with multi-permission consent guidance.
+- Test suite expanded from 98 to **111 passing tests** (`tests/test_oauth_analytics.py`).
+
+---
+
 ## [2.2.0] - 2026-11-11 - Phase 18: Production Readiness, Live YouTube Validation & Hardening
 
 ### Added

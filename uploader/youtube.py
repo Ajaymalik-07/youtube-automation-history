@@ -136,31 +136,74 @@ def calculate_next_scheduled_time(is_shorts: bool = False, min_lead_minutes: int
     return target_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def verify_upload_and_processing(youtube, video_id: str) -> dict:
+def verify_upload_and_processing(youtube, video_id: str, expected_channel_id: Optional[str] = None) -> dict:
     """
-    Queries videos.list to inspect upload and processing status.
-    Returns processing details and detected failure status if any.
+    Queries videos.list with part='snippet,status,processingDetails' to inspect:
+    - Channel ownership verification (ensures video belongs to authenticated channel).
+    - Upload status and privacy status.
+    - Processing status (processing, succeeded, failed, terminated).
+    - Failure or rejection reasons if any.
     """
     try:
         res = youtube.videos().list(id=video_id, part="snippet,status,processingDetails").execute()
         items = res.get("items", [])
         if not items:
-            return {"ok": False, "status": "not_found", "details": None}
+            return {
+                "ok": False,
+                "video_id": video_id,
+                "status": "not_found",
+                "is_processing_complete": False,
+                "is_processing_failed": True,
+                "failure_reason": "Video ID not found in YouTube Data API query.",
+            }
 
         v = items[0]
+        snippet_info = v.get("snippet", {})
         status_info = v.get("status", {})
         proc_info = v.get("processingDetails", {})
 
+        video_channel_id = snippet_info.get("channelId", "")
+        channel_verified = True
+        if expected_channel_id:
+            channel_verified = (video_channel_id == expected_channel_id)
+
+        upload_status = status_info.get("uploadStatus", "uploaded")
+        proc_status = proc_info.get("processingStatus", "processing")
+        rejection_reason = status_info.get("rejectionReason")
+        failure_reason = rejection_reason or proc_info.get("processingFailureReason")
+
+        is_failed = (
+            proc_status in ("failed", "terminated")
+            or upload_status in ("rejected", "failed")
+            or bool(rejection_reason)
+            or not channel_verified
+        )
+
+        is_complete = (proc_status == "succeeded" or upload_status == "processed") and not is_failed
+
         return {
             "ok": True,
-            "upload_status": status_info.get("uploadStatus"),
+            "video_id": video_id,
+            "channel_id": video_channel_id,
+            "channel_verified": channel_verified,
+            "upload_status": upload_status,
             "privacy_status": status_info.get("privacyStatus"),
             "publish_at": status_info.get("publishAt"),
-            "processing_status": proc_info.get("processingStatus", "processing"),
-            "rejection_reason": status_info.get("rejectionReason"),
+            "processing_status": proc_status,
+            "is_processing_complete": is_complete,
+            "is_processing_failed": is_failed,
+            "failure_reason": failure_reason,
+            "parts_available": proc_info.get("partsProcessed"),
         }
     except Exception as e:
-        return {"ok": False, "error": str(e)}
+        return {
+            "ok": False,
+            "video_id": video_id,
+            "error": str(e),
+            "is_processing_complete": False,
+            "is_processing_failed": False,
+        }
+
 
 
 def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
@@ -369,6 +412,18 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
         # Post-Upload Verification
         proc_res = verify_upload_and_processing(youtube, video_id)
         print(f"   → YouTube processing verification: {proc_res.get('processing_status', 'uploaded')}")
+
+        if proc_res.get("is_processing_failed"):
+            fail_reason = proc_res.get("failure_reason") or "YouTube processing failed or upload rejected."
+            print(f"   ❌ YouTube processing failure detected: {fail_reason}")
+            record_production_state(video_path, PublishingState.FAILED.value, metadata={
+                "youtube_id": video_id,
+                "youtube_url": video_url,
+                "error": fail_reason,
+                "error_type": "ProcessingFailure",
+                "processing_verification": proc_res,
+            })
+            return None
 
         # Determine terminal/next state
         if target_publish_at:
