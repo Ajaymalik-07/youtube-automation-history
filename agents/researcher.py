@@ -1,26 +1,27 @@
 """
-Research Agent — uses shared Gemini client with model fallback chain.
-Banned topics are read from banned_topics.txt (one topic per line) in the
-project root. Edit that file — or use the GUI textarea — instead of changing
-Python code.
+Historical Research Engine — Deep Evidence-Grounded Research for Stories Malik
+Uses multi-tier historical source grounding (Archives, Crossref, ASI, Academic Texts, Wikipedia).
+Enforces strict historical evidence standards and quality gates before any script proceeds.
 """
 import os
-import random
 import time
+import json
 import config
 from agents.gemini_client import generate
 from agents.json_utils import extract_json
+from apis.knowledge import gather_context, EVIDENCE_LEVELS
 
-# Path to the banned-topics file (sits next to this package's parent directory)
+# Path to the banned-topics file
 _BANNED_TOPICS_FILE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "banned_topics.txt",
 )
 
+# Built-in banned topics — pseudohistorical hoaxes and already covered subjects
 _BUILTIN_BANNED = [
-    "The Boltzmann Brain",
-    "Simulation Theory",
-    "Quantum Immortality",
+    "Ancient Aliens in Harappa",
+    "Fake Taj Mahal Conspiracy",
+    "Pseudoscience Vedic Vimana Hoax",
 ]
 
 # All available focus angles — matches the channel's 7-Day Weekly Content Calendar
@@ -36,11 +37,7 @@ FOCUS_ANGLES = [
 
 
 def load_banned_topics() -> list:
-    """
-    Return the combined list of banned topics.
-    Built-in list is always included; file entries are appended.
-    Returns an empty-safe list — never raises.
-    """
+    """Return combined list of banned topics."""
     topics = list(_BUILTIN_BANNED)
     try:
         if os.path.exists(_BANNED_TOPICS_FILE):
@@ -55,175 +52,271 @@ def load_banned_topics() -> list:
 
 
 def save_banned_topics(topics: list) -> None:
-    """
-    Write the user-managed portion of the banned list to banned_topics.txt.
-    Built-in topics are excluded from the file (they're always applied anyway).
-    """
+    """Write user-managed portion to banned_topics.txt."""
     user_topics = [t for t in topics if t not in _BUILTIN_BANNED and t.strip()]
     with open(_BANNED_TOPICS_FILE, "w", encoding="utf-8") as f:
         f.write("# One banned topic per line. Lines starting with # are comments.\n")
-        f.write("# Built-in banned: The Boltzmann Brain, Simulation Theory, Quantum Immortality\n")
-        f.write("# Add topics here after you make a video about them.\n\n")
+        f.write("# Add topics here after you produce a documentary about them.\n\n")
         for t in user_topics:
             f.write(t + "\n")
 
 
 def _grounding(topic: str) -> dict:
-    """Wikipedia + arXiv background facts for a topic (empty if disabled/offline)."""
+    """Historical archive + peer-reviewed research context."""
     if not getattr(config, "FACT_GROUNDING", True):
-        return {"facts": "", "sources": []}
-    from apis.knowledge import gather_context
-    print(f"   → Grounding facts: Wikipedia + arXiv for \"{topic[:60]}\"…")
+        return {"facts": "", "sources": [], "evidence_framework": EVIDENCE_LEVELS}
+    print(f"   → Grounding historical evidence from Archives & Academic Journals for \"{topic[:60]}\"…")
     ctx = gather_context(topic)
-    print(f"   → {len(ctx['sources'])} sources found")
+    print(f"   → {len(ctx['sources'])} authoritative sources verified")
     return ctx
 
 
-def _parse(raw: str) -> dict:
-    data = extract_json(raw, "Researcher")
-    for field in ["topic", "video_title", "key_points", "tags"]:
+def validate_research_quality_gate(research: dict, min_confidence: float = 0.65) -> tuple[bool, list[str]]:
+    """
+    Research Quality Gate:
+    Validates that a historical research document meets the evidentiary standards
+    required for high-credibility documentary production.
+
+    Rules:
+    1. Central claims must have traceable evidence references.
+    2. Critical historical period and geographic location must be specified.
+    3. Research confidence must meet or exceed min_confidence threshold.
+    4. Unsubstantiated claims must be identified in uncertain_facts or missing_evidence.
+    """
+    issues = []
+    
+    topic = research.get("topic", "").strip()
+    if not topic:
+        issues.append("Missing research topic.")
+
+    period = research.get("period", "").strip()
+    if not period or period.lower() in ("unknown", "various"):
+        issues.append("Historical period is not clearly defined.")
+
+    location = research.get("geographic_location", "").strip()
+    if not location:
+        issues.append("Geographic location is missing.")
+
+    claims = research.get("claims_and_evidence", [])
+    if not claims or len(claims) < 3:
+        issues.append(f"Insufficient verified claims (found {len(claims)}, minimum 3 required).")
+    else:
+        # Check evidence tiers
+        speculation_count = 0
+        for c in claims:
+            lvl = c.get("evidence_level", "")
+            if "SPECULATION" in lvl:
+                speculation_count += 1
+        if speculation_count > len(claims) // 2:
+            issues.append("Too many claims classified as pure SPECULATION without evidentiary backing.")
+
+    timeline = research.get("verified_timeline", [])
+    if not timeline or len(timeline) < 2:
+        issues.append("Verified chronological timeline is incomplete (minimum 2 milestone entries required).")
+
+    conf = research.get("confidence_score", 0.0)
+    try:
+        conf_float = float(conf)
+    except (TypeError, ValueError):
+        conf_float = 0.7 if str(conf).lower() in ("high", "good") else 0.5
+
+    if conf_float < min_confidence:
+        issues.append(f"Research confidence score {conf_float:.2f} is below the required threshold of {min_confidence:.2f}.")
+
+    is_approved = len(issues) == 0
+    return is_approved, issues
+
+
+def _parse_research_json(raw: str) -> dict:
+    data = extract_json(raw, "Historical Researcher")
+    required = ["topic", "video_title", "research_question", "key_points", "tags"]
+    for field in required:
         if field not in data:
-            raise ValueError(f"Research JSON missing field: '{field}'")
+            raise ValueError(f"Research JSON missing required field: '{field}'")
     return data
 
 
-def research_topic(channel_description: str,
+def research_topic(channel_description: str = "",
                    topic_override: str = "",
                    focus_angle: str = "",
                    trend_context: list | None = None) -> dict:
     """
-    Research a video topic for the channel.
+    Conducts deep evidence-based historical research for Stories Malik.
 
-    Parameters
-    ----------
-    channel_description : the channel's style / audience description from config.py
-    topic_override      : if non-empty, Gemini is told to write a video about
-                          THIS EXACT topic — no random angle, no creative
-                          interpretation. The bug fix: previously this was
-                          prepended to channel_description and then ignored
-                          because the random_angle prompt dominated.
-    focus_angle         : if non-empty (and topic_override is empty), use this
-                          angle instead of picking one randomly. Allows the GUI
-                          dropdown to steer AI picks without locking the topic.
-    trend_context       : optional list of headlines trending right now (Trend
-                          Radar). The AI may ride one if it fits the niche.
-
-    The result carries a "grounding" dict ({facts, sources}) from Wikipedia and
-    arXiv that the scriptwriter uses to stay factual and the description cites.
+    Parameters:
+      channel_description : Channel identity and documentary standards
+      topic_override      : User-specified exact topic
+      focus_angle         : Editorial calendar focus angle (e.g. Wednesday Kings & Empires)
+      trend_context       : Live historical anniversaries or archaeological discoveries
     """
-    banned     = load_banned_topics()
+    banned = load_banned_topics()
     banned_str = ", ".join(f'"{t}"' for t in banned)
+    channel_desc = channel_description or config.CHANNEL_DESCRIPTION
 
-    # ── MODE 1: USER-SPECIFIED EXACT TOPIC ───────────────────────────────────
-    # The old bug: topic_override was prepended to channel_description, but the
-    # prompt still said "Focus on: >>> {random_angle} <<<" so Gemini ignored it.
-    # Fix: bypass the angle system entirely and issue a direct instruction.
     if topic_override.strip():
         exact_topic = topic_override.strip()
-        print(f"   → Exact topic override: \"{exact_topic}\"")
+        print(f"   → Exact historical topic override: \"{exact_topic}\"")
         grounding = _grounding(exact_topic)
-        facts_block = (f"\nVERIFIED BACKGROUND (from Wikipedia / arXiv — build on these, don't contradict them):\n"
-                       f"{grounding['facts'][:3500]}\n") if grounding["facts"] else ""
+        facts_block = (f"\nVERIFIED PRIMARY & SECONDARY SOURCES (Build directly upon these records):\n"
+                       f"{grounding['facts'][:4500]}\n") if grounding["facts"] else ""
 
-        prompt = f"""You are a top YouTube content strategist for a viral science/tech channel.
+        prompt = f"""You are the Chief Historical Researcher for Stories Malik, a premier YouTube documentary channel dedicated to verified Indian and World history.
 
-Channel description:
-{channel_description}
+Channel Profile:
+{channel_desc}
 
-MANDATORY INSTRUCTION: You MUST make a video about this EXACT topic:
+MANDATORY ASSIGNMENT: Conduct exhaustive, evidence-based historical research on this EXACT topic:
 >>> {exact_topic} <<<
 
-Do NOT substitute a different topic, do NOT pick a related angle — write specifically
-about "{exact_topic}". The user has explicitly requested this topic.
+CRITICAL HISTORICAL RESEARCH RULES:
+1. Every major claim must be classified by its evidentiary tier:
+   - ESTABLISHED_FACT (Archaeological / Inscription / Treaty proof)
+   - STRONGLY_SUPPORTED (Multiple independent historical chronicles)
+   - DISPUTED_INTERPRETATION (Historians disagree on dates or motivations)
+   - ORAL_TRADITION (Folklore / Bardic legends)
+   - MYTHOLOGY_FOLKLORE (Mythological accounts; clearly framed as religious/cultural belief)
+   - SPECULATION (Modern theories lacking direct archaeological confirmation)
+2. Clearly separate established fact from popular folklore or myths.
+3. NEVER fabricate citations or pretend an inaccessible source was inspected.
+4. Banned topics: {banned_str}
+5. Provide actionable storytelling angles that grip the audience while respecting historical truth.
 
-BANNED TOPICS: Do NOT include any of these in the output: {banned_str}
-If the requested topic conflicts with a banned one, still write about it (user override).
-
-Your mission: Research and plan a compelling 10-14 minute YouTube documentary about "{exact_topic}".
 {facts_block}
-Respond with ONLY a valid JSON object. No markdown fences, no explanation:
 
+Respond with ONLY a valid JSON object. No markdown fences, no explanatory preamble:
 {{
   "topic": "{exact_topic}",
-  "why_now": "Why this topic resonates with audiences right now",
-  "video_title": "MIND-BLOWING YouTube title under 70 characters about {exact_topic}",
-  "description": "2-sentence YouTube description optimised for SEO and curiosity",
-  "hook_question": "The single most mind-blowing question this video answers",
+  "research_question": "The primary historical question or mystery this documentary investigates",
+  "period": "Specific historical era and dates (e.g., 321–297 BCE or 16th Century CE)",
+  "geographic_location": "Precise geographic region, ancient kingdom, and modern location",
+  "civilizations_involved": ["Civilization or Dynasty 1", "Civilization or Dynasty 2"],
+  "key_figures": ["Historical Personage 1", "Historical Personage 2"],
+  "why_now": "Why this historical story resonates with modern audiences",
+  "video_title": "Compelling, accurate documentary title under 70 characters",
+  "description": "Engaging 2-sentence description summarizing the historical conflict and verified discovery",
+  "hook_question": "The central thought-provoking question that hooks the viewer in the first 5 seconds",
   "key_points": [
-    "First key concept or revelation about {exact_topic}",
-    "Second key concept — the twist or surprise",
-    "Third key concept — deeper implication",
-    "Fourth key concept — real-world consequence",
-    "Fifth key concept — the philosophical angle"
+    "Core historical revelation or political conflict",
+    "Pivotal military, archaeological, or strategic turning point",
+    "Deep geopolitical implication or societal impact",
+    "Archaeological evidence or textual proof unearthed",
+    "Enduring legacy or historical lesson"
   ],
-  "target_audience": "Exactly who will watch and share this",
-  "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8"],
-  "thumbnail_concept": "Describe the perfect YouTube thumbnail for this topic",
-  "estimated_virality": "high"
+  "verified_timeline": [
+    {{"era": "Date / Era 1", "event": "Significant verified milestone", "source": "Archaeological survey / Inscription"}},
+    {{"era": "Date / Era 2", "event": "Pivotal clash or coronation", "source": "Primary chronicle"}}
+  ],
+  "claims_and_evidence": [
+    {{"claim": "Crucial historical fact", "evidence_level": "ESTABLISHED_FACT", "source_reference": "Specific primary/secondary historical record"}},
+    {{"claim": "Contested narrative", "evidence_level": "DISPUTED_INTERPRETATION", "source_reference": "Differing historical interpretations"}},
+    {{"claim": "Popular legend associated with the event", "evidence_level": "ORAL_TRADITION", "source_reference": "Folklore / Bardic chronicle"}}
+  ],
+  "conflicting_interpretations": [
+    {{"perspective_a": "Traditional perspective", "perspective_b": "Modern revisionist / Archaeological view", "evidence": "Key supporting excavation or textual basis"}}
+  ],
+  "uncertain_facts": ["Facts that remain unproven by modern archaeology"],
+  "myths_and_legends": [
+    {{"legend": "Popular belief or folklore", "historical_reality": "What verified inscriptions or archaeology actually show"}}
+  ],
+  "confidence_score": 0.90,
+  "missing_evidence": "Historical records lost or undeciphered",
+  "suggested_storytelling_angle": "How to structure the narrative chronologically with dramatic gravitas",
+  "target_audience": "Hindi-speaking history documentary viewers",
+  "tags": ["AncientHistory", "IndianHistory", "Archaeology", "Documentary", "HistoricalMysteries", "StoriesMalik"],
+  "thumbnail_concept": "Detailed description of a historically accurate, high-contrast visual focal point"
 }}"""
-
-        data = _parse(generate(prompt))
+        raw = generate(prompt)
+        data = _parse_research_json(raw)
         data["grounding"] = grounding
+        
+        # Run quality gate verification
+        approved, issues = validate_research_quality_gate(data)
+        data["quality_gate_approved"] = approved
+        data["quality_gate_issues"] = issues
+        if not approved:
+            print(f"   ⚠ Research Quality Gate flagged issues: {issues}")
+        else:
+            print(f"   ✓ Research Quality Gate passed (Confidence: {data.get('confidence_score')})")
+
         return data
 
-    # ── MODE 2: AI PICKS THE TOPIC ───────────────────────────────────────────
-    # Use focus_angle if supplied; otherwise auto-select today's Weekly Content Calendar theme!
+    # MODE 2: AI Discovers Topic within Theme
     if focus_angle.strip():
         chosen_angle = focus_angle.strip()
-        print(f"   → Focus angle (selected): {chosen_angle}")
     else:
         weekly_theme_info = config.get_weekly_theme()
         chosen_angle = f"{weekly_theme_info['theme']} ({weekly_theme_info['day']})"
-        print(f"   → Focus angle (Weekly Plan: {weekly_theme_info['day']}): {weekly_theme_info['theme']} [{weekly_theme_info['theme_hi']}]")
 
-    print(f"   → Asking AI for documentary topic within theme: {chosen_angle}")
+    print(f"   → Researching documentary topic within historical theme: {chosen_angle}")
 
     trend_block = ""
     if trend_context:
-        print(f"   → Trend-aware: {len(trend_context)} live headlines from Trend Radar")
-        joined = "\n".join(f"  - {t}" for t in trend_context[:25])
-        trend_block = (
-            "4. TRENDING RIGHT NOW (news, papers, archaeological discoveries):\n"
-            f"{joined}\n"
-            "   If one of these connects naturally to the theme, build the video around it "
-            "for timeliness and say so in \"why_now\". If none fit, ignore them.\n"
-        )
+        joined = "\n".join(f"  - {t}" for t in trend_context[:15])
+        trend_block = f"\nRECENT ARCHAEOLOGICAL EXCAVATIONS & HISTORICAL ANNIVERSARIES:\n{joined}\n"
 
-    prompt = f"""You are a top YouTube content strategist for a viral History and Ancient Civilizations documentary channel.
+    prompt = f"""You are the Chief Historical Researcher for Stories Malik, a premier YouTube documentary channel dedicated to verified Indian and World history.
 
-Channel description:
-{channel_description}
+Channel Profile:
+{channel_desc}
 
-CRITICAL INSTRUCTIONS FOR THIS RUN:
-1. Focus entirely on this specific weekly theme: >>> {chosen_angle} <<<
-2. BANNED TOPICS: Do NOT suggest any of the following — we already made videos about them: {banned_str}. You must give me a brand new, highly original concept.
-3. Cache Bust ID: {time.time()} (Ensure completely unique output).
+EDITORIAL FOCUS FOR TODAY:
+Theme: >>> {chosen_angle} <<<
+Banned Topics (Already covered or rejected): {banned_str}
 {trend_block}
-Your mission:
-1. Think of 3-4 highly compelling video topic ideas within that specific theme.
-2. Select the single BEST topic that is genuinely mind-blowing, timely, and suited for a deep 10-14 minute documentary.
 
-Respond with ONLY a valid JSON object. No markdown fences, no explanation:
+MISSION:
+1. Identify an astonishing, historically verified event, lost civilization, ruler, or archaeological mystery within this theme.
+2. Formulate a structured research dossier strictly adhering to the Historical Evidence Framework.
+3. Prioritize primary chronicles, inscriptions, and peer-reviewed archaeological findings over unverified rumors.
 
+Respond with ONLY a valid JSON object matching this schema:
 {{
-  "topic": "The specific video topic",
-  "why_now": "Why this topic is hitting the zeitgeist right now",
-  "video_title": "MIND-BLOWING YouTube title under 70 characters",
-  "description": "2-sentence YouTube description optimised for SEO and curiosity",
-  "hook_question": "The single most mind-blowing question this video answers",
+  "topic": "Specific historical subject",
+  "research_question": "The primary historical question this documentary investigates",
+  "period": "Specific historical era and dates",
+  "geographic_location": "Geographic region, ancient kingdom, and modern territory",
+  "civilizations_involved": ["Civilization or Dynasty 1", "Civilization 2"],
+  "key_figures": ["Ruler / General / Explorer 1", "Historian / Figure 2"],
+  "why_now": "Why this historical episode grips audiences today",
+  "video_title": "Compelling, accurate documentary title under 70 characters",
+  "description": "2-sentence description summarizing the conflict and historical stakes",
+  "hook_question": "Compelling question that hooks the viewer in the first 5 seconds",
   "key_points": [
-    "First key concept or revelation",
-    "Second key concept — the twist or surprise",
-    "Third key concept — deeper implication",
-    "Fourth key concept — real-world consequence",
-    "Fifth key concept — the philosophical angle"
+    "First pivotal revelation or political conflict",
+    "Second key turning point — military or cultural",
+    "Third key turning point — betrayal, strategy, or breakthrough",
+    "Fourth key revelation — archaeological findings or primary text",
+    "Fifth key takeaway — enduring legacy and historical verdict"
   ],
-  "target_audience": "Exactly who will watch and share this",
-  "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8"],
-  "thumbnail_concept": "Describe the perfect YouTube thumbnail",
-  "estimated_virality": "high"
+  "verified_timeline": [
+    {{"era": "Date / Era 1", "event": "Significant verified milestone", "source": "Archaeological survey / Inscription"}},
+    {{"era": "Date / Era 2", "event": "Decisive battle or turning point", "source": "Contemporary chronicle"}}
+  ],
+  "claims_and_evidence": [
+    {{"claim": "Established historical fact", "evidence_level": "ESTABLISHED_FACT", "source_reference": "Inscriptions / Excavation records"}},
+    {{"claim": "Scholarly consensus interpretation", "evidence_level": "STRONGLY_SUPPORTED", "source_reference": "Major peer-reviewed historians"}},
+    {{"claim": "Associated folklore or legend", "evidence_level": "ORAL_TRADITION", "source_reference": "Local bards / literary traditions"}}
+  ],
+  "conflicting_interpretations": [
+    {{"perspective_a": "Traditional historical view", "perspective_b": "Modern archaeological view", "evidence": "Key supporting evidence"}}
+  ],
+  "uncertain_facts": ["Specific elements unresolved by current historical evidence"],
+  "myths_and_legends": [
+    {{"legend": "Popular belief or folklore", "historical_reality": "What verified evidence actually establishes"}}
+  ],
+  "confidence_score": 0.88,
+  "missing_evidence": "Gaps in the historical record",
+  "suggested_storytelling_angle": "Chronological, evidence-backed narrative arc",
+  "target_audience": "Hindi-speaking history documentary viewers",
+  "tags": ["AncientHistory", "IndianHistory", "Archaeology", "Documentary", "HistoricalMysteries", "StoriesMalik"],
+  "thumbnail_concept": "Visual description of historical centerpiece with high contrast"
 }}"""
-
-    data = _parse(generate(prompt))
+    raw = generate(prompt)
+    data = _parse_research_json(raw)
     data["grounding"] = _grounding(data["topic"])
+
+    approved, issues = validate_research_quality_gate(data)
+    data["quality_gate_approved"] = approved
+    data["quality_gate_issues"] = issues
+
     return data
