@@ -45,6 +45,11 @@ from video.creator import create_video
 from video.music import mix_music_with_narration
 from video import thumbnail
 from uploader.youtube import upload_to_youtube, is_configured
+from uploader.safety import (
+    PublishingState,
+    record_production_state,
+    is_approved_for_upload,
+)
 
 IST = timezone(timedelta(hours=5, minutes=30))
 SCHEDULE_FILE = os.path.join(config.OUTPUT_DIR, "automation_schedule.json")
@@ -280,6 +285,11 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
     image_map_int = {int(k): v for k, v in image_map.items()}
     video_path = create_video(hindi_script, final_audio, config.OUTPUT_DIR, image_map_int, video_type="normal")
     print(f"   ✅ High quality video rendered: {video_path}")
+    record_production_state(video_path, PublishingState.VIDEO_RENDERED.value, metadata={
+        "topic": research.get("topic", ""),
+        "type": "longform",
+        "title": hindi_script.get("title", ""),
+    })
 
     # 7. Cinematic Thumbnail & 100/100 Checklist Optimization
     print("  [7/8] Generating thumbnail & optimizing 100/100 publishing checklist…")
@@ -345,9 +355,15 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
         except Exception:
             t_to_save = thumb_path
 
+        record_production_state(v_to_save, PublishingState.REVIEW_PENDING.value, metadata={
+            "type": "longform",
+            "target_date": target_date,
+            "title": seo_result["title"],
+        })
         with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump({
                 "type": "longform",
+                "state": PublishingState.REVIEW_PENDING.value,
                 "target_date": target_date,
                 "video_path": v_to_save,
                 "thumb_path": t_to_save,
@@ -543,13 +559,18 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
     item_dir = os.path.join(shorts_dir, f"short_{idx:02d}")
     os.makedirs(item_dir, exist_ok=True)
 
-    research = {
-        "topic": topic_title,
-        "video_title": topic_title,
-        "hook_question": f"Did you know the secret behind {topic_title}?",
-        "key_points": [f"Shocking historical discovery about {topic_title}"],
-        "tags": ["History", "Shorts", "AncientMysteries", "Archaeology", "Facts"],
-    }
+    # Phase 13 Overhaul: Perform genuine historical research for Shorts
+    try:
+        research = research_topic(topic_title, language=lang, target_format="shorts")
+    except Exception as e:
+        print(f"   ⚠ Historical research fallback for short: {e}")
+        research = {
+            "topic": topic_title,
+            "video_title": topic_title,
+            "hook_question": f"Did you know the verified history of {topic_title}?",
+            "key_points": [f"Historical evidence regarding {topic_title}"],
+            "tags": ["IndianHistory", "Shorts", "Archaeology", "HistoryFacts"],
+        }
 
     # 1. Write Short Script
     short_script = write_script(research, video_type="shorts", language=lang)
@@ -566,6 +587,12 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
     # 4. Render Short Video (1080x1920)
     image_map_int = {int(k): v for k, v in image_map.items()}
     video_path = create_video(short_script, audio_path, item_dir, image_map_int, video_type="shorts")
+    record_production_state(video_path, PublishingState.VIDEO_RENDERED.value, metadata={
+        "topic": topic_title,
+        "type": "short",
+        "title": short_script.get("title", ""),
+        "index": idx,
+    })
 
     # 5. Optimize 100/100
     seo_res = optimize_for_100_percent(
@@ -589,9 +616,16 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
         except Exception:
             v_to_save = video_path
 
+        record_production_state(v_to_save, PublishingState.REVIEW_PENDING.value, metadata={
+            "type": "short",
+            "index": idx,
+            "target_date": target_date,
+            "title": seo_res["title"],
+        })
         with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump({
                 "type": "short",
+                "state": PublishingState.REVIEW_PENDING.value,
                 "index": idx,
                 "target_date": target_date,
                 "video_path": v_to_save,
