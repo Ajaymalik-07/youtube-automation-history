@@ -9,9 +9,9 @@
 [![Channel](https://img.shields.io/badge/Channel-Stories%20Malik-red?style=flat-square&logo=youtube)](https://youtube.com)
 [![Language](https://img.shields.io/badge/Primary%20Language-Hindi%20(Devanagari)-orange?style=flat-square)](docs/HINDI_RENDERING_STANDARD.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-88%20Passing-brightgreen?style=flat-square)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-95%20Passing-brightgreen?style=flat-square)](tests/)
 
-[**Quick Start**](#-quick-start) · [**Architecture & Standards**](#-standards--documentation) · [**Content Pillars**](#-10-historical-content-pillars) · [**Publishing Safety**](#-publishing-safety-gate) · [**Analytics**](#-youtube-analytics-v2)
+[**Quick Start**](#-quick-start) · [**Architecture & Standards**](#-standards--documentation) · [**Content Pillars**](#-10-historical-content-pillars) · [**Autonomous Publishing**](#-autonomous-publishing--quality-gates) · [**Analytics**](#-youtube-analytics-v2)
 
 </div>
 
@@ -35,6 +35,7 @@ Key configuration items:
 - `GEMINI_API_KEY`: Free tier Google Gemini API key (recommended for historical script generation).
 - `PEXELS_API_KEY`: Optional free key for authentic historical stock imagery.
 - `YOUTUBE_CLIENT_SECRET_FILE`: Path to OAuth credentials (`client_secret.json`) for publishing and analytics.
+- `YOUTUBE_UPLOAD_MODE`: `SCHEDULED_PUBLICATION` (default), `IMMEDIATE_PUBLICATION`, or `PRIVATE_ARCHIVE`.
 
 ### 3. Launch Modes
 - **Interactive Web Studio (GUI):**
@@ -50,7 +51,11 @@ Key configuration items:
   # Generate daily 5-Shorts batch
   python automation.py --shorts-batch
   ```
-- **Run Automated Test Suite (88 tests):**
+- **Headless Pipeline with Autonomous Quality Gates:**
+  ```bash
+  python pipeline.py
+  ```
+- **Run Automated Test Suite (95 tests):**
   ```bash
   pytest
   ```
@@ -82,7 +87,7 @@ The system rejects unsupported speculation and science/astrophysics miscategoriz
 5. **Tier 5 (Primary Sources):** Contemporary epigraphy, rock edicts, translated traveler logs (Faxian, Xuanzang, Megasthenes, Al-Biruni).
 6. **Tier 6 (Preliminary Discovery):** Wikipedia and encyclopedia indexes for topic scoping (not treated as primary proof).
 
-*A research quality gate (`validate_research_quality_gate`) blocks scripts if central claims lack verifiable evidence.*
+*A research quality gate (`validate_research_gate`) blocks scripts if central claims lack verifiable evidence.*
 
 ---
 
@@ -96,17 +101,25 @@ The system rejects unsupported speculation and science/astrophysics miscategoriz
 
 ---
 
-## 🛡️ Publishing Safety Gate
+## 🛡️ Autonomous Publishing & Quality Gates
 
-To guarantee brand integrity and prevent accidental unauthorized public uploads:
-1. **Deterministic 10-State Machine:**
-   `DRAFT` ➔ `RESEARCH_APPROVED` ➔ `SCRIPT_APPROVED` ➔ `VIDEO_RENDERED` ➔ `REVIEW_PENDING` ➔ `APPROVED` ➔ `SCHEDULED` ➔ `PUBLISHED`
-2. **Mandatory Human Approval:**
-   `uploader/youtube.py` strictly verifies human approval in `uploader/safety.py`. Unapproved videos are blocked and held in `output/pending_uploads/`.
-3. **Private Default Privacy:**
-   New uploads default to `privacyStatus: "private"` (or `"unlisted"` for review), never public.
-4. **Graceful Review Server:**
-   The review server runs on a background `werkzeug` daemon thread and shuts down cleanly upon decision receipt, eliminating abrupt process terminations (`os.kill`).
+Phase 17 removes all mandatory manual approval dependencies. The production workflow is governed strictly by verifiable automated quality gates and idempotent state tracking:
+
+1. **Deterministic 18-Stage Lifecycle Machine:**
+   `TOPIC_SELECTED` ➔ `RESEARCH_IN_PROGRESS` ➔ `RESEARCH_VALIDATED` ➔ `SCRIPT_GENERATED` ➔ `SCRIPT_VALIDATED` ➔ `VIDEO_RENDERING` ➔ `VIDEO_RENDERED` ➔ `VIDEO_VALIDATED` ➔ `METADATA_VALIDATED` ➔ `UPLOAD_QUEUED` ➔ `UPLOADING` ➔ `SCHEDULED` / `PUBLISHED` ➔ `ANALYTICS_PENDING` ➔ `COMPLETED`
+2. **Four Automated Quality Gates (`uploader/quality_gates.py`):**
+   - **Research:** Claims verified against source hierarchy, period/location defined, confidence $\ge 0.65$.
+   - **Script:** Suitable duration bounds (350–2,400 words for long-form, 40–220 words for Shorts), zero broken tokens, no repetitive paragraphs.
+   - **Video:** File exists, container valid, healthy file size, valid thumbnail dimensions.
+   - **Metadata:** Title, description, tags, language (`hi`), and category verified.
+3. **Supported Upload Modes:**
+   - `SCHEDULED_PUBLICATION` (default production mode): Uploads with `privacyStatus: "private"` and future `publishAt` timestamp in `Asia/Kolkata` (19:00 IST for long-form, 10:00 & 18:00 IST for Shorts).
+   - `IMMEDIATE_PUBLICATION`: Public upload without `publishAt`.
+   - `PRIVATE_ARCHIVE`: Private upload without `publishAt`.
+4. **Idempotent Duplicate Prevention:**
+   Pre-upload checks prevent re-uploading already scheduled or published videos.
+5. **Post-Upload Verification:**
+   Queries YouTube API `videos.list` to verify upload processing status and ensure publication schedule integrity.
 
 ---
 

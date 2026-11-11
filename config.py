@@ -326,14 +326,51 @@ FONT_PATHS = {
 REVIEW_PORT = 5050
 
 # ─────────────────────────────────────────
-#  YouTube Upload
+#  YouTube Upload & Autonomous Scheduling
 # ─────────────────────────────────────────
 YOUTUBE_CLIENT_SECRET_FILE = "client_secret.json"   # OAuth credentials file path
 YOUTUBE_CLIENT_SECRET      = os.getenv("YOUTUBE_CLIENT_SECRET", "")  # Client Secret string
-YOUTUBE_SCOPES             = ["https://www.googleapis.com/auth/youtube.upload"]
+YOUTUBE_SCOPES             = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+]
 VIDEO_CATEGORY_ID          = "27"       # 27 = Education
-VIDEO_PRIVACY              = "public"   # "public" | "unlisted" | "private"
-MADE_FOR_KIDS              = False      # "No, it's not made for kids" (enables comments, notifications, and full monetization)
+VIDEO_PRIVACY              = os.getenv("VIDEO_PRIVACY", "private")   # default private for security
+MADE_FOR_KIDS              = False      # "No, it's not made for kids"
+CONTAINS_SYNTHETIC_MEDIA   = True       # Mandatory YouTube disclosure for AI narration/illustrations
+
+# Supported Autonomous Publication Modes
+UPLOAD_MODE_SCHEDULED = "SCHEDULED_PUBLICATION"
+UPLOAD_MODE_IMMEDIATE = "IMMEDIATE_PUBLICATION"
+UPLOAD_MODE_PRIVATE   = "PRIVATE_ARCHIVE"
+YOUTUBE_UPLOAD_MODE   = os.getenv("YOUTUBE_UPLOAD_MODE", UPLOAD_MODE_SCHEDULED)
+
+# Centralized Long-Form Upload Configuration
+LONGFORM_UPLOAD_CONFIG = {
+    "privacy_status": "private",
+    "mode": YOUTUBE_UPLOAD_MODE,
+    "default_language": "hi",
+    "category_id": VIDEO_CATEGORY_ID,
+    "notify_subscribers": True,
+    "embeddable": True,
+    "license": "youtube",
+    "public_stats_viewable": True,
+    "target_hour_ist": 19,  # 7:00 PM IST
+}
+
+# Centralized Shorts Upload Configuration
+SHORTS_UPLOAD_CONFIG = {
+    "privacy_status": "private",
+    "mode": YOUTUBE_UPLOAD_MODE,
+    "default_language": "hi",
+    "category_id": VIDEO_CATEGORY_ID,
+    "notify_subscribers": False,  # avoid subscriber feed spam with multiple daily Shorts
+    "embeddable": True,
+    "license": "youtube",
+    "public_stats_viewable": True,
+    "target_hours_ist": [10, 18],  # 10:00 AM & 6:00 PM IST
+}
 
 # ─────────────────────────────────────────
 #  Background Music

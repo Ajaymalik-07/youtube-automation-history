@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.0] - 2026-11-11 - Phase 17: Fully Automated YouTube Publishing & Scheduling
+
+### Added
+- **Automated Quality Gates Engine (`uploader/quality_gates.py`):**
+  - Independent validation of Research evidence, Script structure/duration, Video file integrity, and Metadata parameters.
+  - Automatic persistence of diagnostic reports to `output/diagnostics/` when validation fails.
+- **18-State Production Lifecycle Machine (`uploader/safety.py`):**
+  - Replaced manual approval with autonomous 18-stage progression: `TOPIC_SELECTED`, `RESEARCH_IN_PROGRESS`, `RESEARCH_VALIDATED`, `SCRIPT_GENERATED`, `SCRIPT_VALIDATED`, `VIDEO_RENDERING`, `VIDEO_RENDERED`, `VIDEO_VALIDATED`, `METADATA_VALIDATED`, `UPLOAD_QUEUED`, `UPLOADING`, `UPLOADED_PRIVATE`, `SCHEDULED`, `PUBLISHED`, `ANALYTICS_PENDING`, `COMPLETED`, `FAILED`, `BLOCKED_QUALITY_GATE`.
+  - Automated upload eligibility verification (`is_eligible_for_upload`).
+- **Autonomous Publishing & Scheduling Modes (`uploader/youtube.py`, `config.py`):**
+  - `SCHEDULED_PUBLICATION` (default production mode): Private upload with future `publishAt` ISO 8601 UTC timestamp calculated in `Asia/Kolkata` (19:00 IST for long-form, 10:00 & 18:00 IST for Shorts).
+  - `IMMEDIATE_PUBLICATION`: Public upload without `publishAt`.
+  - `PRIVATE_ARCHIVE`: Private upload without `publishAt`.
+- **Post-Upload Processing Verification (`uploader/youtube.py`):**
+  - Inspection of `uploadStatus` and `processingDetails` via YouTube API `videos.list`.
+- **Synthetic Media Disclosure & Parameter Governance:**
+  - Mandatory YouTube `containsSyntheticMedia: True` disclosure for AI documentary narration/illustrations.
+  - Configurable subscriber notification flags (enabled for long-form, disabled for Shorts).
+- **Idempotent Duplicate Prevention:**
+  - Prevents re-uploading already scheduled or published videos.
+- **Automated Publishing Standard (`docs/AUTOMATED_PUBLISHING_STANDARD.md`):**
+  - Comprehensive documentation of state machine, upload parameters, scheduling rules, and error recovery.
+
+### Changed
+- `pipeline.py`: Replaced blocking manual review server with automated quality gate evaluation and direct autonomous scheduled upload.
+- `automation.py`: Switched queue manifest states to `UPLOAD_QUEUED` and wired research artifacts into automated uploads.
+- `review/app.py`: Updated endpoints to display automated quality reports rather than serving as a blocking gate.
+
+---
+
 ## [2.0.0] - 2026-11-11 - Overhaul: Hindi-First Historical Documentary System
 
 ### Added

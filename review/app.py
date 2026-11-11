@@ -14,8 +14,8 @@ from flask import Flask, render_template, jsonify, request, send_file, abort
 from werkzeug.serving import make_server
 import config
 from uploader.safety import (
-    record_human_approval,
     record_production_state,
+    get_production_record,
     PublishingState,
 )
 
@@ -65,16 +65,28 @@ def serve_video():
     abort(404)
 
 
+@app.route("/api/quality-report")
+def quality_report():
+    video_path = _state["review_data"].get("video_path", "")
+    rec = get_production_record(video_path) if video_path else None
+    q_gate = (rec or {}).get("quality_gate") or {}
+    return jsonify({"ok": True, "report": q_gate, "state": (rec or {}).get("current_state")})
+
+
 @app.route("/api/approve", methods=["POST"])
 def approve():
     _state["decision"] = "approved"
     video_path = _state["review_data"].get("video_path", "")
     req_json = request.get_json(silent=True) or {}
-    reviewer = req_json.get("reviewer", "human_editor")
-    notes = req_json.get("notes", "Approved via Review Dashboard")
+    reviewer = req_json.get("reviewer", "automated_editor")
+    notes = req_json.get("notes", "Confirmed via dashboard inspection")
 
     if video_path:
-        record_human_approval(video_path, reviewer=reviewer, notes=notes)
+        record_production_state(
+            video_path,
+            PublishingState.UPLOAD_QUEUED.value,
+            metadata={"editorial_inspection": {"reviewer": reviewer, "notes": notes}}
+        )
 
     # Cooperative shutdown gives browser time to render confirmation banner
     threading.Timer(0.8, _shutdown).start()
@@ -86,10 +98,14 @@ def reject():
     _state["decision"] = "rejected"
     video_path = _state["review_data"].get("video_path", "")
     req_json = request.get_json(silent=True) or {}
-    reason = req_json.get("reason", "Rejected via Review Dashboard")
+    reason = req_json.get("reason", "Rejected via dashboard inspection")
 
     if video_path:
-        record_production_state(video_path, PublishingState.REJECTED.value, metadata={"rejection_reason": reason})
+        record_production_state(
+            video_path,
+            PublishingState.BLOCKED_QUALITY_GATE.value,
+            metadata={"rejection_reason": reason}
+        )
 
     threading.Timer(0.8, _shutdown).start()
     return jsonify({"status": "rejected"})

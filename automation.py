@@ -48,7 +48,6 @@ from uploader.youtube import upload_to_youtube, is_configured
 from uploader.safety import (
     PublishingState,
     record_production_state,
-    is_approved_for_upload,
 )
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -355,7 +354,7 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
         except Exception:
             t_to_save = thumb_path
 
-        record_production_state(v_to_save, PublishingState.REVIEW_PENDING.value, metadata={
+        record_production_state(v_to_save, PublishingState.UPLOAD_QUEUED.value, metadata={
             "type": "longform",
             "target_date": target_date,
             "title": seo_result["title"],
@@ -363,7 +362,7 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
         with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump({
                 "type": "longform",
-                "state": PublishingState.REVIEW_PENDING.value,
+                "state": PublishingState.UPLOAD_QUEUED.value,
                 "target_date": target_date,
                 "video_path": v_to_save,
                 "thumb_path": t_to_save,
@@ -377,7 +376,7 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
         print(f"   ✅ Saved ready-to-publish manifest: {manifest_path}")
         print(f"      Will publish automatically tomorrow at peak evening release!")
     else:
-        status_label = f"Scheduled on YouTube for {publish_at}" if publish_at else "Public Direct"
+        status_label = f"Scheduled on YouTube for {publish_at}" if publish_at else "Autonomous Scheduled/Public"
         print(f"\n  [8/8] Automated Publishing ({status_label})…")
         yt_url = upload_to_youtube(
             script=hindi_script,
@@ -387,6 +386,8 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
             description=seo_result["description"],
             tags=seo_result["tags"],
             publish_at=publish_at,
+            research=research,
+            is_shorts=False,
         )
 
     # Archive run into library
@@ -616,7 +617,7 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
         except Exception:
             v_to_save = video_path
 
-        record_production_state(v_to_save, PublishingState.REVIEW_PENDING.value, metadata={
+        record_production_state(v_to_save, PublishingState.UPLOAD_QUEUED.value, metadata={
             "type": "short",
             "index": idx,
             "target_date": target_date,
@@ -625,7 +626,7 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
         with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump({
                 "type": "short",
-                "state": PublishingState.REVIEW_PENDING.value,
+                "state": PublishingState.UPLOAD_QUEUED.value,
                 "index": idx,
                 "target_date": target_date,
                 "video_path": v_to_save,
@@ -638,7 +639,7 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
         yt_url = f"local://scheduled_queue/{target_date}/short_{idx}"
         print(f"   📦 Short {idx} queued for tomorrow ({target_date}) scroll window.")
     else:
-        status_label = f"Scheduled on YouTube for {publish_at}" if publish_at else "Public Direct"
+        status_label = f"Scheduled on YouTube for {publish_at}" if publish_at else "Autonomous Scheduled/Public"
         print(f"\n   Publishing Short {idx} to YouTube ({status_label})…")
         yt_url = upload_to_youtube(
             script=short_script,
@@ -647,6 +648,8 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
             description=seo_res["description"],
             tags=seo_res["tags"],
             publish_at=publish_at,
+            research=research,
+            is_shorts=True,
         )
 
     result = {

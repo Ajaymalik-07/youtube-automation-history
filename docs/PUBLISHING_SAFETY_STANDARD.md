@@ -1,83 +1,75 @@
-# Publishing Safety Standard
+# Publishing Safety & Automated Governance Standard
 
 **Channel:** Stories Malik (`@StoriesMalik`)  
-**Scope:** Video Publishing Lifecycle, State Machine, Human Approval Gates & Upload Security  
-**Status:** Canonical & Enforced  
+**Scope:** Automated Video Publishing Lifecycle, 18-State Machine, Quality Gate Governance & Upload Security  
+**Status:** Canonical & Enforced (Phase 17 Overhaul)  
 
 ---
 
 ## 1. Core Principles
 
-1. **Mandatory Human Approval:** No video file may be published or scheduled to YouTube without an explicit, verifiable human approval token recorded in the production database.
-2. **Private Default Privacy:** Every new upload defaults to `privacyStatus: "private"` (or `"unlisted"` if explicitly configured for reviewer preview), never `"public"`.
-3. **Deterministic State Machine:** Videos transition through explicit, validated lifecycle states. Illegal state transitions are rejected.
-4. **Duplicate Prevention:** Before any upload attempt, file paths and content hashes are checked in the production database to prevent duplicate videos and wasted YouTube API quota.
-5. **Safe, Cooperative Server Shutdown:** The review dashboard runs on an isolated daemon server thread using `werkzeug.serving.make_server` and shuts down cleanly upon decision receipt, never calling destructive process exit commands (`os.kill`).
+1. **Autonomous Quality Gate Governance:** Manual human approval is replaced by automated, verifiable quality gates across Research, Script, Video, and Metadata.
+2. **Private Default Privacy:** Every new upload defaults to `privacyStatus: "private"`. In scheduled mode, YouTube promotes the video to Public at the future `publishAt` timestamp.
+3. **Deterministic 18-Stage Lifecycle:** Assets progress through an immutable state machine from `TOPIC_SELECTED` to `COMPLETED`. Any quality failure halts progression and transitions to `BLOCKED_QUALITY_GATE`.
+4. **Idempotency & Duplicate Prevention:** Every production job maintains a persistent database record. Uploads verify that a video has not already been scheduled or published, preventing duplicate public uploads.
+5. **Safe Server Protocol:** The review dashboard runs on an isolated daemon server thread using `werkzeug.serving.make_server` and shuts down cleanly, never calling destructive process exit commands (`os.kill`).
 
 ---
 
-## 2. Production Lifecycle States
+## 2. Production Lifecycle States (18 States)
 
 | State | Description | Permitted Next States |
 |---|---|---|
-| `DRAFT` | Topic initiated or video in early assembly | `RESEARCH_APPROVED`, `REJECTED`, `FAILED` |
-| `RESEARCH_APPROVED` | Research dossier verified against historical evidence framework | `SCRIPT_APPROVED`, `REJECTED`, `FAILED` |
-| `SCRIPT_APPROVED` | Documentary or Shorts script cleared fact-checking quality gate | `VIDEO_RENDERED`, `REJECTED`, `FAILED` |
-| `VIDEO_RENDERED` | Audio, visual frames, Devanagari subtitles rendered to MP4 | `REVIEW_PENDING`, `REJECTED`, `FAILED` |
-| `REVIEW_PENDING` | Video queued in review dashboard awaiting human inspection | `APPROVED`, `REJECTED`, `FAILED` |
-| `APPROVED` | Human editor inspected video and issued approval token | `SCHEDULED`, `PUBLISHED`, `FAILED` |
-| `SCHEDULED` | Video uploaded to YouTube with a future UTC release timestamp | `PUBLISHED`, `FAILED` |
-| `PUBLISHED` | Video live or scheduled on YouTube (terminal state) | None |
-| `REJECTED` | Human editor or quality gate rejected video for revisions | `DRAFT` |
-| `FAILED` | Rendering, quota, or network exception occurred | `DRAFT`, `REVIEW_PENDING` |
+| `TOPIC_SELECTED` | Topic chosen from 10 content pillars | `RESEARCH_IN_PROGRESS`, `BLOCKED_QUALITY_GATE`, `FAILED` |
+| `RESEARCH_IN_PROGRESS` | Multi-tier historical evidence acquisition active | `RESEARCH_VALIDATED`, `BLOCKED_QUALITY_GATE`, `FAILED` |
+| `RESEARCH_VALIDATED` | Passed research quality gate | `SCRIPT_GENERATED`, `BLOCKED_QUALITY_GATE`, `FAILED` |
+| `SCRIPT_GENERATED` | Narration, sections, and hooks generated | `SCRIPT_VALIDATED`, `BLOCKED_QUALITY_GATE`, `FAILED` |
+| `SCRIPT_VALIDATED` | Passed script quality gate | `VIDEO_RENDERING`, `BLOCKED_QUALITY_GATE`, `FAILED` |
+| `VIDEO_RENDERING` | Voiceover, video clips, and subtitles assembling | `VIDEO_RENDERED`, `FAILED` |
+| `VIDEO_RENDERED` | Physical MP4 rendered on disk | `VIDEO_VALIDATED`, `METADATA_VALIDATED`, `BLOCKED_QUALITY_GATE`, `FAILED` |
+| `VIDEO_VALIDATED` | Passed video integrity and duration gate | `METADATA_VALIDATED`, `UPLOAD_QUEUED`, `BLOCKED_QUALITY_GATE`, `FAILED` |
+| `METADATA_VALIDATED` | Passed SEO and compliance metadata gate | `UPLOAD_QUEUED`, `UPLOADING`, `BLOCKED_QUALITY_GATE`, `FAILED` |
+| `UPLOAD_QUEUED` | Ready for upload execution | `UPLOADING`, `FAILED` |
+| `UPLOADING` | Active resumable upload stream to YouTube | `UPLOADED_PRIVATE`, `SCHEDULED`, `PUBLISHED`, `FAILED` |
+| `UPLOADED_PRIVATE` | Uploaded in private archive mode | `SCHEDULED`, `PUBLISHED`, `ANALYTICS_PENDING`, `COMPLETED`, `FAILED` |
+| `SCHEDULED` | Uploaded as private with future `publishAt` timestamp | `PUBLISHED`, `ANALYTICS_PENDING`, `COMPLETED`, `FAILED` |
+| `PUBLISHED` | Publicly live on YouTube | `ANALYTICS_PENDING`, `COMPLETED`, `FAILED` |
+| `ANALYTICS_PENDING` | Queued for 24h, 48h, 7d, 28d performance snapshots | `COMPLETED`, `ANALYTICS_PENDING`, `FAILED` |
+| `COMPLETED` | Final lifecycle completion | `ANALYTICS_PENDING` |
+| `FAILED` | Recoverable technical error (quota, network) | `TOPIC_SELECTED`, `VIDEO_RENDERING`, `UPLOAD_QUEUED` |
+| `BLOCKED_QUALITY_GATE` | Non-recoverable quality failure with diagnostic report | `TOPIC_SELECTED`, `SCRIPT_GENERATED`, `FAILED` |
 
 ---
 
-## 3. Approval Token Architecture
-
-When a human editor clicks **Approve** in the local review dashboard or via CLI/GUI:
-
-```python
-approval_token = f"approval_{int(time.time())}_{abs(hash(video_path)) % 1000000:06d}"
-```
-
-The approval record stores:
-- `approved`: `True`
-- `token`: Unique approval token
-- `reviewer`: Identifier of editor (e.g., `human_editor`, `channel_lead`)
-- `timestamp`: ISO 8601 UTC timestamp
-- `notes`: Editorial review comments
-
-### Upload Gate Enforcement
+## 3. Automated Eligibility & Gate Enforcement
 
 In `uploader/youtube.py`:
 ```python
-if not bypass_approval and not is_approved_for_upload(video_path):
-    # Upload is blocked immediately
-    # Video is preserved in output/pending_uploads/
-    return f"local://pending_approval/{filename}"
+# 1. Automated Quality Gate Evaluation
+q_report = evaluate_all_quality_gates(
+    research=research,
+    script=script,
+    video_path=video_path,
+    thumb_path=thumb_path,
+    metadata=metadata_dict,
+    is_shorts=is_shorts,
+)
+if not q_report.get("passed", False):
+    # Publication blocked; diagnostic persisted to output/diagnostics/
+    return f"local://blocked_quality_gate/{filename}"
+
+# 2. Idempotent Duplicate Prevention
+if rec and rec.get("current_state") in (PublishingState.SCHEDULED, PublishingState.PUBLISHED):
+    return existing_youtube_url
 ```
 
 ---
 
 ## 4. Quota and Retry Handling
 
-- YouTube Data API v3 enforces a daily quota (typically 10,000 units/day, ~1,600 units per upload).
-- Upon encountering `quotaExceeded`:
-  1. The video state transitions to `FAILED` with reason `pending_quota_reset`.
-  2. A persistent JSON upload manifest is written to `output/pending_uploads/`.
-  3. Video files are preserved intact; rendering does not need to rerun.
+- YouTube Data API v3 enforces daily quotas (typically 10,000 units/day).
+- Upon encountering `quotaExceeded` or network interruption:
+  1. The video state transitions to `FAILED` with error classification.
+  2. An upload manifest is written to `output/pending_uploads/`.
+  3. Rendered MP4 files and thumbnails remain intact; rendering is never re-run unnecessarily.
   4. Automation checks `production_database.json` to prevent retrying the exact same video file multiple times.
-
----
-
-## 5. Review Server Protocol
-
-- Host: `127.0.0.1`
-- Port: `config.REVIEW_PORT` (default: 5000)
-- Browser automatically opens to review dashboard.
-- The server runs on a background `ServerThread` using `werkzeug.serving.make_server`.
-- When `/api/approve` or `/api/reject` is called:
-  - Frontend receives confirmation status (HTTP 200).
-  - Background timer calls `server.shutdown()` after 800ms.
-  - Sockets close cleanly; parent process remains healthy and intact.
