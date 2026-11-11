@@ -8,7 +8,7 @@ Implements:
 """
 import re
 import math
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 import config
 
 CONTENT_PILLARS = [
@@ -159,10 +159,12 @@ def score_topic_opportunity(
     visual_richness: int = 8,
     audience_interest: int = 9,
     competition_level: int = 5,
+    growth_brief: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, any]:
     """
     Computes a transparent, 8-dimensional topic opportunity scorecard (1–10 scale).
     Distinct dimensional scores are preserved rather than collapsed into an opaque number.
+    Optionally incorporates growth intelligence directives from past channel performance.
     """
     # 1. Audience Relevance (1-10)
     aud_score = max(1, min(10, audience_interest))
@@ -197,6 +199,13 @@ def score_topic_opportunity(
     # 8. Channel Alignment (Historical Documentary Niche) (1-10)
     align_score = 10 if pillar_id in range(1, 11) else 7
 
+    # Growth Intelligence Bonus (if pillar aligns with historical growth brief)
+    growth_bonus = 0.0
+    if growth_brief and pillar:
+        preferred = growth_brief.get("preferred_pillars", [])
+        if pillar["name"] in preferred:
+            growth_bonus = 3.0
+
     # Weighted Composite Score (0–100)
     # Weights: Audience 20%, Search 15%, Historical 15%, Storytelling 15%, Sources 15%, Visual 10%, Diff 10%
     composite = (
@@ -206,8 +215,10 @@ def score_topic_opportunity(
         story_score * 1.5 +
         source_score * 1.5 +
         vis_score * 1.0 +
-        diff_score * 1.0
+        diff_score * 1.0 +
+        growth_bonus
     )
+    composite = min(100.0, composite)
 
     return {
         "topic": topic,
@@ -222,6 +233,7 @@ def score_topic_opportunity(
             "visual_storytelling": vis_score,
             "content_differentiation": diff_score,
             "channel_alignment": align_score,
+            "growth_intelligence_bonus": growth_bonus,
         },
         "composite_opportunity_score": round(composite, 1),
         "recommendation": "Strong Recommend" if composite >= 75 else ("Viable" if composite >= 60 else "Secondary"),
@@ -232,7 +244,10 @@ def score_topic_opportunity(
 #  WEEKLY TOPIC REPORT GENERATOR
 # ══════════════════════════════════════════════════════════════════════════════
 
-def generate_weekly_topic_research_report(existing_published_topics: Optional[List[str]] = None) -> Dict[str, any]:
+def generate_weekly_topic_research_report(
+    existing_published_topics: Optional[List[str]] = None,
+    growth_brief: Optional[Dict[str, Any]] = None,
+) -> Dict[str, any]:
     """
     Generates a structured weekly editorial topic research report with:
     - 10 evaluated long-form topic candidates (across content pillars).
@@ -284,7 +299,7 @@ def generate_weekly_topic_research_report(existing_published_topics: Optional[Li
     scored_longform = []
     for cand in longform_candidates:
         is_dup, match, sim = is_duplicate_topic(cand["topic"], history_published)
-        score_data = score_topic_opportunity(cand["topic"], pillar_id=cand["pillar_id"])
+        score_data = score_topic_opportunity(cand["topic"], pillar_id=cand["pillar_id"], growth_brief=growth_brief)
         score_data["is_duplicate"] = is_dup
         score_data["duplicate_match"] = match
         score_data["storytelling_angle"] = cand["angle"]
@@ -294,7 +309,7 @@ def generate_weekly_topic_research_report(existing_published_topics: Optional[Li
     scored_shorts = []
     for cand in shorts_candidates:
         is_dup, match, sim = is_duplicate_topic(cand["topic"], history_published)
-        score_data = score_topic_opportunity(cand["topic"], pillar_id=cand["pillar_id"], visual_richness=9)
+        score_data = score_topic_opportunity(cand["topic"], pillar_id=cand["pillar_id"], visual_richness=9, growth_brief=growth_brief)
         score_data["is_duplicate"] = is_dup
         score_data["duplicate_match"] = match
         score_data["storytelling_angle"] = cand["angle"]

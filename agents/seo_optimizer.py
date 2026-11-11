@@ -7,31 +7,42 @@ Replaces artificial checklist gamification with authentic metadata standards:
 """
 import re
 import json
+from typing import Optional, List, Dict, Any, Tuple
 import config
 from apis import seo
 
 
-def generate_title_candidates(topic: str, context: str = "", language: str = "hi") -> dict:
+def generate_title_candidates(
+    topic: str,
+    context: str = "",
+    language: str = "hi",
+    preferred_style: Optional[str] = None,
+) -> dict:
     """
     Generates 3 distinct title candidates:
     1. search_oriented: Optimized for high-intent search queries.
     2. story_oriented: Focuses on dramatic historical conflict and stakes.
     3. curiosity_oriented: Emphasizes the historical contradiction, discovery, or paradox.
+    preferred_style: optional directive from Growth Intelligence Engine ('curiosity_oriented' | 'story_oriented' | 'search_oriented')
     """
     clean_topic = re.sub(r"[^\w\s-]", "", topic).strip()
 
     if language == "hi":
-        return {
+        res = {
             "search_oriented": f"{clean_topic}: संपूर्ण ऐतिहासिक सच",
             "story_oriented": f"{clean_topic} की खौफनाक दास्तान और अनसुना इतिहास",
             "curiosity_oriented": f"{clean_topic}: इतिहास की किताबों ने हमसे क्या छुपाया?",
         }
+    else:
+        res = {
+            "search_oriented": f"{clean_topic}: Complete Historical Documentary",
+            "story_oriented": f"The Rise and Fall of {clean_topic}",
+            "curiosity_oriented": f"The Untold Truth Behind {clean_topic}",
+        }
 
-    return {
-        "search_oriented": f"{clean_topic}: Complete Historical Documentary",
-        "story_oriented": f"The Rise and Fall of {clean_topic}",
-        "curiosity_oriented": f"The Untold Truth Behind {clean_topic}",
-    }
+    valid_styles = ("search_oriented", "story_oriented", "curiosity_oriented")
+    res["recommended_style"] = preferred_style if preferred_style in valid_styles else "curiosity_oriented"
+    return res
 
 
 def validate_youtube_metadata(title: str, description: str, tags: list,

@@ -9,6 +9,7 @@ Generates:
 import json
 import copy
 import unicodedata
+from typing import Optional, List, Dict, Any, Tuple
 import config
 from agents.gemini_client import generate
 from agents.json_utils import extract_json
@@ -101,21 +102,29 @@ def validate_script_quality_gate(script: dict) -> tuple[bool, list[str]]:
     return is_approved, issues
 
 
-def write_script(research: dict, video_type: str = "normal", language: str = "hi", shorts_format: str = "historical_fact") -> dict:
+def write_script(
+    research: dict,
+    video_type: str = "normal",
+    language: str = "hi",
+    shorts_format: str = "historical_fact",
+    growth_brief: Optional[dict] = None,
+) -> dict:
     """
     Generates a narrated script for Stories Malik.
     video_type: 'normal' (8–13 min deep documentary) | 'shorts' (25–60s vertical)
     language: 'hi' (Hindi primary) | 'en' (English secondary)
     shorts_format: specialized format from SHORTS_FORMATS
+    growth_brief: optional adaptive retention directives from growth intelligence
     """
     if video_type == "shorts":
-        script = _write_shorts_script(research, language=language, shorts_format=shorts_format)
+        script = _write_shorts_script(research, language=language, shorts_format=shorts_format, growth_brief=growth_brief)
     else:
         script = _write_longform_script(
             research,
             language=language,
             min_minutes=getattr(config, "VIDEO_MIN_MINUTES", 8),
             max_minutes=getattr(config, "VIDEO_MAX_MINUTES", 13),
+            growth_brief=growth_brief,
         )
 
     # Attach production metadata
@@ -139,10 +148,20 @@ def write_script(research: dict, video_type: str = "normal", language: str = "hi
     return script
 
 
-def _write_longform_script(research: dict, language: str = "hi", min_minutes: int = 8, max_minutes: int = 13) -> dict:
+def _write_longform_script(
+    research: dict,
+    language: str = "hi",
+    min_minutes: int = 8,
+    max_minutes: int = 13,
+    growth_brief: Optional[dict] = None,
+) -> dict:
     """Generates an authentic 8–13 minute historical documentary script."""
     key_points_str = "\n".join(f"  {i+1}. {p}" for i, p in enumerate(research.get("key_points", [])))
     brand = getattr(config, "CHANNEL_NAME", "Stories Malik")
+
+    pacing_directive = ""
+    if growth_brief and growth_brief.get("longform_pacing_directive"):
+        pacing_directive = f"\nHISTORICAL RETENTION DIRECTIVE (PAST PERFORMANCE INSIGHT):\n- {growth_brief['longform_pacing_directive']}\n"
 
     lang_instruction = (
         "LANGUAGE: Write all narration, section titles, and captions in authentic, broadcast-quality HINDI (हिंदी - Devanagari script). "
@@ -160,7 +179,7 @@ HOOK QUESTION: {research.get('hook_question', '')}
 KEY POINTS:
 {key_points_str}
 {_facts_block(research, limit=4000)}
-
+{pacing_directive}
 PRODUCTION SPECIFICATIONS:
 - Target Video Duration: {min_minutes} to {max_minutes} minutes (strictly under 14:00 to comply with YouTube limits).
 - Target Script Length: 950 to 1,250 words total across 8 to 10 comprehensive chapters.
@@ -214,10 +233,19 @@ Respond with ONLY a valid JSON object matching this schema:
     return script
 
 
-def _write_shorts_script(research: dict, language: str = "hi", shorts_format: str = "historical_fact") -> dict:
+def _write_shorts_script(
+    research: dict,
+    language: str = "hi",
+    shorts_format: str = "historical_fact",
+    growth_brief: Optional[dict] = None,
+) -> dict:
     """Generates an independent, high-retention 25–60s YouTube Short with candidate hooks."""
     brand = getattr(config, "CHANNEL_NAME", "Stories Malik")
     key_points_str = "\n".join(f"  - {p}" for p in research.get("key_points", [])[:3])
+
+    pacing_directive = ""
+    if growth_brief and growth_brief.get("shorts_pacing_directive"):
+        pacing_directive = f"\nHISTORICAL RETENTION DIRECTIVE (PAST PERFORMANCE INSIGHT):\n- {growth_brief['shorts_pacing_directive']}\n"
 
     lang_instruction = (
         "LANGUAGE: Write all narration in punchy, dramatic HINDI (हिंदी - Devanagari script). "
@@ -234,7 +262,7 @@ CORE HOOK QUESTION: {research.get('hook_question', '')}
 KEY FACTS:
 {key_points_str}
 {_facts_block(research, limit=2000)}
-
+{pacing_directive}
 SHORTS PRODUCTION RULES:
 1. 25–60 Seconds Total Duration: Narration must be 100–145 total words across 3–4 tight sections.
 2. 0–2s Hook: Immediate high-intrigue question or verified historical contradiction.

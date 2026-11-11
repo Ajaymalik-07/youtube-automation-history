@@ -244,6 +244,33 @@ def get_video_analytics(
             snaps[video_id] = structured_record
             save_snapshots(snaps)
 
+            # Also persist versioned checkpoint into HistoricalPerformanceDB
+            try:
+                from apis.growth_database import get_performance_db
+                get_performance_db().record_snapshot(
+                    video_id=video_id,
+                    video_format="short" if is_shorts else "longform",
+                    topic=structured_record.get("topic", "Historical Topic"),
+                    content_pillar=structured_record.get("pillar_name", "General History"),
+                    publication_timestamp=structured_record.get("published_at", ""),
+                    video_duration=float(structured_record.get("duration_seconds", 0.0) or 0.0),
+                    title=structured_record.get("title", f"Video {video_id}"),
+                    views=int(metrics_dict.get("views", 0) or 0),
+                    engaged_views=int(metrics_dict.get("engagedViews", 0) or 0),
+                    watch_time_minutes=float(metrics_dict.get("estimatedMinutesWatched", 0.0) or 0.0),
+                    average_view_duration_seconds=float(metrics_dict.get("averageViewDuration", 0.0) or 0.0),
+                    average_percentage_viewed=float(metrics_dict.get("averageViewPercentage", 0.0) or 0.0),
+                    impressions=int(metrics_dict.get("impressions", 0) or 0),
+                    ctr=float(metrics_dict.get("impressionClickThroughRate", 0.0) or 0.0),
+                    likes=int(metrics_dict.get("likes", 0) or 0),
+                    comments=int(metrics_dict.get("comments", 0) or 0),
+                    subscribers_gained=int(metrics_dict.get("subscribersGained", 0) or 0),
+                    traffic_sources=traffic_sources,
+                    checkpoint="live_analytics_query",
+                )
+            except Exception:
+                pass
+
             return structured_record
 
         # Empty response (e.g. newly published video with no view history yet)

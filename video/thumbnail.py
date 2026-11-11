@@ -506,12 +506,13 @@ def render(style: str, out_path: str, text: str, bg_path: str | None = None,
     return out_path
 
 
-def generate_thumbnail_concepts(title: str, topic: str = "") -> dict:
+def generate_thumbnail_concepts(title: str, topic: str = "", preferred_style: str | None = None) -> dict:
     """
     Generates 3 distinct thumbnail text concepts:
     1. search: Direct, clear, recognizable historical figure or site.
     2. story: Dramatic narrative conflict or turning point.
     3. curiosity: Paradoxical, mysterious question or untold angle.
+    preferred_style: optional rendering style recommended by Growth Intelligence ('cinematic', 'impact', 'split', 'studio')
     """
     base_text = auto_text(title or topic)
     clean = re.sub(r"[^\w\s]", "", base_text).strip()
@@ -519,6 +520,8 @@ def generate_thumbnail_concepts(title: str, topic: str = "") -> dict:
 
     lead_word = words[0] if words else "History"
     focus_phrase = " ".join(words[:3]) if words else "Ancient Mystery"
+
+    rec_style = preferred_style if preferred_style in STYLES else "cinematic"
 
     return {
         "search_oriented": {
@@ -536,4 +539,5 @@ def generate_thumbnail_concepts(title: str, topic: str = "") -> dict:
             "style": "split",
             "concept": "Split panel highlighting archaeological mystery vs popular lore",
         },
+        "recommended_style": rec_style,
     }

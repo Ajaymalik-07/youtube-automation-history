@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.0] - 2026-11-11 - Phase 19: Stories Malik YouTube Growth Intelligence Engine
+
+### Added
+- **Historical Performance Database (`apis/growth_database.py`):**
+  - Immutable, versioned storage of analytics checkpoints (`HistoricalPerformanceDB`) in `output/historical_performance_db.json`.
+  - Full tracking: video format, topic, content pillar (1-10), duration, views, engaged views, watch time, AVD, APV, impressions, CTR, traffic sources.
+- **Stories Malik Growth Intelligence Engine (`agents/growth_analyst.py`):**
+  - Independent Shorts performance analysis across 8 documentary formats with duration sweet-spot analysis and subscriber conversion tracking.
+  - Independent Long-form analysis decoupling packaging diagnostics (impressions/CTR) from storytelling diagnostics (AVD/APV).
+  - Content pillar intelligence evaluating all 10 historical pillars, identifying underexplored and high-converting categories.
+  - Title and thumbnail empirical pattern analysis (Search vs Story vs Curiosity, style traction).
+  - Automated weekly reports in JSON (`output/weekly_growth_intelligence.json`) and Markdown (`output/weekly_growth_intelligence.md`).
+  - Real-time `get_adaptive_production_brief()` directive for production agents.
+- **Controlled Growth Experiment Framework (`agents/experiment_tracker.py`):**
+  - Tracks hypotheses, sample sizes, control vs test variants, and conclusions in `output/growth_experiments.json`.
+  - Enforces minimum sample size thresholds ($\ge 3$ videos) to prevent premature winning claims.
+- **Phase 19 Growth Intelligence Documentation (`docs/PHASE_19_GROWTH_INTELLIGENCE.md`):**
+  - Comprehensive documentation of architecture, metrics, and adaptive production loops.
+
+### Changed
+- `agents/topic_discovery.py`: Integrated adaptive growth brief into topic opportunity scoring (+3.0 bonus for underexplored/high-converting pillars).
+- `agents/researcher.py`: Directed topic discovery towards high-traction historical pillars.
+- `agents/scriptwriter.py`: Injected retention directives into long-form and Shorts script generation prompts.
+- `agents/seo_optimizer.py`: Added `preferred_style` support to `generate_title_candidates()`.
+- `video/thumbnail.py`: Added `preferred_style` support to `generate_thumbnail_concepts()`.
+- `automation.py`: Connected adaptive growth briefs and automated recording into `HistoricalPerformanceDB`.
+- Test suite expanded from 111 to **123 passing tests** (`tests/test_growth_intelligence.py`).
+
+---
+
 ## [2.2.1] - 2026-11-11 - Phase 18.1: Google OAuth Reauthorization & Live Analytics Completion
 
 ### Added

@@ -49,6 +49,8 @@ from uploader.safety import (
     PublishingState,
     record_production_state,
 )
+from agents.growth_analyst import get_adaptive_production_brief
+from apis.growth_database import get_performance_db
 
 IST = timezone(timedelta(hours=5, minutes=30))
 SCHEDULE_FILE = os.path.join(config.OUTPUT_DIR, "automation_schedule.json")
@@ -217,19 +219,21 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
         except Exception as e:
             print(f"   ⚠ Error reading pre-rendered longform: {e}")
 
-    # 1. Topic Research
+    # 1. Topic Research with Adaptive Growth Intelligence
+    growth_brief = get_adaptive_production_brief()
     print(f"  [1/8] Researching topic for {day_theme['day']}: {day_theme['theme']} ({day_theme['theme_hi']})…")
     research = research_topic(
         channel_description=config.CHANNEL_DESCRIPTION,
         focus_angle=f"{day_theme['theme']} ({day_theme['day']})",
+        growth_brief=growth_brief,
     )
     with open(os.path.join(config.OUTPUT_DIR, "research.json"), "w", encoding="utf-8") as f:
         json.dump(research, f, indent=2)
     print(f"   ✅ Topic: {research.get('video_title')}")
 
-    # 2. Script in Hindi (strictly < 15 min)
+    # 2. Script in Hindi (strictly < 15 min) with Retention Directive
     print(f"  [2/8] Writing documentary script in Hindi (8–10 sections, strictly <15 min)…")
-    hindi_script = write_script(research, video_type="long", language="hi")
+    hindi_script = write_script(research, video_type="long", language="hi", growth_brief=growth_brief)
     with open(os.path.join(config.OUTPUT_DIR, "script_hi.json"), "w", encoding="utf-8") as f:
         json.dump(hindi_script, f, indent=2, ensure_ascii=False)
     with open(os.path.join(config.OUTPUT_DIR, "script.json"), "w", encoding="utf-8") as f:
@@ -415,6 +419,21 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
     state["last_longform_date"] = target_date
     if not is_prerender and yt_url.startswith("https://"):
         state["last_longform_pub_date"] = target_date
+        try:
+            vid_id = yt_url.split("watch?v=")[-1].split("&")[0] if "watch?v=" in yt_url else yt_url.split("/")[-1]
+            get_performance_db().record_snapshot(
+                video_id=vid_id,
+                video_format="longform",
+                topic=research.get("topic", seo_result["title"]),
+                content_pillar=research.get("focus_angle", day_theme.get("theme", "General History")),
+                publication_timestamp=publish_at or datetime.now(timezone.utc).isoformat(),
+                video_duration=hindi_script.get("estimated_duration_seconds", 0.0),
+                title=seo_result["title"],
+                thumbnail_reference=thumb_path,
+                checkpoint="initial_upload",
+            )
+        except Exception as snap_err:
+            print(f"   ℹ Performance DB snapshot record notice: {snap_err}")
     state["history_runs"].append({
         "type": "longform",
         "title": seo_result["title"],
@@ -573,8 +592,15 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
             "tags": ["IndianHistory", "Shorts", "Archaeology", "HistoryFacts"],
         }
 
-    # 1. Write Short Script
-    short_script = write_script(research, video_type="shorts", language=lang)
+    # 1. Write Short Script with Adaptive Pacing Directives
+    growth_brief = get_adaptive_production_brief()
+    short_script = write_script(
+        research,
+        video_type="shorts",
+        language=lang,
+        shorts_format=format_choice,
+        growth_brief=growth_brief,
+    )
     with open(os.path.join(item_dir, "script.json"), "w", encoding="utf-8") as f:
         json.dump(short_script, f, indent=2, ensure_ascii=False)
 
@@ -670,6 +696,21 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
     if not is_prerender and yt_url.startswith("https://"):
         state[sh_key] = True
         state[f"{sh_key}_url"] = yt_url
+        try:
+            vid_id = yt_url.split("watch?v=")[-1].split("&")[0] if "watch?v=" in yt_url else yt_url.split("/")[-1]
+            get_performance_db().record_snapshot(
+                video_id=vid_id,
+                video_format="short",
+                topic=research.get("topic", seo_res["title"]),
+                content_pillar=research.get("focus_angle", day_theme.get("theme", "General History")),
+                publication_timestamp=publish_at or datetime.now(timezone.utc).isoformat(),
+                video_duration=short_script.get("estimated_duration_seconds", 45.0),
+                title=seo_res["title"],
+                checkpoint="initial_upload",
+                metadata_extras={"format": format_choice},
+            )
+        except Exception as snap_err:
+            print(f"   ℹ Performance DB snapshot record notice: {snap_err}")
     state["history_runs"].append({
         "type": "short",
         "title": result["title"],

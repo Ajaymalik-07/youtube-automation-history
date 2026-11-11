@@ -139,7 +139,8 @@ def _parse_research_json(raw: str) -> dict:
 def research_topic(channel_description: str = "",
                    topic_override: str = "",
                    focus_angle: str = "",
-                   trend_context: list | None = None) -> dict:
+                   trend_context: list | None = None,
+                   growth_brief: dict | None = None) -> dict:
     """
     Conducts deep evidence-based historical research for Stories Malik.
 
@@ -148,6 +149,7 @@ def research_topic(channel_description: str = "",
       topic_override      : User-specified exact topic
       focus_angle         : Editorial calendar focus angle (e.g. Wednesday Kings & Empires)
       trend_context       : Live historical anniversaries or archaeological discoveries
+      growth_brief        : Adaptive growth intelligence directive from historical performance
     """
     banned = load_banned_topics()
     banned_str = ", ".join(f'"{t}"' for t in banned)
@@ -243,6 +245,8 @@ Respond with ONLY a valid JSON object. No markdown fences, no explanatory preamb
     # MODE 2: AI Discovers Topic within Theme
     if focus_angle.strip():
         chosen_angle = focus_angle.strip()
+    elif growth_brief and growth_brief.get("preferred_pillars"):
+        chosen_angle = f"{growth_brief['preferred_pillars'][0]} (Growth Intelligence Focus)"
     else:
         weekly_theme_info = config.get_weekly_theme()
         chosen_angle = f"{weekly_theme_info['theme']} ({weekly_theme_info['day']})"
@@ -254,6 +258,11 @@ Respond with ONLY a valid JSON object. No markdown fences, no explanatory preamb
         joined = "\n".join(f"  - {t}" for t in trend_context[:15])
         trend_block = f"\nRECENT ARCHAEOLOGICAL EXCAVATIONS & HISTORICAL ANNIVERSARIES:\n{joined}\n"
 
+    growth_block = ""
+    if growth_brief and growth_brief.get("preferred_pillars"):
+        pillars_str = ", ".join(growth_brief["preferred_pillars"])
+        growth_block = f"\nHISTORICAL GROWTH DIRECTIVES (PAST CHANNEL TRACTION):\n- Prioritize high-traction and underexplored pillars: {pillars_str}\n"
+
     prompt = f"""You are the Chief Historical Researcher for Stories Malik, a premier YouTube documentary channel dedicated to verified Indian and World history.
 
 Channel Profile:
@@ -263,7 +272,7 @@ EDITORIAL FOCUS FOR TODAY:
 Theme: >>> {chosen_angle} <<<
 Banned Topics (Already covered or rejected): {banned_str}
 {trend_block}
-
+{growth_block}
 MISSION:
 1. Identify an astonishing, historically verified event, lost civilization, ruler, or archaeological mystery within this theme.
 2. Formulate a structured research dossier strictly adhering to the Historical Evidence Framework.
