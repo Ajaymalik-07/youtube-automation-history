@@ -645,6 +645,48 @@
       "url": "https://www.youtube.com/watch?v=zJ-VF6aCsc8",
       "date_ist": "2026-11-10T03:41:52.536217+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "How Was Kailash Temple Built TOP-DOWN Without 1 Mistake? #Shorts...",
+      "url": "https://www.youtube.com/watch?v=2IQAyTfqql8",
+      "date_ist": "2026-11-11T14:20:38.249561+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "This 1600YearOld Iron: Why Has This 1,600-Year-Old Iron Pillar...",
+      "url": "https://www.youtube.com/watch?v=92kjsBopLOw",
+      "date_ist": "2026-11-11T14:27:06.903465+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u092a\u0930\u091a\u0928 \u090f\u0921\u0935\u0938 \u091f\u0915\u0928\u0932\u091c: \u0915\u094d\u092f\u093e \u092a\u094d\u0930\u093e\u091a\u0940\u0928 \u0915\u093e\u0932 \u092e\u0947\u0902 \u090f\u0921\u0935\u093e\u0902\u0938 \u091f\u0947\u0915\u094d\u0928\u094b\u0932\u0949\u091c\u0940 \u0925\u0940?...",
+      "url": "https://www.youtube.com/watch?v=aIpZeqkZGl0",
+      "date_ist": "2026-11-11T14:32:59.551305+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u0935\u091c\u091e\u0928\u0915 \u0935\u0936\u0932\u0915\u092f \u092a\u0924\u0925\u0930: \u0935\u0948\u091c\u094d\u091e\u093e\u0928\u093f\u0915 \u0939\u0948\u0930\u093e\u0928: \u092c\u093f\u0928\u093e \u091c\u094b\u095c \u0915\u0947 \u0915\u0948\u0938\u0947 \u092c\u0928\u0947 \u092f\u0947...",
+      "url": "https://www.youtube.com/watch?v=yawvJjlbkl4",
+      "date_ist": "2026-11-11T14:38:31.956906+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Baffling Monoliths were: Baffling Monoliths: How were they moved?...",
+      "url": "https://www.youtube.com/watch?v=QnbtBIU2YzI",
+      "date_ist": "2026-11-11T14:43:51.079471+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Longevity Enigma Indus: Why Did the Indus Valley Civilization...",
+      "url": "https://www.youtube.com/watch?v=cfGb_aUgVN4",
+      "date_ist": "2026-11-11T15:25:16.309521+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -674,11 +716,11 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-11",
+  "last_longform_date": "2026-11-12",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-11",
+  "last_longform_pub_date": "2026-11-12",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -794,5 +836,17 @@
   "last_short_pub_2026-11-11_22": true,
   "last_short_pub_2026-11-11_22_url": "https://www.youtube.com/watch?v=BnJVr_OL8_A",
   "last_longform_pub_2026-11-11": true,
-  "last_longform_pub_2026-11-11_url": "https://www.youtube.com/watch?v=zJ-VF6aCsc8"
+  "last_longform_pub_2026-11-11_url": "https://www.youtube.com/watch?v=zJ-VF6aCsc8",
+  "last_short_pub_2026-11-12_9": true,
+  "last_short_pub_2026-11-12_9_url": "https://www.youtube.com/watch?v=2IQAyTfqql8",
+  "last_short_pub_2026-11-12_12": true,
+  "last_short_pub_2026-11-12_12_url": "https://www.youtube.com/watch?v=92kjsBopLOw",
+  "last_short_pub_2026-11-12_16": true,
+  "last_short_pub_2026-11-12_16_url": "https://www.youtube.com/watch?v=aIpZeqkZGl0",
+  "last_short_pub_2026-11-12_19": true,
+  "last_short_pub_2026-11-12_19_url": "https://www.youtube.com/watch?v=yawvJjlbkl4",
+  "last_short_pub_2026-11-12_22": true,
+  "last_short_pub_2026-11-12_22_url": "https://www.youtube.com/watch?v=QnbtBIU2YzI",
+  "last_longform_pub_2026-11-12": true,
+  "last_longform_pub_2026-11-12_url": "https://www.youtube.com/watch?v=cfGb_aUgVN4"
 }
