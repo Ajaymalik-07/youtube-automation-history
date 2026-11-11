@@ -4,7 +4,7 @@ Thumbnail designer — four styles, all 1280×720 (YouTube's recommended size).
   impact     Huge outlined block letters over a darkened photo. Classic, loud.
   cinematic  Full-bleed photo, film letterbox, wide-tracked title at the bottom.
   split      Bold colour panel with the text, photo slashed in on an angle.
-  studio     The raunakpatil.com look: dark card, light type, spectrum bars.
+  studio     Clean dark card, refined typography, historical spectrum bars.
 
 Text uses *stars* to mark the highlighted word, e.g. "Time *stops* here".
 Keep it to 2–5 words; the video title already carries the rest.
@@ -504,3 +504,36 @@ def render(style: str, out_path: str, text: str, bg_path: str | None = None,
         if os.path.getsize(out_path) <= MAX_BYTES:
             break
     return out_path
+
+
+def generate_thumbnail_concepts(title: str, topic: str = "") -> dict:
+    """
+    Generates 3 distinct thumbnail text concepts:
+    1. search: Direct, clear, recognizable historical figure or site.
+    2. story: Dramatic narrative conflict or turning point.
+    3. curiosity: Paradoxical, mysterious question or untold angle.
+    """
+    base_text = auto_text(title or topic)
+    clean = re.sub(r"[^\w\s]", "", base_text).strip()
+    words = clean.split()
+
+    lead_word = words[0] if words else "History"
+    focus_phrase = " ".join(words[:3]) if words else "Ancient Mystery"
+
+    return {
+        "search_oriented": {
+            "text": f"*{focus_phrase}*",
+            "style": "cinematic",
+            "concept": "Clear architectural or portrait centerpiece with high contrast",
+        },
+        "story_oriented": {
+            "text": f"The *Rise* of {focus_phrase}",
+            "style": "impact",
+            "concept": "Dramatic battlefield or throne confrontation with bold highlighted text",
+        },
+        "curiosity_oriented": {
+            "text": f"The *Untold* {focus_phrase}",
+            "style": "split",
+            "concept": "Split panel highlighting archaeological mystery vs popular lore",
+        },
+    }
