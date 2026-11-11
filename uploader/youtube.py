@@ -21,7 +21,7 @@ from uploader.safety import (
     record_quality_gate_result,
     PublishingState,
 )
-from uploader.quality_gates import evaluate_all_quality_gates
+from uploader.quality_gates import evaluate_all_quality_gates, classify_content_disclosures
 
 TOKEN_FILE = "youtube_token.pickle"
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -293,6 +293,7 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
     # --- 5. YouTube API Upload Execution ---
     youtube = _get_service()
     verified_cat_id = verify_category_id(youtube, getattr(config, "VIDEO_CATEGORY_ID", "27"))
+    disclosures = classify_content_disclosures(script, video_path)
 
     body = {
         "snippet": {
@@ -307,8 +308,8 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
             "license":                 "youtube",
             "embeddable":              True,
             "publicStatsViewable":     True,
-            "selfDeclaredMadeForKids": getattr(config, "MADE_FOR_KIDS", False),
-            "containsSyntheticMedia":   getattr(config, "CONTAINS_SYNTHETIC_MEDIA", True),
+            "selfDeclaredMadeForKids": disclosures["selfDeclaredMadeForKids"],
+            "containsSyntheticMedia":   disclosures["containsSyntheticMedia"],
         },
     }
     if target_publish_at:

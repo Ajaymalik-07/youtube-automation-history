@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.0] - 2026-11-11 - Phase 18: Production Readiness, Live YouTube Validation & Hardening
+
+### Added
+- **Explicit Content Disclosure Classifier (`uploader/quality_gates.py`):**
+  - Programmatic determination of `selfDeclaredMadeForKids` based on audience analysis and COPPA guidelines.
+  - Granular `containsSyntheticMedia` classification distinguishing AI voice synthesis / generative visuals from archival footage.
+- **Deep Video Integrity Verification (`uploader/quality_gates.py`):**
+  - Integrated `ffprobe` container inspection for `moov` atom validation, stream detection, aspect ratio confirmation, and audio presence.
+- **Production Readiness & Hardening Audit Report (`docs/PHASE_18_PRODUCTION_READINESS.md`):**
+  - Full PASS/FAIL/BLOCKED audit of live APIs, OAuth credentials, video renders, and failure recovery.
+- **Visual Validation Asset Generation:**
+  - Extracted representative 1080p and 9:16 verification frames with verified Devanagari text rendering and mobile safe zones.
+
+### Changed
+- `uploader/youtube.py`: Connected `classify_content_disclosures` directly to YouTube API `status` insertion payload.
+- `config.py`: Hardened stdout/stderr UTF-8 reconfigure for Windows console compatibility.
+- `tests/test_automated_publishing.py`: Expanded test suite to 98 tests covering disclosure classification, container validation, and restart idempotency.
+
+---
+
 ## [2.1.0] - 2026-11-11 - Phase 17: Fully Automated YouTube Publishing & Scheduling
 
 ### Added

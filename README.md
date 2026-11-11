@@ -9,9 +9,9 @@
 [![Channel](https://img.shields.io/badge/Channel-Stories%20Malik-red?style=flat-square&logo=youtube)](https://youtube.com)
 [![Language](https://img.shields.io/badge/Primary%20Language-Hindi%20(Devanagari)-orange?style=flat-square)](docs/HINDI_RENDERING_STANDARD.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-95%20Passing-brightgreen?style=flat-square)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-98%20Passing-brightgreen?style=flat-square)](tests/)
 
-[**Quick Start**](#-quick-start) · [**Architecture & Standards**](#-standards--documentation) · [**Content Pillars**](#-10-historical-content-pillars) · [**Autonomous Publishing**](#-autonomous-publishing--quality-gates) · [**Analytics**](#-youtube-analytics-v2)
+[**Quick Start**](#-quick-start) · [**Standards & Documentation**](#-standards--documentation) · [**Production Readiness Audit**](docs/PHASE_18_PRODUCTION_READINESS.md) · [**Autonomous Publishing**](#-autonomous-publishing--quality-gates) · [**Analytics**](#-youtube-analytics-v2)
 
 </div>
 
@@ -207,6 +207,8 @@ For detailed architectural guidelines, consult the `docs/` suite:
 - [YouTube Analytics Standard](docs/YOUTUBE_ANALYTICS_STANDARD.md)
 - [Growth Analysis Standard](docs/GROWTH_ANALYSIS_STANDARD.md)
 - [Publishing Safety Standard](docs/PUBLISHING_SAFETY_STANDARD.md)
+- [Automated Publishing Standard](docs/AUTOMATED_PUBLISHING_STANDARD.md)
+- [Phase 18 Production Readiness Audit](docs/PHASE_18_PRODUCTION_READINESS.md)
 - [30-Day Publishing Experiment Plan](docs/PUBLISHING_EXPERIMENT_PLAN.md)
 - [Full Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
 - [Release Changelog](docs/CHANGELOG.md)

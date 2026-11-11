@@ -340,3 +340,76 @@ def test_category_id_verification():
     # Fallback when requested category not supported
     cat_id_fallback = verify_category_id(mock_yt, category_id="99", region_code="IN")
     assert cat_id_fallback in ("27", "28")
+
+
+def test_classify_content_disclosures():
+    from uploader.quality_gates import classify_content_disclosures
+
+    # 1. Historical documentary with AI TTS narration
+    doc_script = {
+        "title": "Secrets of the Harappan Civilization",
+        "audio_source": "edge_tts",
+        "target_audience": "General History Enthusiasts",
+        "tags": ["history", "archaeology", "ancient india"]
+    }
+    disc = classify_content_disclosures(doc_script)
+    assert disc["selfDeclaredMadeForKids"] is False
+    assert disc["containsSyntheticMedia"] is True
+
+    # 2. Explicit child-directed content
+    kids_script = {
+        "title": "Fun Cartoon Nursery Rhymes For Kids",
+        "audio_source": "human_voice",
+        "target_audience": "Toddlers and young children",
+        "contains_synthetic_media": False
+    }
+    disc_kids = classify_content_disclosures(kids_script)
+    assert disc_kids["selfDeclaredMadeForKids"] is True
+    assert disc_kids["containsSyntheticMedia"] is False
+
+    # 3. Authentic archival narration without synthetic elements
+    archival_script = {
+        "title": "Original 1947 Audio Archives of Independence",
+        "audio_source": "archival_recording",
+        "visual_source": "national_archives",
+        "contains_synthetic_media": False,
+        "made_for_kids": False
+    }
+    disc_archival = classify_content_disclosures(archival_script)
+    assert disc_archival["selfDeclaredMadeForKids"] is False
+    assert disc_archival["containsSyntheticMedia"] is False
+
+
+def test_validate_video_gate_rejects_missing_thumbnail(tmp_path):
+    from uploader.quality_gates import validate_video_gate
+    vid = tmp_path / "sample.mp4"
+    vid.write_bytes(b"0" * (600 * 1024))
+    
+    # Missing thumbnail path
+    passed, issues = validate_video_gate(str(vid), thumb_path="non_existent_thumb.jpg")
+    assert passed is False
+    assert any("thumbnail" in i.lower() for i in issues)
+
+
+def test_application_restart_duplicate_prevention(tmp_path):
+    from uploader.safety import record_production_state, get_production_record, PublishingState
+    vid = tmp_path / "restart_test.mp4"
+    vid.write_bytes(b"0" * (600 * 1024))
+    vid_path = str(vid)
+
+    # Simulate production run pre-restart
+    record_production_state(vid_path, PublishingState.PUBLISHED.value, metadata={
+        "youtube_id": "yt_restart_999",
+        "youtube_url": "https://www.youtube.com/watch?v=yt_restart_999",
+    })
+
+    # Simulate fresh process restart reading from disk
+    rec = get_production_record(vid_path)
+    assert rec is not None
+    assert rec["current_state"] == PublishingState.PUBLISHED.value
+    assert rec["metadata"]["youtube_id"] == "yt_restart_999"
+
+    # Verify upload refuses to duplicate
+    res = upload_to_youtube({"title": "Restart Test"}, video_path=vid_path, skip_quality_gate=True)
+    assert res == "https://www.youtube.com/watch?v=yt_restart_999"
+
