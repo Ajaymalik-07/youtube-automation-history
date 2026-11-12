@@ -592,3 +592,114 @@ def get_production_run_brief(video_type: str = "longform") -> Dict[str, Any]:
         "preferred_title_style": "curiosity_oriented",
         "preferred_thumbnail_style": "cinematic",
     }
+
+
+def evaluate_storytelling_structure(script: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Phase 24: Evaluates documentary/Shorts storytelling across 9 audience-retention criteria:
+      1. First 5-second hook
+      2. First 30-second retention / central mystery clarity
+      3. Narrative progression
+      4. Evidence presentation
+      5. Pacing
+      6. Visual variety
+      7. Payoff
+      8. Ending satisfaction
+      9. Subject-specific micro-story completeness (Shorts must deliver a complete payoff,
+         not stop early to force viewers into a long video)
+    """
+    sections = script.get("sections", []) or []
+    video_type = str(script.get("video_type", "normal")).lower()
+    is_short = video_type in ("short", "shorts")
+    issues: List[str] = []
+
+    if not sections:
+        return {
+            "video_type": video_type,
+            "overall_score": 0.0,
+            "passed": False,
+            "issues": ["Script contains no sections."],
+            "diagnostics": {},
+            "recommendations": ["Provide structured narrative sections with hook, evidence, and payoff."],
+        }
+
+    hook_text = str(sections[0].get("narration", "") or "").strip()
+    hook_words = len(hook_text.split())
+    hook_5s_ok = 6 <= hook_words <= 35
+    if not hook_5s_ok:
+        issues.append(f"First 5-second hook length ({hook_words} words) outside optimal 6-35 word range.")
+
+    opening_window = " ".join(str(s.get("narration", "") or "") for s in sections[:2]).strip()
+    has_question_or_mystery = any(
+        tok in opening_window.lower()
+        for tok in ("?", "why", "how", "secret", "mystery", "hidden", "क्यों", "कैसे", "रहस्य", "सच", "क्या")
+    )
+
+    all_narration = " ".join(str(s.get("narration", "") or "") for s in sections)
+    has_evidence_cues = any(
+        tok in all_narration.lower()
+        for tok in ("inscription", "archaeolog", "excavat", "manuscript", "chronicle", "carbon", "record", "museum", "अभिलेख", "शिलालेख", "खुदाई", "प्रमाण", "इतिहासकार", "स्रोत")
+    )
+
+    visual_prompts = [
+        str(s.get("visual_prompt") or s.get("scene_description") or s.get("visual") or "").strip().lower()
+        for s in sections
+    ]
+    non_empty_visuals = [v for v in visual_prompts if v]
+    visual_variety_ratio = (len(set(non_empty_visuals)) / len(sections)) if sections else 0.0
+
+    ending_text = str(sections[-1].get("narration", "") or "").strip()
+    ending_low = ending_text.lower()
+    cliffhanger_bait_phrases = (
+        "watch the full video",
+        "watch full video",
+        "part 2",
+        "link in bio",
+        "link in description",
+        "check pinned comment for full",
+        "पूरा वीडियो देखें",
+        "पार्ट 2",
+    )
+    has_cliffhanger_bait = any(p in ending_low for p in cliffhanger_bait_phrases)
+    if is_short and has_cliffhanger_bait:
+        issues.append("Shorts ending uses cliffhanger bait forcing viewers to a long video instead of delivering a complete micro-story payoff.")
+
+    ending_words = len(ending_text.split())
+    payoff_complete = (ending_words >= 8) and not (is_short and has_cliffhanger_bait)
+
+    min_sections = 3 if is_short else 6
+    progression_ok = len(sections) >= min_sections
+    if not progression_ok:
+        issues.append(f"Narrative progression has {len(sections)} sections (minimum {min_sections} expected for {video_type}).")
+
+    scores = {
+        "first_5s_hook": 9.0 if hook_5s_ok else 5.0,
+        "first_30s_retention_setup": 8.5 if (hook_5s_ok and has_question_or_mystery) else 6.0,
+        "central_mystery_clarity": 9.0 if has_question_or_mystery else 6.0,
+        "narrative_progression": 9.0 if progression_ok else 5.0,
+        "evidence_presentation": 9.0 if has_evidence_cues else 6.5,
+        "pacing": 8.5 if all(len(str(s.get("narration", "")).split()) >= 5 for s in sections) else 6.0,
+        "visual_variety": round(min(10.0, 5.0 + visual_variety_ratio * 5.0), 2),
+        "payoff": 9.0 if payoff_complete else 4.0,
+        "ending_satisfaction": 9.0 if (payoff_complete and not has_cliffhanger_bait) else 4.0,
+    }
+    overall_score = round(sum(scores.values()) / len(scores), 2)
+
+    recs: List[str] = []
+    if not has_question_or_mystery:
+        recs.append("Clarify the central historical question or paradox in the opening 30 seconds.")
+    if not has_evidence_cues:
+        recs.append("Anchor narrative progression with explicit archaeological, epigraphic, or primary-source evidence.")
+    if visual_variety_ratio < 0.6:
+        recs.append("Increase visual prompt diversity across scenes to sustain retention.")
+    if is_short and has_cliffhanger_bait:
+        recs.append("Deliver a self-contained micro-story resolution in the final Short section.")
+
+    return {
+        "video_type": video_type,
+        "overall_score": overall_score,
+        "passed": len(issues) == 0,
+        "issues": issues,
+        "diagnostics": scores,
+        "recommendations": recs or ["Storytelling structure meets Phase 24 criteria."],
+    }

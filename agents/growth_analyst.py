@@ -1641,3 +1641,311 @@ def generate_phase23_reports(
             "experiment_evaluation": exp_path,
         },
     }
+
+
+def evaluate_packaging_candidate(
+    title: str,
+    thumbnail_spec: Optional[Dict[str, Any]] = None,
+    documentary_topic: str = "",
+    video_format: str = "longform",
+) -> Dict[str, Any]:
+    """
+    Phase 24: Structured packaging evaluation for Titles & Thumbnails.
+    Checks subject clarity, curiosity without generic clickbait, documentary alignment,
+    Hindi/Hinglish readability, mobile thumbnail legibility, and historical authenticity
+    (rejecting fabricated historical imagery presented as authentic photographs).
+    """
+    t = str(title or "").strip()
+    t_low = t.lower()
+    issues: List[str] = []
+
+    if not t:
+        issues.append("Title is empty.")
+
+    generic_clickbait = (
+        "you won't believe",
+        "shocking truth",
+        "100% real",
+        "gone wrong",
+        "mind blown",
+        "watch till end",
+        "wait for the end",
+    )
+    has_clickbait = any(p in t_low for p in generic_clickbait) or ("!!!" in t) or (len(t) >= 12 and t.isupper())
+    if has_clickbait:
+        issues.append("Title uses generic clickbait phrasing or excessive capitalization/punctuation.")
+
+    max_len = 75 if video_format == "longform" else 85
+    length_ok = 20 <= len(t) <= max_len
+    if t and not length_ok:
+        issues.append(f"Title length ({len(t)} chars) outside recommended 20-{max_len} char range.")
+
+    topic_tokens = [w for w in str(documentary_topic or "").lower().split() if len(w) > 3]
+    topic_aligned = True if not topic_tokens else any(tok in t_low for tok in topic_tokens)
+    if not topic_aligned:
+        issues.append("Title does not clearly reference the actual documentary topic.")
+
+    title_score = 10.0
+    if not t:
+        title_score = 0.0
+    else:
+        if has_clickbait:
+            title_score -= 4.0
+        if not length_ok:
+            title_score -= 1.5
+        if not topic_aligned:
+            title_score -= 2.5
+        if not any(ch in t for ch in ("?", "क्यों", "कैसे", "रहस्य", ":", "—", "-")):
+            title_score -= 0.5
+    title_score = max(0.0, round(title_score, 2))
+
+    thumb_issues: List[str] = []
+    thumb_score = 8.0
+    if thumbnail_spec is not None:
+        concept = str(thumbnail_spec.get("visual_concept", "") or "").strip()
+        overlay = str(thumbnail_spec.get("text_overlay", "") or "").strip()
+        matches_content = bool(thumbnail_spec.get("matches_video_content", True))
+        presents_ai_as_photo = bool(thumbnail_spec.get("presents_ai_as_authentic_photo", False))
+
+        if not concept:
+            thumb_issues.append("Thumbnail lacks one clear visual idea (visual_concept is empty).")
+            thumb_score -= 2.5
+        if len(overlay.split()) > 4:
+            thumb_issues.append(f"Thumbnail text_overlay has {len(overlay.split())} words (maximum 4 for mobile legibility).")
+            thumb_score -= 2.0
+        if not matches_content:
+            thumb_issues.append("Thumbnail does not match actual video content.")
+            thumb_score -= 3.0
+        if presents_ai_as_photo:
+            thumb_issues.append("Historical authenticity violation: fabricated/AI imagery presented as an authentic historical photograph.")
+            thumb_score -= 5.0
+        thumb_score = max(0.0, round(thumb_score, 2))
+
+    all_issues = issues + thumb_issues
+    return {
+        "title": t,
+        "video_format": video_format,
+        "title_score": title_score,
+        "thumbnail_score": thumb_score if thumbnail_spec is not None else None,
+        "passed": len(all_issues) == 0,
+        "issues": all_issues,
+        "has_clickbait": has_clickbait,
+        "topic_aligned": topic_aligned,
+    }
+
+
+def diagnose_audience_growth(
+    evaluation_window_days: int = 30,
+    db_override: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """
+    Phase 24: Diagnoses Shorts and Long-form audience performance separately,
+    distinguishing Discovery vs Packaging vs Storytelling bottlenecks.
+    Excludes mock/test records, preserves unavailable private metrics as None,
+    and reports analytics-dependent optimization as BLOCKED when OAuth scopes are incomplete.
+    """
+    from apis.youtube_analytics import get_analytics_capabilities_and_limitations
+    from uploader.oauth_manager import audit_token_scopes
+
+    caps = get_analytics_capabilities_and_limitations()
+    oauth_audit = audit_token_scopes()
+    owner_connected = bool(caps.get("owner_analytics_connected"))
+
+    db = db_override or get_performance_db()
+    raw_vids = db.get_videos_in_window(days=evaluation_window_days)
+    # Exclude mock and test records strictly
+    real_vids = [
+        v for v in raw_vids
+        if not v.get("is_test_fixture")
+        and not (v.get("metadata_extras") or {}).get("is_test_fixture")
+        and v.get("data_provenance") != "mock_or_test_data"
+    ]
+    shorts = [v for v in real_vids if v.get("video_format") == "short"]
+    longform = [v for v in real_vids if v.get("video_format") == "longform"]
+
+    shorts_perf = analyze_shorts_performance(shorts)
+    longform_perf = analyze_longform_performance(longform)
+
+    def _null_if_unconnected(val: Any) -> Any:
+        return val if owner_connected else None
+
+    shorts_diag = {
+        "video_count": len(shorts),
+        "public_metrics": {
+            "total_views": shorts_perf.get("total_views"),
+            "median_views": shorts_perf.get("median_views"),
+            "total_likes": shorts_perf.get("total_likes"),
+            "total_comments": shorts_perf.get("total_comments"),
+        },
+        "private_owner_metrics": {
+            "watch_time_minutes": _null_if_unconnected(shorts_perf.get("total_watch_time_minutes")),
+            "average_view_duration_seconds": _null_if_unconnected(shorts_perf.get("observed_avg_avd_seconds")),
+            "average_percentage_viewed": _null_if_unconnected(shorts_perf.get("observed_avg_apv")),
+            "viewed_vs_swiped_ratio": None,  # Unavailable in YouTube Analytics API v2
+            "subscribers_gained": _null_if_unconnected(shorts_perf.get("total_subscribers_gained")),
+        },
+        "bottleneck_diagnosis": (
+            "BLOCKED_PENDING_OWNER_ANALYTICS: Public Data API views alone cannot separate Shorts feed discovery from swipe-away retention."
+            if not owner_connected
+            else "EVALUATED_WITH_OWNER_ANALYTICS"
+        ),
+    }
+
+    longform_diag = {
+        "video_count": len(longform),
+        "public_metrics": {
+            "total_views": longform_perf.get("total_views"),
+            "median_views": longform_perf.get("median_views"),
+            "total_likes": longform_perf.get("total_likes"),
+            "total_comments": longform_perf.get("total_comments"),
+        },
+        "private_owner_metrics": {
+            "impressions": None,  # Unavailable in standard Analytics API v2
+            "ctr": None,
+            "watch_time_minutes": _null_if_unconnected(longform_perf.get("total_watch_time_minutes")),
+            "average_view_duration_seconds": _null_if_unconnected(longform_perf.get("storytelling_diagnostics", {}).get("avg_view_duration_seconds")),
+            "average_percentage_viewed": _null_if_unconnected(longform_perf.get("storytelling_diagnostics", {}).get("avg_percentage_viewed")),
+            "subscribers_gained": _null_if_unconnected(longform_perf.get("total_subscribers_gained")),
+        },
+        "bottleneck_diagnosis": (
+            "BLOCKED_PENDING_OWNER_ANALYTICS: Low public views do not prove poor documentary quality; impressions, CTR, AVD, and APV are required to separate discovery, packaging, and storytelling."
+            if not owner_connected
+            else "EVALUATED_WITH_OWNER_ANALYTICS"
+        ),
+    }
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "evaluation_window_days": evaluation_window_days,
+        "channel_id": getattr(config, "YOUTUBE_CHANNEL_ID", ""),
+        "oauth_scopes_granted": oauth_audit.get("granted_scopes", []),
+        "oauth_scopes_missing": oauth_audit.get("missing_scopes", []),
+        "owner_analytics_connected": owner_connected,
+        "analytics_dependent_optimization_status": "ACTIVE" if owner_connected else "BLOCKED",
+        "records_inspected": len(real_vids),
+        "excluded_mock_or_test_records": len(raw_vids) - len(real_vids),
+        "shorts_diagnosis": shorts_diag,
+        "longform_diagnosis": longform_diag,
+        "data_provenance": {
+            "actual_data": True,
+            "public_metrics": "youtube_data_api_v3",
+            "private_owner_analytics": "youtube_analytics_v2" if owner_connected else "unavailable (BLOCKED: missing yt-analytics.readonly)",
+            "unavailable_metrics": [
+                "impressions",
+                "ctr",
+                "viewed_vs_swiped_ratio",
+                *([] if owner_connected else ["watch_time_minutes", "average_view_duration_seconds", "average_percentage_viewed", "subscribers_gained"]),
+            ],
+        },
+        "limitations": caps.get("limitations", []),
+    }
+
+
+def generate_phase24_reports(
+    output_dir: Optional[str] = None,
+    evaluation_window_days: int = 30,
+) -> Dict[str, Any]:
+    """
+    Phase 24: Generates all 7 audience growth & evidence-based optimization reports:
+      1. audience_growth_diagnosis.json
+      2. weekly_shorts_performance_report.json (via Phase 23/24 pipeline)
+      3. weekly_longform_performance_report.json (via Phase 23/24 pipeline)
+      4. topic_opportunity_report.json
+      5. packaging_experiment_report.json
+      6. storytelling_experiment_report.json
+      7. phase24_30day_optimization_report.json
+    """
+    from agents.adaptive_engine import generate_adaptive_opportunity_report
+    from agents.experiment_tracker import get_experiment_tracker
+
+    out_dir = output_dir or getattr(config, "OUTPUT_DIR", "output")
+    os.makedirs(out_dir, exist_ok=True)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    diagnosis = diagnose_audience_growth(evaluation_window_days=evaluation_window_days)
+    opp_report = generate_adaptive_opportunity_report()
+    tracker = get_experiment_tracker()
+    all_exps = tracker.get_all_experiments() if tracker else []
+
+    packaging_exps = [e for e in all_exps if str(e.get("category", "")).lower() in ("packaging", "title", "thumbnail")]
+    storytelling_exps = [e for e in all_exps if str(e.get("category", "")).lower() in ("storytelling", "hook", "pacing", "duration")]
+
+    owner_ok = diagnosis["owner_analytics_connected"]
+    opt_rec = (
+        "Collect owner analytics via interactive OAuth reauthorization (`python authorize_youtube.py` with `youtube.readonly` and `yt-analytics.readonly`) before making packaging or retention changes."
+        if not owner_ok
+        else "Apply validated single-variable experiment winners with p < 0.05 (Bonferroni-adjusted)."
+    )
+
+    packaging_report = {
+        "generated_at": now_iso,
+        "data_provenance": diagnosis["data_provenance"],
+        "experiment_type": "packaging (titles & thumbnails)",
+        "total_experiments": len(packaging_exps),
+        "experiments": packaging_exps,
+        "multiple_comparison_policy": "bonferroni_0.05_over_active_experiments",
+        "auto_frequency_mutation_blocked": True,
+        "recommendation": opt_rec,
+    }
+    storytelling_report = {
+        "generated_at": now_iso,
+        "data_provenance": diagnosis["data_provenance"],
+        "experiment_type": "storytelling (hooks, pacing & duration)",
+        "total_experiments": len(storytelling_exps),
+        "experiments": storytelling_exps,
+        "multiple_comparison_policy": "bonferroni_0.05_over_active_experiments",
+        "auto_frequency_mutation_blocked": True,
+        "recommendation": opt_rec,
+    }
+    optimization_30d = {
+        "generated_at": now_iso,
+        "evaluation_window_days": evaluation_window_days,
+        "cadence_preserved": {
+            "longform_daily": getattr(config, "DAILY_LONGFORM_TARGET", 1),
+            "shorts_daily": getattr(config, "DAILY_SHORTS_TARGET", 5),
+            "timezone": getattr(config, "TIMEZONE", "Asia/Kolkata"),
+            "auto_frequency_reduction": False,
+        },
+        "analytics_dependent_optimization_status": diagnosis["analytics_dependent_optimization_status"],
+        "data_provenance": diagnosis["data_provenance"],
+        "audience_diagnosis_summary": {
+            "shorts_count": diagnosis["shorts_diagnosis"]["video_count"],
+            "longform_count": diagnosis["longform_diagnosis"]["video_count"],
+            "shorts_bottleneck": diagnosis["shorts_diagnosis"]["bottleneck_diagnosis"],
+            "longform_bottleneck": diagnosis["longform_diagnosis"]["bottleneck_diagnosis"],
+        },
+        "top_topic_opportunities": {
+            "shorts": opp_report.get("recommended_shorts", [])[:5],
+            "longform": opp_report.get("recommended_longform", [])[:3],
+        },
+        "recommendations": [
+            {
+                "area": "analytics_readiness" if not owner_ok else "controlled_experiments",
+                "action": opt_rec,
+                "supporting_observation": f"{diagnosis['records_inspected']} real videos in 30d window; owner_analytics_connected={owner_ok}",
+                "confidence": "high (verified_state)" if not owner_ok else "statistical_ci",
+            }
+        ],
+    }
+
+    paths = {}
+    for key, fname, payload in [
+        ("audience_growth_diagnosis", "audience_growth_diagnosis.json", diagnosis),
+        ("topic_opportunity_report", "topic_opportunity_report.json", opp_report),
+        ("packaging_experiment_report", "packaging_experiment_report.json", packaging_report),
+        ("storytelling_experiment_report", "storytelling_experiment_report.json", storytelling_report),
+        ("phase24_30day_optimization_report", "phase24_30day_optimization_report.json", optimization_30d),
+    ]:
+        p = os.path.join(out_dir, fname)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+        paths[key] = p
+
+    return {
+        "audience_growth_diagnosis": diagnosis,
+        "topic_opportunity_report": opp_report,
+        "packaging_experiment_report": packaging_report,
+        "storytelling_experiment_report": storytelling_report,
+        "phase24_30day_optimization_report": optimization_30d,
+        "paths": paths,
+    }
