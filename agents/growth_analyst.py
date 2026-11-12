@@ -1600,6 +1600,7 @@ def generate_phase23_reports(
             "expected_videos_at_6_per_day": expected_30d,
         },
         "reconciliation_coverage_pct": reconciliation.get("reconciliation_coverage_pct"),
+        "reconciliation_category_counts": reconciliation.get("category_counts", {}),
         "analytics_limitations": caps.get("limitations", []),
     }
     rolling_path = os.path.join(out_dir, "rolling_30day_growth_report.json")

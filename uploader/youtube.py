@@ -614,16 +614,28 @@ def reconcile_channel_publications(
     output_dir: Optional[str] = None,
     max_results: int = 25,
     youtube_service=None,
+    include_git_main_state: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
     Correlates actual channel uploads (via YouTube Data API v3 or OAuth) with local
-    production_database.json and automation_schedule.json history records.
-    Updates publication_status / actually_published when a scheduled video becomes public.
+    production_database.json, pending_uploads/, scheduled_queue/, automation_schedule.json,
+    SQLite WAL state_blobs, backup snapshots, and (for live workspace runs) read-only
+    origin/main CI schedule state.
+
+    Classifies every live video into:
+      1. verified_production_record
+      2. verified_upload_incomplete_local_history
+      3. external_or_manual_upload
+      4. unrecoverable_historical_record
+    Never fabricates scripts, research dossiers, timestamps, production IDs, or private analytics.
     """
     import requests
+    import sqlite3 as _sqlite3
     from uploader.safety import load_production_db
+    from apis.state_store import load_git_ref_json
 
     base_dir = output_dir or getattr(config, "OUTPUT_DIR", "output")
+    use_git_main = (output_dir is None) if include_git_main_state is None else bool(include_git_main_state)
     expected_cid = getattr(config, "YOUTUBE_CHANNEL_ID", "") or ""
     api_key = getattr(config, "YOUTUBE_API_KEY", "") or ""
 
@@ -672,7 +684,14 @@ def reconcile_channel_publications(
         except Exception as e:
             errors.append(str(e))
 
-    prod_db = load_production_db()
+    prod_db_file = os.path.join(base_dir, "production_database.json")
+    if output_dir and os.path.exists(prod_db_file):
+        try:
+            prod_db = json.load(open(prod_db_file, encoding="utf-8"))
+        except Exception:
+            prod_db = {}
+    else:
+        prod_db = load_production_db()
     by_yt_id = {}
     local_failed_jobs = []
     for k, rec in prod_db.items():
@@ -680,7 +699,7 @@ def reconcile_channel_publications(
             meta = rec.get("metadata") or {}
             yt_id = meta.get("youtube_id")
             if yt_id:
-                by_yt_id[yt_id] = (k, rec)
+                by_yt_id[yt_id] = (k, rec, "production_database.json")
             elif rec.get("current_state") == PublishingState.FAILED.value:
                 local_failed_jobs.append({
                     "video_path": rec.get("video_path", k),
@@ -688,6 +707,61 @@ def reconcile_channel_publications(
                     "error_type": meta.get("error_type"),
                     "updated_at": rec.get("updated_at"),
                 })
+
+    # Also check SQLite WAL ledger and backup snapshots for any production_database or schedule evidence
+    sqlite_sched = None
+    sqlite_path = os.path.join(base_dir, "yaas_state.sqlite")
+    if os.path.exists(sqlite_path):
+        try:
+            conn = _sqlite3.connect(sqlite_path, timeout=5.0)
+            for store_name, raw_json in conn.execute("SELECT store_name, payload_json FROM state_blobs").fetchall():
+                try:
+                    parsed = json.loads(raw_json)
+                except Exception:
+                    continue
+                if store_name == "production_database" and isinstance(parsed, dict):
+                    for k, rec in parsed.items():
+                        if isinstance(rec, dict):
+                            yt_id = (rec.get("metadata") or {}).get("youtube_id")
+                            if yt_id and yt_id not in by_yt_id:
+                                by_yt_id[yt_id] = (k, rec, "sqlite:production_database")
+                elif store_name == "automation_schedule" and isinstance(parsed, dict):
+                    sqlite_sched = parsed
+            conn.close()
+        except Exception:
+            pass
+
+    backup_prods = []
+    backup_scheds = []
+    backups_root = os.path.join(base_dir, "backups")
+    if os.path.isdir(backups_root):
+        for bdir in sorted(os.listdir(backups_root)):
+            bpath = os.path.join(backups_root, bdir)
+            if not os.path.isdir(bpath):
+                continue
+            bp_file = os.path.join(bpath, "production_database.json")
+            if os.path.exists(bp_file):
+                try:
+                    bp_data = json.load(open(bp_file, encoding="utf-8"))
+                    if isinstance(bp_data, dict):
+                        backup_prods.append((bdir, bp_data))
+                except Exception:
+                    pass
+            bs_file = os.path.join(bpath, "automation_schedule.json")
+            if os.path.exists(bs_file):
+                try:
+                    bs_data = json.load(open(bs_file, encoding="utf-8"))
+                    if isinstance(bs_data, dict):
+                        backup_scheds.append((bdir, bs_data))
+                except Exception:
+                    pass
+
+    for bdir, bp_data in backup_prods:
+        for k, rec in bp_data.items():
+            if isinstance(rec, dict):
+                yt_id = (rec.get("metadata") or {}).get("youtube_id")
+                if yt_id and yt_id not in by_yt_id:
+                    by_yt_id[yt_id] = (k, rec, f"backup:{bdir}/production_database.json")
 
     # Inspect pending_uploads and scheduled_queue manifests cleanly
     manifests_by_yt_id = {}
@@ -700,23 +774,59 @@ def reconcile_channel_publications(
                     manifests_count += 1
                     try:
                         mdata = json.load(open(os.path.join(q_dir, fname), encoding="utf-8"))
-                        if mdata.get("youtube_id"):
-                            manifests_by_yt_id[mdata["youtube_id"]] = mdata
+                        yt_mid = mdata.get("youtube_id") or mdata.get("video_id")
+                        if yt_mid:
+                            manifests_by_yt_id[yt_mid] = (f"{q_sub}/{fname}", mdata)
                     except Exception:
                         pass
 
-    sched_urls = {}
+    def _extract_sched_evidence(sdata: Dict[str, Any], source_label: str, target: Dict[str, Dict[str, Any]]) -> None:
+        if not isinstance(sdata, dict):
+            return
+        for r in sdata.get("history_runs", []) or []:
+            url = str(r.get("url", ""))
+            if "watch?v=" in url:
+                vid = url.split("watch?v=")[-1].split("&")[0]
+                if vid and vid not in target:
+                    target[vid] = {
+                        "source": f"{source_label}:history_runs",
+                        "type": r.get("type", ""),
+                        "title": r.get("title", ""),
+                        "date_ist": r.get("date_ist"),
+                        "url": url,
+                    }
+        for k, val in sdata.items():
+            if isinstance(k, str) and k.endswith("_url") and isinstance(val, str) and "watch?v=" in val:
+                vid = val.split("watch?v=")[-1].split("&")[0]
+                if vid:
+                    fmt_guess = "short" if "short" in k.lower() else "longform"
+                    existing = target.get(vid, {})
+                    if not existing:
+                        target[vid] = {
+                            "source": f"{source_label}:{k}",
+                            "type": fmt_guess,
+                            "title": "",
+                            "date_ist": sdata.get(k[:-4]),
+                            "url": val,
+                        }
+                    elif f"{source_label}:{k}" not in str(existing.get("source", "")):
+                        existing["slot_key"] = k
+
+    sched_urls: Dict[str, Dict[str, Any]] = {}
     sched_path = os.path.join(base_dir, "automation_schedule.json")
     if os.path.exists(sched_path):
         try:
-            sdata = json.load(open(sched_path, encoding="utf-8"))
-            for r in sdata.get("history_runs", []) or []:
-                url = str(r.get("url", ""))
-                if "watch?v=" in url:
-                    vid = url.split("watch?v=")[-1].split("&")[0]
-                    sched_urls[vid] = r
+            _extract_sched_evidence(json.load(open(sched_path, encoding="utf-8")), "local_schedule", sched_urls)
         except Exception:
             pass
+    if sqlite_sched:
+        _extract_sched_evidence(sqlite_sched, "sqlite_schedule", sched_urls)
+    for bdir, bs_data in backup_scheds:
+        _extract_sched_evidence(bs_data, f"backup_{bdir}_schedule", sched_urls)
+    if use_git_main:
+        git_main_sched = load_git_ref_json("origin/main", "output/automation_schedule.json")
+        if git_main_sched:
+            _extract_sched_evidence(git_main_sched, "origin_main_schedule", sched_urls)
 
     from apis.growth_database import HistoricalPerformanceDB
     import re as _re
@@ -727,12 +837,22 @@ def reconcile_channel_publications(
             return 0.0
         return float((int(m.group(1) or 0) * 3600) + (int(m.group(2) or 0) * 60) + int(m.group(3) or 0))
 
+    def _has_yaas_markers(title_str: str) -> bool:
+        t = str(title_str or "")
+        return ("#shorts" in t.lower()) or ("#history" in t.lower()) or (":" in t and len(t) > 25)
+
     perf_db = HistoricalPerformanceDB(db_path=os.path.join(base_dir, "historical_performance_db.json"))
 
     reconciled = []
     untracked_on_channel = []
     ownership_mismatches = []
     recovered_historical = []
+    category_counts = {
+        "verified_production_record": 0,
+        "verified_upload_incomplete_local_history": 0,
+        "external_or_manual_upload": 0,
+        "unrecoverable_historical_record": 0,
+    }
 
     for v in live_items:
         vid = v.get("id", "")
@@ -744,6 +864,7 @@ def reconcile_channel_publications(
         privacy_status = stat.get("privacyStatus", "unknown")
         publish_at = stat.get("publishAt")
         published_at = snip.get("publishedAt")
+        title_str = snip.get("title", "")
         if expected_cid and actual_cid and actual_cid != expected_cid:
             ownership_mismatches.append({"video_id": vid, "channel_id": actual_cid})
 
@@ -752,9 +873,12 @@ def reconcile_channel_publications(
         matched_manifest = vid in manifests_by_yt_id
         is_matched = matched_prod or matched_sched or matched_manifest
 
+        provenance = [f"youtube_api:{source}"]
         if matched_prod:
-            vkey, rec = by_yt_id[vid]
-            if privacy_status == "public":
+            vkey, rec, prod_src = by_yt_id[vid]
+            provenance.append(prod_src)
+            classification = "verified_production_record"
+            if privacy_status == "public" and prod_src == "production_database.json":
                 record_production_state(
                     rec.get("video_path", vkey),
                     rec.get("current_state", PublishingState.PUBLISHED.value),
@@ -764,55 +888,76 @@ def reconcile_channel_publications(
                         "actual_published_at": published_at,
                     },
                 )
-        elif matched_sched and perf_db.get_video(vid) is None:
-            # Safe historical recovery ONLY when genuine schedule evidence exists (never fabricate metadata)
-            s_entry = sched_urls[vid]
-            fmt = "short" if ("short" in str(s_entry.get("type", "")).lower() or (0 < dur_secs <= 65)) else "longform"
-            view_v = int(stats_pub["viewCount"]) if "viewCount" in stats_pub else None
-            like_v = int(stats_pub["likeCount"]) if "likeCount" in stats_pub else None
-            comm_v = int(stats_pub["commentCount"]) if "commentCount" in stats_pub else None
-            perf_db.record_snapshot(
-                video_id=vid,
-                video_format=fmt,
-                topic=s_entry.get("title") or snip.get("title", vid),
-                content_pillar="Unassigned (Recovered from Schedule History)",
-                publication_timestamp=published_at or "",
-                video_duration=dur_secs,
-                title=snip.get("title") or s_entry.get("title", vid),
-                views=view_v,
-                engaged_views=None,
-                watch_time_minutes=None,
-                average_view_duration_seconds=None,
-                average_percentage_viewed=None,
-                impressions=None,
-                ctr=None,
-                likes=like_v,
-                comments=comm_v,
-                subscribers_gained=None,
-                returning_viewers=None,
-                checkpoint="reconciled_schedule_history",
-                metadata_extras={"recovered_from_reconciliation": True, "schedule_date_ist": s_entry.get("date_ist")},
-                channel_id=actual_cid or expected_cid,
-                owner_analytics_available=False,
-            )
-            recovered_historical.append(vid)
-        elif not is_matched:
+        elif matched_sched or matched_manifest:
+            classification = "verified_upload_incomplete_local_history"
+            if matched_sched:
+                s_entry = sched_urls[vid]
+                provenance.append(str(s_entry.get("source", "schedule")))
+                if s_entry.get("slot_key"):
+                    provenance.append(f"slot:{s_entry['slot_key']}")
+                if perf_db.get_video(vid) is None:
+                    # Safe historical recovery ONLY when genuine schedule evidence exists (never fabricate metadata)
+                    fmt = "short" if ("short" in str(s_entry.get("type", "")).lower() or (0 < dur_secs <= 65)) else "longform"
+                    view_v = int(stats_pub["viewCount"]) if "viewCount" in stats_pub else None
+                    like_v = int(stats_pub["likeCount"]) if "likeCount" in stats_pub else None
+                    comm_v = int(stats_pub["commentCount"]) if "commentCount" in stats_pub else None
+                    perf_db.record_snapshot(
+                        video_id=vid,
+                        video_format=fmt,
+                        topic=s_entry.get("title") or title_str or vid,
+                        content_pillar="Unassigned (Recovered from Schedule History)",
+                        publication_timestamp=published_at or "",
+                        video_duration=dur_secs,
+                        title=title_str or s_entry.get("title", vid),
+                        views=view_v,
+                        engaged_views=None,
+                        watch_time_minutes=None,
+                        average_view_duration_seconds=None,
+                        average_percentage_viewed=None,
+                        impressions=None,
+                        ctr=None,
+                        likes=like_v,
+                        comments=comm_v,
+                        subscribers_gained=None,
+                        returning_viewers=None,
+                        checkpoint="reconciled_schedule_history",
+                        metadata_extras={
+                            "recovered_from_reconciliation": True,
+                            "reconciliation_category": classification,
+                            "evidence_provenance": list(provenance),
+                            "schedule_date_ist": s_entry.get("date_ist"),
+                        },
+                        channel_id=actual_cid or expected_cid,
+                        owner_analytics_available=False,
+                    )
+                    recovered_historical.append(vid)
+            if matched_manifest:
+                msrc, _ = manifests_by_yt_id[vid]
+                provenance.append(f"manifest:{msrc}")
+        else:
+            if _has_yaas_markers(title_str):
+                classification = "unrecoverable_historical_record"
+            else:
+                classification = "external_or_manual_upload"
             untracked_on_channel.append({
                 "video_id": vid,
-                "title": snip.get("title", ""),
+                "title": title_str,
                 "published_at": published_at,
                 "privacy_status": privacy_status,
-                "classification": "unmatched_external_or_untracked_upload",
+                "classification": classification,
             })
 
+        category_counts[classification] = category_counts.get(classification, 0) + 1
         reconciled.append({
             "video_id": vid,
             "channel_id": actual_cid,
-            "title": snip.get("title", ""),
+            "title": title_str,
             "privacy_status": privacy_status,
             "scheduled_publish_at": publish_at,
             "actual_published_at": published_at,
             "duration_seconds": dur_secs,
+            "classification": classification,
+            "evidence_provenance": provenance,
             "matched_production_db": matched_prod,
             "matched_schedule_history": matched_sched,
             "matched_manifest": matched_manifest,
@@ -834,6 +979,7 @@ def reconcile_channel_publications(
         "matched_schedule_history_count": sum(1 for r in reconciled if r["matched_schedule_history"]),
         "matched_any_local_record_count": matched_any,
         "reconciliation_coverage_pct": coverage_pct,
+        "category_counts": category_counts,
         "recovered_historical_count": len(recovered_historical),
         "recovered_historical_video_ids": recovered_historical,
         "untracked_on_channel_count": len(untracked_on_channel),

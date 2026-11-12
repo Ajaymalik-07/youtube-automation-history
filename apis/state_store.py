@@ -626,3 +626,74 @@ def generate_persistent_state_health_report(base_dir: Optional[str] = None) -> D
     _atomic_write_json(report_path, report)
     report["report_path"] = report_path
     return report
+
+
+def load_git_ref_json(git_ref: str, repo_rel_path: str) -> Optional[Dict[str, Any]]:
+    """Read-only helper that loads a JSON blob from a git ref without touching working tree or branches."""
+    import subprocess
+
+    try:
+        proc = subprocess.run(
+            ["git", "show", f"{git_ref}:{repo_rel_path}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+            check=False,
+        )
+        if proc.returncode != 0 or not proc.stdout.strip():
+            return None
+        data = json.loads(proc.stdout)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def reconcile_branch_schedule_state(
+    output_dir: Optional[str] = None,
+    git_ref: str = "origin/main",
+    incoming_schedule: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Safely merges CI-committed schedule state (e.g. from origin/main:output/automation_schedule.json)
+    into the local automation_schedule.json using monotonic merge_schedule_states().
+    Never merges code or overwrites newer local records.
+    """
+    out_dir = output_dir or getattr(config, "OUTPUT_DIR", "output")
+    sched_path = os.path.join(out_dir, "automation_schedule.json")
+    local_sched: Dict[str, Any] = {}
+    if os.path.exists(sched_path):
+        try:
+            with open(sched_path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    local_sched = loaded
+        except Exception:
+            local_sched = {}
+    incoming = incoming_schedule if incoming_schedule is not None else load_git_ref_json(git_ref, "output/automation_schedule.json")
+    if not isinstance(incoming, dict) or not incoming:
+        return {
+            "merged": False,
+            "reason": "no_incoming_schedule",
+            "git_ref": git_ref,
+            "local_history_runs": len(local_sched.get("history_runs", []) or []),
+            "merged_history_runs": len(local_sched.get("history_runs", []) or []),
+            "new_url_keys_added": 0,
+        }
+
+    local_urls_before = {k for k in local_sched if k.endswith("_url")}
+    merged = merge_schedule_states(local_sched, incoming)
+    merged_urls_after = {k for k in merged if k.endswith("_url")}
+    new_urls = sorted(merged_urls_after - local_urls_before)
+
+    _atomic_write_json(sched_path, merged)
+    sync_to_sqlite(out_dir)
+
+    return {
+        "merged": True,
+        "git_ref": git_ref,
+        "local_history_runs": len(local_sched.get("history_runs", []) or []),
+        "incoming_history_runs": len(incoming.get("history_runs", []) or []),
+        "merged_history_runs": len(merged.get("history_runs", []) or []),
+        "new_url_keys_added": len(new_urls),
+    }

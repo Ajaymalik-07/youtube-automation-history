@@ -373,11 +373,14 @@ def generate_weekly_adaptive_strategy(
     shorts = db.get_videos_in_window(days=window_days, video_format="short")
     longform = db.get_videos_in_window(days=window_days, video_format="longform")
 
-    # Statistical evaluation of APV across formats (skip None/unavailable metrics)
+    # Statistical evaluation of APV across formats (skip None/unavailable/mocked metrics)
     shorts_apv_vals = [
         float(s.get("latest_metrics", {}).get("average_percentage_viewed"))
         for s in shorts
-        if s.get("latest_metrics", {}).get("average_percentage_viewed") is not None
+        if s.get("owner_analytics_available") is not False
+        and not s.get("is_test_fixture")
+        and s.get("data_provenance") != "mock_or_test_data"
+        and s.get("latest_metrics", {}).get("average_percentage_viewed") is not None
         and float(s.get("latest_metrics", {}).get("average_percentage_viewed")) > 0
     ]
     clean_shorts_apv, shorts_outliers = detect_outliers_iqr(shorts_apv_vals)
@@ -386,7 +389,10 @@ def generate_weekly_adaptive_strategy(
     lf_apv_vals = [
         float(lf.get("latest_metrics", {}).get("average_percentage_viewed"))
         for lf in longform
-        if lf.get("latest_metrics", {}).get("average_percentage_viewed") is not None
+        if lf.get("owner_analytics_available") is not False
+        and not lf.get("is_test_fixture")
+        and lf.get("data_provenance") != "mock_or_test_data"
+        and lf.get("latest_metrics", {}).get("average_percentage_viewed") is not None
         and float(lf.get("latest_metrics", {}).get("average_percentage_viewed")) > 0
     ]
     clean_lf_apv, lf_outliers = detect_outliers_iqr(lf_apv_vals)
