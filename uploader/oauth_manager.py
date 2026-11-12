@@ -11,7 +11,6 @@ import sys
 import pickle
 import shutil
 import secrets
-import webbrowser
 from typing import Dict, Any, Tuple, List, Optional
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -219,33 +218,30 @@ def reauthorize_channel(
     try:
         os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
         flow = InstalledAppFlow.from_client_secrets_file(cs_file, REQUIRED_SCOPES)
-        flow.redirect_uri = "http://localhost:8080/"
-
         state_token = secrets.token_urlsafe(24)
-        auth_url, _ = flow.authorization_url(
+
+        print(f"   → Requested OAuth scopes ({len(REQUIRED_SCOPES)}): {', '.join(REQUIRED_SCOPES)}")
+        creds = flow.run_local_server(
+            host="127.0.0.1",
+            port=8080,
+            open_browser=open_browser,
+            timeout_seconds=timeout_seconds,
             prompt="consent",
             access_type="offline",
-            state=state_token,
             include_granted_scopes="true",
-        )
-
-        if open_browser:
-            webbrowser.open(auth_url)
-
-        creds = flow.run_local_server(
-            bind_addr="127.0.0.1",
-            port=8080,
-            open_browser=False,
-            timeout_seconds=timeout_seconds,
             state=state_token,
         )
 
         if not creds or not creds.valid:
             raise RuntimeError("OAuth server returned invalid credentials.")
 
+        granted_scopes = list(getattr(creds, "scopes", None) or [])
+        print(f"   → Granted OAuth scopes ({len(granted_scopes)}): {', '.join(granted_scopes) if granted_scopes else 'none'}")
+
         # 1. Verify all required scopes BEFORE overwriting any existing token
         scopes_ok, missing_scopes = verify_granted_scopes(creds)
         if not scopes_ok:
+            print(f"   ✗ Missing OAuth scopes ({len(missing_scopes)}): {', '.join(missing_scopes)}")
             raise RuntimeError(
                 "Authorization succeeded but required OAuth scopes were not granted: "
                 + ", ".join(missing_scopes)
@@ -253,6 +249,10 @@ def reauthorize_channel(
 
         # 2. Verify channel access & identity BEFORE overwriting any existing token
         id_ok, id_info = verify_channel_identity(creds, expected_channel_id=expected_channel_id)
+        print(
+            f"   → Channel identity check: ok={id_ok}, "
+            f"channel_id={id_info.get('channel_id')}, title={id_info.get('channel_title')}"
+        )
         if not id_ok:
             raise RuntimeError(id_info.get("error", "Channel identity verification failed."))
 
