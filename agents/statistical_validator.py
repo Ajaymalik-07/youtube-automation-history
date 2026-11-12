@@ -12,6 +12,7 @@ Enforces:
 7. Missing-data and delayed analytics safeguards.
 """
 import math
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 
 
@@ -202,3 +203,38 @@ def normalize_views_by_age(views: int, days_since_publication: float) -> float:
     days = max(0.1, float(days_since_publication))
     decay_factor = math.log(days + 2.0)
     return round(views / decay_factor, 1)
+
+
+def calculate_median(values: List[float]) -> float:
+    """Computes exact median of numeric values, returning 0.0 for an empty list."""
+    if not values:
+        return 0.0
+    ordered = sorted(float(v) for v in values)
+    n = len(ordered)
+    mid = n // 2
+    if n % 2 == 1:
+        return round(ordered[mid], 2)
+    return round((ordered[mid - 1] + ordered[mid]) / 2.0, 2)
+
+
+def compute_publication_age_days(
+    publication_timestamp: Optional[str],
+    reference_time: Optional[datetime] = None,
+) -> Optional[float]:
+    """
+    Computes video publication age in days relative to `reference_time` (UTC).
+    Returns None if timestamp is missing or unparseable.
+    """
+    if not publication_timestamp:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(publication_timestamp).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        ref = reference_time or datetime.now(timezone.utc)
+        if ref.tzinfo is None:
+            ref = ref.replace(tzinfo=timezone.utc)
+        delta_days = (ref - dt).total_seconds() / 86400.0
+        return round(max(0.05, delta_days), 2)
+    except Exception:
+        return None

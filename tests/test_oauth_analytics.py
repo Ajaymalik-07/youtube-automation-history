@@ -24,6 +24,20 @@ from apis.youtube_analytics import (
 from uploader.safety import record_production_state, get_production_record, PublishingState
 
 
+@pytest.fixture(autouse=True)
+def isolate_analytics_files(tmp_path, monkeypatch):
+    """Isolate analytics snapshots, weekly reports, and growth DB from real output/ during tests."""
+    import apis.youtube_analytics as ya
+    import apis.growth_database as gdb
+
+    monkeypatch.setattr(ya, "SNAPSHOT_FILE", str(tmp_path / "analytics_snapshots.json"))
+    monkeypatch.setattr(ya, "WEEKLY_REPORT_FILE", str(tmp_path / "weekly_analytics_report.json"))
+    monkeypatch.setattr(gdb, "DB_FILE", str(tmp_path / "historical_performance_db.json"))
+    monkeypatch.setattr(gdb, "LEGACY_SNAPSHOT_FILE", str(tmp_path / "legacy_snapshots.json"))
+    monkeypatch.setattr(gdb, "_db_instance", gdb.HistoricalPerformanceDB(db_path=str(tmp_path / "historical_performance_db.json")))
+    yield
+
+
 class DummyCreds:
     def __init__(self, scopes=None, valid=True, expired=False, refresh_token="dummy_refresh"):
         self.scopes = scopes or []

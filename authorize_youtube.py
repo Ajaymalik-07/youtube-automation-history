@@ -48,17 +48,26 @@ def main():
     print("     -> Click 'Continue'.")
     print("=" * 65)
 
+    expected_cid = getattr(config, "YOUTUBE_CHANNEL_ID", "").strip() or None
+    print(f"Target Channel     : {getattr(config, 'CHANNEL_NAME', 'Stories Malik')} ({expected_cid or 'auto-detect'})")
     print("\nStarting safe OAuth reauthorization flow...")
-    print("Existing credentials backed up automatically to 'youtube_token.pickle.bak'.")
-    
-    ok, res = reauthorize_channel(open_browser=True, timeout_seconds=240)
+    print("Existing valid credentials will NOT be overwritten until scope and channel checks succeed.")
+
+    ok, res = reauthorize_channel(
+        open_browser=True,
+        timeout_seconds=240,
+        expected_channel_id=expected_cid,
+    )
     if ok:
         print(f"\n✓ Successfully authorized channel: {res.get('channel_title')} (ID: {res.get('channel_id')})")
+        print("✓ Granted scopes verified:")
+        for s in res.get("scopes", []):
+            print(f"   ✓ {s}")
         print("✓ Updated 'youtube_token.pickle' and synchronized YOUTUBE_TOKEN_BASE64 in .env.")
         print("\n🎉 ALL PERMISSIONS GRANTED! Video publishing and YouTube Analytics are active.")
     else:
         print(f"\n[ERROR] Reauthorization failed: {res.get('error')}")
-        print("Previous working credentials have been preserved from backup.")
+        print("Existing valid credentials (if any) were preserved untouched.")
         sys.exit(1)
 
 if __name__ == "__main__":

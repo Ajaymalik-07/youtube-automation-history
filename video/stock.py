@@ -12,6 +12,7 @@ import glob
 import json
 import os
 import random
+import threading
 import requests
 import config
 from apis import images as image_apis
@@ -30,6 +31,7 @@ FALLBACK_QUERIES = [
 # Every image downloaded this run → credits.json
 _credits: list = []
 _used_urls: set = set()
+_STOCK_LOCK = threading.RLock()
 
 
 def _pexels_ready() -> bool:
@@ -122,56 +124,58 @@ def download_images(script: dict, output_dir: str) -> dict:
     Downloads stock images for every section.
     Shorts: returns list of paths per section_id (for slideshow).
     Normal: returns list of paths (or None) per section_id.
+    Thread-safe across concurrent Shorts + Long-form runs.
     """
-    images_dir = os.path.join(output_dir, "images")
-    os.makedirs(images_dir, exist_ok=True)
-    # Clear the previous run's images so stale B-roll never leaks into this video
-    for old in glob.glob(os.path.join(images_dir, "section_*.jpg")):
-        try:
-            os.remove(old)
-        except OSError:
-            pass
-    _credits.clear()
-    _used_urls.clear()
+    with _STOCK_LOCK:
+        images_dir = os.path.join(output_dir, "images")
+        os.makedirs(images_dir, exist_ok=True)
+        # Clear the previous run's images so stale B-roll never leaks into this video
+        for old in glob.glob(os.path.join(images_dir, "section_*.jpg")):
+            try:
+                os.remove(old)
+            except OSError:
+                pass
+        _credits.clear()
+        _used_urls.clear()
 
-    if not _pexels_ready():
-        order = " → ".join(getattr(config, "IMAGE_SOURCES", []))
-        print(f"   → No Pexels key — using free sources: {order}")
+        if not _pexels_ready():
+            order = " → ".join(getattr(config, "IMAGE_SOURCES", []))
+            print(f"   → No Pexels key — using free sources: {order}")
 
-    is_shorts        = script.get("video_type") == "shorts"
-    orientation      = "portrait" if is_shorts else "landscape"
+        is_shorts        = script.get("video_type") == "shorts"
+        orientation      = "portrait" if is_shorts else "landscape"
 
-    # Extract a short topic hint from the script title for query enrichment
-    raw_title  = script.get("title", "")
-    # Keep first 4 words as a concise topic hint
-    topic_hint = " ".join(raw_title.split()[:4]) if raw_title else ""
+        # Extract a short topic hint from the script title for query enrichment
+        raw_title  = script.get("title", "")
+        # Keep first 4 words as a concise topic hint
+        topic_hint = " ".join(raw_title.split()[:4]) if raw_title else ""
 
-    image_map = {}
-    for section in script.get("sections", []):
-        sid   = section["id"]
-        # Collect all image queries defined for this section
-        queries = [section.get("image_query", "science universe space")]
-        for extra_key in ("image_query_2", "image_query_3", "image_query_4"):
-            q = section.get(extra_key, "").strip()
-            if q:
-                queries.append(q)
+        image_map = {}
+        for section in script.get("sections", []):
+            sid   = section["id"]
+            # Collect all image queries defined for this section
+            queries = [section.get("image_query", "science universe space")]
+            for extra_key in ("image_query_2", "image_query_3", "image_query_4"):
+                q = section.get(extra_key, "").strip()
+                if q:
+                    queries.append(q)
 
-        # Shorts: one image per query; normal: first 3 queries for B-roll cuts
-        use = queries if is_shorts else queries[:3]
-        print(f"   → [{sid}] {len(use)} queries × 1 image each")
-        paths = []
-        for qi, q in enumerate(use):
-            paths.extend(_fetch_images(q, sid, images_dir,
-                                       count=1, orientation=orientation,
-                                       img_num_start=qi, topic_hint=topic_hint))
-        image_map[sid] = paths if (paths or is_shorts) else None
-        print(f"         saved {len(paths)} images")
+            # Shorts: one image per query; normal: first 3 queries for B-roll cuts
+            use = queries if is_shorts else queries[:3]
+            print(f"   → [{sid}] {len(use)} queries × 1 image each")
+            paths = []
+            for qi, q in enumerate(use):
+                paths.extend(_fetch_images(q, sid, images_dir,
+                                           count=1, orientation=orientation,
+                                           img_num_start=qi, topic_hint=topic_hint))
+            image_map[sid] = paths if (paths or is_shorts) else None
+            print(f"         saved {len(paths)} images")
 
-    with open(os.path.join(output_dir, "credits.json"), "w", encoding="utf-8") as f:
-        json.dump(_credits, f, indent=2)
-    by_source = {}
-    for c in _credits:
-        by_source[c["source"]] = by_source.get(c["source"], 0) + 1
-    if by_source:
-        print("   → Image sources: " + ", ".join(f"{k} ×{v}" for k, v in by_source.items()))
-    return image_map
+        with open(os.path.join(output_dir, "credits.json"), "w", encoding="utf-8") as f:
+            json.dump(list(_credits), f, indent=2)
+        by_source = {}
+        for c in _credits:
+            by_source[c["source"]] = by_source.get(c["source"], 0) + 1
+        if by_source:
+            print("   → Image sources: " + ", ".join(f"{k} ×{v}" for k, v in by_source.items()))
+        return image_map

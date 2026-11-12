@@ -3,35 +3,31 @@
 **Channel:** Stories Malik (`@StoriesMalik`)  
 **Target Market:** Hindi-speaking audience (India & Diaspora)  
 **Primary Timezone:** India Standard Time (`Asia/Kolkata`, UTC+5:30)  
-**Status:** Active Protocol (Phase 14 Overhaul)  
+**Status:** Active Protocol (Amended by Phase 21 — Publishing Cadence Preservation)  
 
 ---
 
 ## 1. Executive Summary & Philosophy
 
-Rather than blindly flooding YouTube with automated filler, Stories Malik implements a sustainable, hypothesis-driven 30-day testing regimen. High-retention documentary storytelling requires craft, rigorous evidence verification, and polished Devanagari typography.
+Stories Malik operates a deterministic, hypothesis-driven 30-day rolling evaluation regimen while **preserving the channel's established daily publishing cadence** (1 Long-form + 5 YouTube Shorts = 6 videos daily in `Asia/Kolkata`). High-retention documentary storytelling requires craft, rigorous evidence verification, and polished Devanagari typography.
 
-**Primary Goal:** Establish baseline viewership benchmarks, identify highest-performing historical pillars, and optimize audience retention before scaling release cadence.
+**Primary Goal:** Establish rolling 30-day baseline viewership and retention benchmarks across formats, identify highest-performing historical pillars, and validate single-variable creative/packaging experiments without automatically reducing or altering publishing frequency.
 
 ---
 
-## 2. Weekly Release Schedule (IST / Asia/Kolkata)
+## 2. Established Daily Release Schedule (IST / Asia/Kolkata — Preserved Default)
 
 ### Long-Form Documentaries (8–13 minutes)
-- **Frequency:** 2 episodes per week (Wednesday & Sunday)
+- **Frequency:** **1 video daily** (7 episodes per week — preserved default; never reduced to 2–3/week without documented statistical evidence).
 - **Primary Release Slot:** **19:00 IST (7:00 PM)** — Prime evening digital viewing window across North and Central India.
-- **Alternative Slot (Week 4 testing):** **20:30 IST (8:30 PM)** — Post-dinner relaxed browsing.
 
-### Dedicated YouTube Shorts (30–55 seconds)
-- **Frequency:** 1 curated Short per day (7 Shorts per week)
-- **Morning Slot (Week 1 & 3):** **10:00 AM IST** — Morning commute and early leisure.
-- **Evening Slot (Week 2 & 4):** **18:00 IST (6:00 PM)** — Post-work/school mobile scroll window.
-- **Format Distribution:**
-  - 2x Archaeological Discoveries
-  - 2x Forgotten Personalities & Kings
-  - 1x Ancient Engineering & Architecture
-  - 1x Historical Misconception Buster
-  - 1x Mystery / Unresolved Question
+### Dedicated YouTube Shorts (25–60 seconds)
+- **Frequency:** **5 Shorts daily** (35 Shorts per week — preserved default; never reduced to 1–2/day without documented statistical evidence).
+- **Target Release Slots (IST):** **09:00, 12:00, 16:00, 19:00, and 22:00 IST** (configurable via `config.SHORTS_TARGET_HOURS_IST` and `output/automation_schedule.json`).
+- **Format Distribution:** Rotated across the 8 canonical Shorts documentary formats (Archaeological Discoveries, Forgotten Personalities, Ancient Engineering & Architecture, Myth vs Fact, Battle Strategy, Historical Mystery, Historical Fact, Documentary Teaser).
+
+> [!IMPORTANT]
+> **Phase 21 Adaptive Publishing Policy:** Publishing frequency is treated strictly as a controlled experimental variable, not an automatic optimization target. Any future frequency experiment must document a hypothesis, change only one major variable at a time, define measurable success criteria, preserve a baseline comparison, and never silently mutate the production schedule.
 
 ---
 

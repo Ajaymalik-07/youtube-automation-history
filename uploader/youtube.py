@@ -55,10 +55,9 @@ def _get_service():
             with open(TOKEN_FILE, "rb") as f:
                 creds = pickle.load(f)
             if creds and not creds.valid and creds.expired and creds.refresh_token:
-                from google.auth.transport.requests import Request
-                creds.refresh(Request())
-                with open(TOKEN_FILE, "wb") as f:
-                    pickle.dump(creds, f)
+                from uploader.oauth_manager import safe_refresh_credentials
+                if not safe_refresh_credentials(creds, TOKEN_FILE):
+                    creds = None
         except Exception as e:
             print(f"   ⚠ Could not load/refresh token from {TOKEN_FILE}: {e}")
             creds = None
@@ -69,19 +68,13 @@ def _get_service():
                 "YouTube OAuth credentials are missing or could not be refreshed in headless CI environment. "
                 "Ensure YOUTUBE_TOKEN_BASE64 in your GitHub repository secrets is up to date."
             )
-        secret_file = getattr(config, "YOUTUBE_CLIENT_SECRET_FILE", "client_secret.json")
-        if not os.path.exists(secret_file):
-            raise FileNotFoundError(
-                f"YouTube OAuth file not found: {secret_file}\n"
-                "Follow the setup guide to create it in Google Cloud Console."
-            )
-        flow = InstalledAppFlow.from_client_secrets_file(
-            secret_file, config.YOUTUBE_SCOPES
-        )
-        flow.redirect_uri = "http://localhost:8080/"
-        creds = flow.run_local_server(bind_addr="0.0.0.0", port=8080, open_browser=True, timeout_seconds=180)
-        with open(TOKEN_FILE, "wb") as f:
-            pickle.dump(creds, f)
+        from uploader.oauth_manager import reauthorize_channel
+        expected_cid = getattr(config, "YOUTUBE_CHANNEL_ID", "").strip() or None
+        ok, res = reauthorize_channel(open_browser=True, timeout_seconds=180, expected_channel_id=expected_cid)
+        if not ok:
+            raise RuntimeError(f"YouTube OAuth authorization failed: {res.get('error', 'unknown error')}")
+        with open(TOKEN_FILE, "rb") as f:
+            creds = pickle.load(f)
 
     return build("youtube", "v3", credentials=creds)
 
@@ -102,37 +95,51 @@ def verify_category_id(youtube, category_id: str = "27", region_code: str = "IN"
     return str(category_id)
 
 
+def _get_publishing_tz():
+    """Return configured publishing timezone (defaults to Asia/Kolkata)."""
+    tz_name = getattr(config, "PUBLISHING_TIMEZONE", "Asia/Kolkata")
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(tz_name)
+    except Exception:
+        return IST
+
+
 def calculate_next_scheduled_time(is_shorts: bool = False, min_lead_minutes: int = 30) -> str:
     """
-    Calculates next optimal publication slot in Asia/Kolkata (IST),
+    Calculates next optimal publication slot in the configured timezone (default Asia/Kolkata / IST),
     ensuring timestamp is strictly in the future.
+    Reads configurable slot hours from config while preserving backward compatibility.
     Returns RFC 3339 / ISO 8601 UTC string (e.g. '2026-11-12T13:30:00Z').
     """
+    tz = _get_publishing_tz()
     now_utc = datetime.now(timezone.utc)
-    now_ist = now_utc.astimezone(IST)
+    now_local = now_utc.astimezone(tz)
+    min_target = now_local + timedelta(minutes=min_lead_minutes)
 
     if is_shorts:
-        # Slots at 10:00 AM IST and 6:00 PM (18:00) IST
-        candidate_today_10 = now_ist.replace(hour=10, minute=0, second=0, microsecond=0)
-        candidate_today_18 = now_ist.replace(hour=18, minute=0, second=0, microsecond=0)
-
-        if candidate_today_10 > now_ist + timedelta(minutes=min_lead_minutes):
-            target_ist = candidate_today_10
-        elif candidate_today_18 > now_ist + timedelta(minutes=min_lead_minutes):
-            target_ist = candidate_today_18
-        else:
-            # Tomorrow at 10:00 AM IST
-            target_ist = (now_ist + timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+        cfg = getattr(config, "SHORTS_UPLOAD_CONFIG", {})
+        raw_hours = cfg.get("target_hours_ist") or getattr(config, "SHORTS_TARGET_HOURS_IST", [9, 12, 16, 19, 22])
     else:
-        # Long-form slot at 7:00 PM (19:00) IST
-        candidate_today_19 = now_ist.replace(hour=19, minute=0, second=0, microsecond=0)
-        if candidate_today_19 > now_ist + timedelta(minutes=min_lead_minutes):
-            target_ist = candidate_today_19
-        else:
-            # Tomorrow at 19:00 IST
-            target_ist = (now_ist + timedelta(days=1)).replace(hour=19, minute=0, second=0, microsecond=0)
+        cfg = getattr(config, "LONGFORM_UPLOAD_CONFIG", {})
+        raw_hours = cfg.get("target_hours_ist") or (
+            [cfg["target_hour_ist"]] if "target_hour_ist" in cfg else getattr(config, "LONGFORM_TARGET_HOURS_IST", [19])
+        )
 
-    target_utc = target_ist.astimezone(timezone.utc)
+    hours = sorted({int(h) % 24 for h in raw_hours}) if raw_hours else ([9, 12, 16, 19, 22] if is_shorts else [19])
+
+    target_local = None
+    for h in hours:
+        candidate = now_local.replace(hour=h, minute=0, second=0, microsecond=0)
+        if candidate > min_target:
+            target_local = candidate
+            break
+
+    if target_local is None:
+        # Roll over to the first slot tomorrow
+        target_local = (now_local + timedelta(days=1)).replace(hour=hours[0], minute=0, second=0, microsecond=0)
+
+    target_utc = target_local.astimezone(timezone.utc)
     return target_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
@@ -164,7 +171,7 @@ def verify_upload_and_processing(youtube, video_id: str, expected_channel_id: Op
 
         video_channel_id = snippet_info.get("channelId", "")
         channel_verified = True
-        if expected_channel_id:
+        if expected_channel_id and video_channel_id:
             channel_verified = (video_channel_id == expected_channel_id)
 
         upload_status = status_info.get("uploadStatus", "uploaded")
@@ -225,8 +232,10 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
     # --- 1. Idempotent Duplicate Prevention ---
     rec = get_production_record(video_path)
     if rec and rec.get("current_state") in (
+        PublishingState.UPLOADED_PRIVATE.value,
         PublishingState.SCHEDULED.value,
         PublishingState.PUBLISHED.value,
+        PublishingState.ANALYTICS_PENDING.value,
         PublishingState.COMPLETED.value,
     ):
         existing_url = rec.get("metadata", {}).get("youtube_url")
@@ -328,6 +337,10 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
                 "mode": mode,
                 "publish_at": target_publish_at,
                 "privacy": target_privacy,
+                "is_shorts": bool(is_shorts),
+                "script": script or {},
+                "research": research or {},
+                "retry_count": 0,
                 "status": "ready_for_upload",
             }, f, indent=2)
         print(f"      Saved ready-to-publish manifest: {manifest_path}")
@@ -335,6 +348,25 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
 
     # --- 5. YouTube API Upload Execution ---
     youtube = _get_service()
+
+    # Channel identity guard (non-fatal if mocked channels().list returns no real dict items)
+    expected_cid = getattr(config, "YOUTUBE_CHANNEL_ID", "") or ""
+    if expected_cid:
+        try:
+            ch_res = youtube.channels().list(part="id,snippet", mine=True).execute()
+            if isinstance(ch_res, dict) and isinstance(ch_res.get("items"), list) and ch_res["items"]:
+                actual_cid = ch_res["items"][0].get("id", "")
+                if actual_cid and actual_cid != expected_cid:
+                    err_msg = f"Authenticated channel mismatch: got '{actual_cid}', expected '{expected_cid}'."
+                    print(f"   ❌ {err_msg}")
+                    record_production_state(video_path, PublishingState.FAILED.value, metadata={
+                        "error": err_msg,
+                        "error_type": "ChannelMismatch",
+                    })
+                    return f"local://channel_mismatch/{os.path.basename(video_path)}"
+        except Exception:
+            pass
+
     verified_cat_id = verify_category_id(youtube, getattr(config, "VIDEO_CATEGORY_ID", "27"))
     disclosures = classify_content_disclosures(script, video_path)
 
@@ -386,11 +418,24 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
     print(f"   → Uploading {os.path.basename(video_path)} [{sched_msg}]…")
     response = None
     try:
+        chunk_retries = 0
+        max_chunk_retries = 3
         while response is None:
-            status, response = insert_req.next_chunk()
-            if status:
-                pct = int(status.progress() * 100)
-                print(f"   → {pct}% uploaded", end="\r")
+            try:
+                status, response = insert_req.next_chunk()
+                chunk_retries = 0
+                if status:
+                    pct = int(status.progress() * 100)
+                    print(f"   → {pct}% uploaded", end="\r")
+            except HttpError as chunk_err:
+                resp_status = getattr(getattr(chunk_err, "resp", None), "status", None)
+                if resp_status in (500, 502, 503, 504) and chunk_retries < max_chunk_retries:
+                    chunk_retries += 1
+                    print(f"\n   ⚠ Transient HTTP {resp_status} during upload chunk (retry {chunk_retries}/{max_chunk_retries})…")
+                    import time as _time
+                    _time.sleep(2 ** chunk_retries)
+                    continue
+                raise
 
         print()
         video_id = response["id"]
@@ -410,7 +455,11 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
                 print(f"   ⚠ Thumbnail upload warning: {e}")
 
         # Post-Upload Verification
-        proc_res = verify_upload_and_processing(youtube, video_id)
+        proc_res = verify_upload_and_processing(
+            youtube,
+            video_id,
+            expected_channel_id=expected_cid or None,
+        )
         print(f"   → YouTube processing verification: {proc_res.get('processing_status', 'uploaded')}")
 
         if proc_res.get("is_processing_failed"):
@@ -423,7 +472,7 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
                 "error_type": "ProcessingFailure",
                 "processing_verification": proc_res,
             })
-            return None
+            return f"local://failed_processing/{os.path.basename(video_path)}"
 
         # Determine terminal/next state
         if target_publish_at:
@@ -450,13 +499,20 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
 
     except HttpError as err:
         err_str = str(err)
+        is_quota = any(k in err_str.lower() for k in ("quotaexceeded", "dailylimitexceeded", "uploadlimitexceeded"))
         print(f"\n   ⚠ YouTube API Error during upload: {err}")
         record_production_state(video_path, PublishingState.FAILED.value, metadata={
             "error": err_str,
-            "error_type": "HttpError",
+            "error_type": "QuotaExceeded" if is_quota else "HttpError",
         })
         os.makedirs(os.path.join(config.OUTPUT_DIR, "pending_uploads"), exist_ok=True)
         manifest_path = os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{os.path.basename(video_path)}.json")
+        existing_retry = 0
+        if os.path.exists(manifest_path):
+            try:
+                existing_retry = int(json.load(open(manifest_path, encoding="utf-8")).get("retry_count", 0))
+            except Exception:
+                existing_retry = 0
         with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump({
                 "video_path": video_path,
@@ -464,9 +520,18 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
                 "title": final_title,
                 "description": final_desc,
                 "tags": final_tags,
+                "mode": mode,
+                "publish_at": target_publish_at,
+                "privacy": target_privacy,
+                "is_shorts": bool(is_shorts),
+                "script": script or {},
+                "research": research or {},
+                "retry_count": existing_retry,
                 "error": err_str,
-                "status": "pending_retry",
+                "status": "pending_quota_reset" if is_quota else "pending_retry",
             }, f, indent=2)
+        if is_quota:
+            return f"local://pending_quota_reset/{os.path.basename(video_path)}"
         return f"local://failed_upload/{os.path.basename(video_path)}"
     except Exception as e:
         print(f"\n   ⚠ Unexpected upload failure: {e}")

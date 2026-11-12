@@ -28,6 +28,7 @@ from agents.growth_analyst import (
     analyze_longform_performance,
     analyze_topic_pillars,
     analyze_title_and_thumbnail,
+    analyze_production_and_quality_gates,
 )
 from agents.statistical_validator import (
     calculate_mean_and_confidence_interval,
@@ -37,7 +38,11 @@ from agents.statistical_validator import (
     compute_welch_t_test,
 )
 from agents.diversity_monitor import audit_channel_content_diversity
-from agents.experiment_tracker import get_experiment_tracker
+from agents.experiment_tracker import (
+    get_experiment_tracker,
+    MIN_LONGFORM_BASELINE_FOR_FREQUENCY_CHANGE,
+    MIN_SHORTS_BASELINE_FOR_FREQUENCY_CHANGE,
+)
 
 STRATEGY_JSON_PATH = os.path.join(config.OUTPUT_DIR, "adaptive_content_strategy.json")
 STRATEGY_MD_PATH = os.path.join(config.OUTPUT_DIR, "adaptive_content_strategy.md")
@@ -242,14 +247,17 @@ def get_dynamic_scriptwriting_directive(
 #  4. AUTOMATED EXPERIMENT SELECTION ENGINE
 # ══════════════════════════════════════════════════════════════════════════════
 
-def select_next_controlled_experiment() -> Dict[str, Any]:
+def select_next_controlled_experiment(allow_frequency_experiment: bool = False) -> Dict[str, Any]:
     """
     Automatically selects the next controlled production experiment to run.
     Avoids multi-variable confounding (changes only 1 independent variable at a time).
     Prioritizes experiments with active hypotheses and lowest sample count.
+    Never automatically selects a publishing_frequency experiment to alter the production schedule.
     """
     tracker = get_experiment_tracker()
     experiments = tracker.get_all_experiments()
+    if not allow_frequency_experiment:
+        experiments = [e for e in experiments if e.get("category") != "publishing_frequency"]
 
     # Find experiment with fewest recorded samples
     sorted_exps = sorted(experiments, key=lambda e: e.get("current_samples", 0))
@@ -280,36 +288,116 @@ def select_next_controlled_experiment() -> Dict[str, Any]:
     }
 
 
+def evaluate_cadence_change_eligibility(
+    db_override: Optional[Any] = None,
+    evaluation_window_days: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Phase 21 Cadence Preservation Governance:
+    Evaluates whether sufficient rolling 30-day evidence exists to even propose a
+    future frequency experiment. Never silently alters or reduces the established
+    1 long-form + 5 Shorts = 6 daily (Asia/Kolkata) schedule.
+    """
+    window_days = evaluation_window_days or getattr(config, "EVALUATION_WINDOW_DAYS", 30)
+    db = db_override or get_performance_db()
+    shorts_30d = db.get_videos_in_window(days=window_days, video_format="short")
+    longform_30d = db.get_videos_in_window(days=window_days, video_format="longform")
+
+    lf_count = len(longform_30d)
+    sh_count = len(shorts_30d)
+    sufficient_evidence = (
+        lf_count >= MIN_LONGFORM_BASELINE_FOR_FREQUENCY_CHANGE
+        and sh_count >= MIN_SHORTS_BASELINE_FOR_FREQUENCY_CHANGE
+    )
+
+    established_cadence = {
+        "longform_per_day": getattr(config, "LONGFORM_DAILY_COUNT", 1),
+        "shorts_per_day": getattr(config, "SHORTS_DAILY_COUNT", 5),
+        "total_per_day": getattr(config, "TOTAL_DAILY_VIDEOS", 6),
+        "timezone": getattr(config, "PUBLISHING_TIMEZONE", "Asia/Kolkata"),
+    }
+
+    if not sufficient_evidence:
+        reason = (
+            f"Insufficient rolling {window_days}-day evidence "
+            f"({lf_count}/{MIN_LONGFORM_BASELINE_FOR_FREQUENCY_CHANGE} long-form, "
+            f"{sh_count}/{MIN_SHORTS_BASELINE_FOR_FREQUENCY_CHANGE} Shorts). "
+            "Preserve established 5 Shorts + 1 Long-form daily cadence without reduction."
+        )
+        recommended_action = "PRESERVE_ESTABLISHED_CADENCE"
+    else:
+        reason = (
+            f"Rolling {window_days}-day baseline sample thresholds met "
+            f"({lf_count} long-form, {sh_count} Shorts). Established cadence remains preserved; "
+            "any frequency change may only be proposed as a single-variable documented experiment."
+        )
+        recommended_action = "PRESERVE_ESTABLISHED_CADENCE_ELIGIBLE_FOR_CONTROLLED_EXPERIMENT"
+
+    return {
+        "recommended_action": recommended_action,
+        "schedule_mutated": False,
+        "auto_reduction_blocked": True,
+        "established_cadence": established_cadence,
+        "evaluation_window_days": window_days,
+        "observed_longform_samples": lf_count,
+        "observed_shorts_samples": sh_count,
+        "sufficient_baseline_evidence": sufficient_evidence,
+        "reason": reason,
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  5. WEEKLY ADAPTIVE CONTENT STRATEGY DOSSIER
 # ══════════════════════════════════════════════════════════════════════════════
 
 def generate_weekly_adaptive_strategy(
     db_override: Optional[Any] = None,
+    evaluation_window_days: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Generates comprehensive weekly adaptive strategy:
-    - Top & weak performing topics
-    - Emerging content opportunities (20 candidates)
-    - 10 Recommended Shorts & 5 Recommended Long-form
-    - Storytelling & retention observations with statistical validation
+    Generates comprehensive weekly adaptive strategy over a rolling 30-day window:
+    - Preserves 5 Shorts + 1 Long-form daily publishing cadence (Asia/Kolkata)
+    - Separate Shorts & Long-form performance + statistical validation
+    - Emerging content opportunities (20 candidates: 10 Shorts, 5 Long-form, 5 Reserve)
+    - Production failures & quality-gate rejection rates
+    - Analytics capabilities & explicit limitations
     - Channel diversity audit & repetition controls
-    - Active controlled experiments
+    - Active controlled experiments (correlation vs demonstrated improvement)
     - Outputs output/adaptive_content_strategy.json and output/adaptive_content_strategy.md
     """
-    db = db_override or get_performance_db()
-    all_vids = db.get_all_videos()
-    shorts = db.get_shorts()
-    longform = db.get_longform()
+    from apis.youtube_analytics import get_analytics_capabilities_and_limitations
 
-    # Statistical evaluation of APV across formats
-    shorts_apv_vals = [s.get("latest_metrics", {}).get("average_percentage_viewed", 0.0) for s in shorts if s.get("latest_metrics", {}).get("average_percentage_viewed", 0.0) > 0]
+    window_days = evaluation_window_days or getattr(config, "EVALUATION_WINDOW_DAYS", 30)
+    db = db_override or get_performance_db()
+    all_vids = db.get_videos_in_window(days=window_days)
+    shorts = db.get_videos_in_window(days=window_days, video_format="short")
+    longform = db.get_videos_in_window(days=window_days, video_format="longform")
+
+    # Statistical evaluation of APV across formats (skip None/unavailable metrics)
+    shorts_apv_vals = [
+        float(s.get("latest_metrics", {}).get("average_percentage_viewed"))
+        for s in shorts
+        if s.get("latest_metrics", {}).get("average_percentage_viewed") is not None
+        and float(s.get("latest_metrics", {}).get("average_percentage_viewed")) > 0
+    ]
     clean_shorts_apv, shorts_outliers = detect_outliers_iqr(shorts_apv_vals)
     shorts_stats = calculate_mean_and_confidence_interval(clean_shorts_apv)
 
-    lf_apv_vals = [lf.get("latest_metrics", {}).get("average_percentage_viewed", 0.0) for lf in longform if lf.get("latest_metrics", {}).get("average_percentage_viewed", 0.0) > 0]
+    lf_apv_vals = [
+        float(lf.get("latest_metrics", {}).get("average_percentage_viewed"))
+        for lf in longform
+        if lf.get("latest_metrics", {}).get("average_percentage_viewed") is not None
+        and float(lf.get("latest_metrics", {}).get("average_percentage_viewed")) > 0
+    ]
     clean_lf_apv, lf_outliers = detect_outliers_iqr(lf_apv_vals)
     lf_stats = calculate_mean_and_confidence_interval(clean_lf_apv)
+
+    # Format-separated performance analyses
+    shorts_perf = analyze_shorts_performance(shorts)
+    longform_perf = analyze_longform_performance(longform)
+    production_reliability = analyze_production_and_quality_gates()
+    analytics_caps = get_analytics_capabilities_and_limitations()
+    cadence_gov = evaluate_cadence_change_eligibility(db_override=db, evaluation_window_days=window_days)
 
     # Opportunity report
     opp_report = generate_adaptive_opportunity_report(db_override=db)
@@ -322,23 +410,31 @@ def generate_weekly_adaptive_strategy(
     strategy_payload = {
         "channel_name": config.CHANNEL_NAME,
         "strategy_generated_at": datetime.now(timezone.utc).isoformat(),
+        "evaluation_window_days": window_days,
         "total_historical_videos": len(all_vids),
+        "cadence_governance": cadence_gov,
+        "shorts_performance": shorts_perf,
+        "longform_performance": longform_perf,
         "statistical_evaluation": {
             "shorts_retention": {
-                "observed_apv_mean": shorts_stats["mean"],
-                "ci_95": [shorts_stats["ci_lower"], shorts_stats["ci_upper"]],
+                "available": shorts_stats["n"] > 0,
+                "observed_apv_mean": shorts_stats["mean"] if shorts_stats["n"] > 0 else None,
+                "ci_95": [shorts_stats["ci_lower"], shorts_stats["ci_upper"]] if shorts_stats["n"] > 0 else None,
                 "sample_size": shorts_stats["n"],
                 "policy_tier": shorts_stats["policy"],
                 "outliers_filtered": len(shorts_outliers),
             },
             "longform_retention": {
-                "observed_apv_mean": lf_stats["mean"],
-                "ci_95": [lf_stats["ci_lower"], lf_stats["ci_upper"]],
+                "available": lf_stats["n"] > 0,
+                "observed_apv_mean": lf_stats["mean"] if lf_stats["n"] > 0 else None,
+                "ci_95": [lf_stats["ci_lower"], lf_stats["ci_upper"]] if lf_stats["n"] > 0 else None,
                 "sample_size": lf_stats["n"],
                 "policy_tier": lf_stats["policy"],
                 "outliers_filtered": len(lf_outliers),
             },
         },
+        "production_reliability": production_reliability,
+        "analytics_limitations": analytics_caps["limitations"],
         "content_diversity": opp_report["channel_diversity"],
         "recommended_shorts_topics": opp_report["recommended_shorts"],
         "recommended_longform_topics": opp_report["recommended_longform"],
@@ -346,7 +442,14 @@ def generate_weekly_adaptive_strategy(
         "topic_pillar_intelligence": topic_intel,
         "packaging_and_titles": packaging_intel,
         "recommended_next_experiment": next_experiment,
-        "governance_guarantee": "All topics strictly vetted by Historical Research Quality Gate. Popularity never overrides factual accuracy.",
+        "correlation_vs_demonstrated_improvement": (
+            "Observational trends in topic, hook, and duration buckets indicate correlation adjusted for publication age. "
+            "Demonstrated causal improvement requires Welch t-test significance (p < 0.05) on single-variable controlled experiments."
+        ),
+        "governance_guarantee": (
+            "All topics strictly vetted by Historical Research Quality Gate; failing videos are blocked individually. "
+            "Established 5 Shorts + 1 Long-form daily cadence (Asia/Kolkata) preserved without automated reduction."
+        ),
     }
 
     # Write JSON
@@ -363,19 +466,43 @@ def generate_weekly_adaptive_strategy(
 
 def _render_adaptive_strategy_md(payload: dict) -> None:
     """Renders comprehensive Markdown strategy report."""
+    cad = payload.get("cadence_governance", {})
+    est = cad.get("established_cadence", {})
+    rel = payload.get("production_reliability", {})
+    sh_ret = payload["statistical_evaluation"]["shorts_retention"]
+    lf_ret = payload["statistical_evaluation"]["longform_retention"]
+    sh_ret_str = (
+        f"{sh_ret['observed_apv_mean']}% (95% CI: [{sh_ret['ci_95'][0]}%, {sh_ret['ci_95'][1]}%])"
+        if sh_ret.get("available") and sh_ret.get("observed_apv_mean") is not None
+        else "Unavailable (pending Analytics OAuth yt-analytics.readonly)"
+    )
+    lf_ret_str = (
+        f"{lf_ret['observed_apv_mean']}% (95% CI: [{lf_ret['ci_95'][0]}%, {lf_ret['ci_95'][1]}%])"
+        if lf_ret.get("available") and lf_ret.get("observed_apv_mean") is not None
+        else "Unavailable (pending Analytics OAuth yt-analytics.readonly)"
+    )
+
     md_lines = [
         "# 🧭 Stories Malik — Adaptive AI Content Strategy Dossier",
         f"**Generated:** {payload['strategy_generated_at']}  ",
         f"**Channel:** {payload['channel_name']}  ",
+        f"**Evaluation Window:** Rolling {payload.get('evaluation_window_days', 30)} days  ",
+        f"**Publishing Cadence (Preserved):** {est.get('longform_per_day', 1)} Long-form + {est.get('shorts_per_day', 5)} Shorts = {est.get('total_per_day', 6)}/day ({est.get('timezone', 'Asia/Kolkata')})  ",
         f"**Total Videos in Learning Database:** {payload['total_historical_videos']}  ",
         "",
         "---",
         "",
+        "## 0. Publishing Cadence Preservation Governance",
+        f"- **Action:** {cad.get('recommended_action', 'PRESERVE_ESTABLISHED_CADENCE')}",
+        f"- **Schedule Mutated:** {cad.get('schedule_mutated', False)}",
+        f"- **Rationale:** {cad.get('reason', '')}",
+        "",
         "## 1. Advanced Statistical Retention Validation",
-        f"- **Shorts APV Mean:** {payload['statistical_evaluation']['shorts_retention']['observed_apv_mean']}% (95% CI: [{payload['statistical_evaluation']['shorts_retention']['ci_95'][0]}%, {payload['statistical_evaluation']['shorts_retention']['ci_95'][1]}%])",
-        f"  - Policy Tier: {payload['statistical_evaluation']['shorts_retention']['policy_tier']} (Outliers Filtered: {payload['statistical_evaluation']['shorts_retention']['outliers_filtered']})",
-        f"- **Long-form APV Mean:** {payload['statistical_evaluation']['longform_retention']['observed_apv_mean']}% (95% CI: [{payload['statistical_evaluation']['longform_retention']['ci_95'][0]}%, {payload['statistical_evaluation']['longform_retention']['ci_95'][1]}%])",
-        f"  - Policy Tier: {payload['statistical_evaluation']['longform_retention']['policy_tier']} (Outliers Filtered: {payload['statistical_evaluation']['longform_retention']['outliers_filtered']})",
+        f"- **Shorts APV Mean:** {sh_ret_str}",
+        f"  - Policy Tier: {sh_ret['policy_tier']} (Outliers Filtered: {sh_ret['outliers_filtered']})",
+        f"- **Long-form APV Mean:** {lf_ret_str}",
+        f"  - Policy Tier: {lf_ret['policy_tier']} (Outliers Filtered: {lf_ret['outliers_filtered']})",
+        f"- **Quality-Gate Rejection Rate:** {rel.get('quality_gate_rejection_rate_pct', 0.0)}% | **Production Failure Rate:** {rel.get('production_failure_rate_pct', 0.0)}%",
         "",
         "## 2. Channel Content Diversity & Repetition Audit",
         f"- **Diversity Score:** {payload['content_diversity']['diversity_score']} / 100 ({'Healthy' if payload['content_diversity']['is_healthy'] else 'Caution'})",
@@ -407,7 +534,16 @@ def _render_adaptive_strategy_md(payload: dict) -> None:
         f"- **Progress:** {payload['recommended_next_experiment']['current_samples']} / {payload['recommended_next_experiment']['min_samples']} samples collected",
         f"- **Instruction:** {payload['recommended_next_experiment']['instruction']}",
         "",
-        "## 6. Editorial Governance & Integrity Guarantee",
+        "## 6. Analytics Limitations & Correlation Notice",
+        f"> {payload.get('correlation_vs_demonstrated_improvement', '')}",
+        "",
+    ])
+    for lim in payload.get("analytics_limitations", []):
+        md_lines.append(f"- {lim}")
+
+    md_lines.extend([
+        "",
+        "## 7. Editorial Governance & Integrity Guarantee",
         f"> {payload['governance_guarantee']}",
         "",
     ])

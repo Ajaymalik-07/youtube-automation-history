@@ -16,7 +16,7 @@ Enforces sample size thresholds to avoid drawing false conclusions from 1-2 vide
 import os
 import json
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import config
 
 EXPERIMENTS_FILE = os.path.join(config.OUTPUT_DIR, "growth_experiments.json")
@@ -29,9 +29,58 @@ VALID_EXPERIMENT_CATEGORIES = [
     "thumbnail_concept",
     "publishing_window",
     "narrative_structure",
+    "publishing_frequency",
 ]
 
 MIN_SAMPLE_SIZE_FOR_CONCLUSION = 3
+MIN_LONGFORM_BASELINE_FOR_FREQUENCY_CHANGE = 10
+MIN_SHORTS_BASELINE_FOR_FREQUENCY_CHANGE = 30
+
+
+def validate_frequency_experiment_proposal(proposal: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    """
+    Validates a proposed publishing frequency experiment against the Phase 21 Adaptive Publishing Policy:
+    1. Must have a documented hypothesis.
+    2. Must change only ONE major variable at a time (rejects simultaneous variable changes).
+    3. Must define measurable success criteria.
+    4. Must preserve a baseline comparison (e.g. 1 long-form + 5 Shorts daily in Asia/Kolkata).
+    5. Must demonstrate sufficient baseline evidence before recommending any reduction/change.
+    """
+    issues: List[str] = []
+    hypothesis = str(proposal.get("hypothesis", "")).strip()
+    if len(hypothesis) < 15:
+        issues.append("Frequency experiment must include a documented hypothesis.")
+
+    changed_vars = proposal.get("changed_variables", [])
+    if not isinstance(changed_vars, list) or len(changed_vars) != 1:
+        issues.append(
+            f"Frequency experiment must change exactly 1 major variable at a time (received: {changed_vars})."
+        )
+    if proposal.get("simultaneous_variable_changes"):
+        issues.append("Simultaneous changes to multiple publishing variables are forbidden.")
+
+    success_criteria = proposal.get("success_criteria")
+    if not success_criteria or (isinstance(success_criteria, str) and len(success_criteria.strip()) < 10):
+        issues.append("Frequency experiment must define measurable success criteria.")
+
+    baseline_comp = proposal.get("baseline_comparison") or proposal.get("control_variant")
+    if not baseline_comp:
+        issues.append("Frequency experiment must preserve a baseline comparison.")
+
+    baseline_longform_n = int(proposal.get("baseline_longform_samples", 0) or 0)
+    baseline_shorts_n = int(proposal.get("baseline_shorts_samples", 0) or 0)
+    if (
+        baseline_longform_n < MIN_LONGFORM_BASELINE_FOR_FREQUENCY_CHANGE
+        or baseline_shorts_n < MIN_SHORTS_BASELINE_FOR_FREQUENCY_CHANGE
+    ):
+        issues.append(
+            f"Insufficient baseline evidence for frequency change "
+            f"(observed: {baseline_longform_n} long-form, {baseline_shorts_n} Shorts; "
+            f"minimum required: {MIN_LONGFORM_BASELINE_FOR_FREQUENCY_CHANGE} long-form and "
+            f"{MIN_SHORTS_BASELINE_FOR_FREQUENCY_CHANGE} Shorts over rolling 30-day baseline)."
+        )
+
+    return len(issues) == 0, issues
 
 
 class ExperimentTracker:
@@ -116,10 +165,12 @@ class ExperimentTracker:
         experiment_id: str,
         video_id: str,
         variant: str,
-        metric_value: float,
+        metric_value: Optional[float],
         notes: str = "",
     ) -> Dict[str, Any]:
-        """Records an observed result for an active experiment."""
+        """Records an observed result for an active experiment (rejects unavailable None metrics)."""
+        if metric_value is None:
+            raise ValueError("Cannot record experiment sample: metric_value is unavailable (None).")
         exp = next((e for e in self.experiments if e["id"] == experiment_id), None)
         if not exp:
             raise ValueError(f"Experiment ID '{experiment_id}' not found.")
@@ -137,8 +188,8 @@ class ExperimentTracker:
         return exp
 
     def _evaluate_experiment(self, exp: Dict[str, Any]) -> None:
-        """Evaluates experiment status based on recorded sample data."""
-        samples = exp["samples"]
+        """Evaluates experiment status based on valid recorded sample data."""
+        samples = [s for s in exp["samples"] if s.get("metric_value") is not None]
         min_samples = exp.get("min_sample_size", MIN_SAMPLE_SIZE_FOR_CONCLUSION)
 
         if len(samples) < min_samples:
@@ -147,8 +198,8 @@ class ExperimentTracker:
             exp["conclusion"] = f"Gathered {len(samples)}/{min_samples} required video observations. No statistically defensible conclusion yet."
             return
 
-        control_vals = [s["metric_value"] for s in samples if s["variant"].lower() == "control"]
-        test_vals = [s["metric_value"] for s in samples if s["variant"].lower() == "test"]
+        control_vals = [float(s["metric_value"]) for s in samples if s["variant"].lower() == "control"]
+        test_vals = [float(s["metric_value"]) for s in samples if s["variant"].lower() == "test"]
 
         if not control_vals or not test_vals:
             exp["status"] = "in_progress"
@@ -174,6 +225,46 @@ class ExperimentTracker:
     def get_all_experiments(self) -> List[Dict[str, Any]]:
         """Returns all experiments."""
         return list(self.experiments)
+
+    def create_frequency_experiment(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Registers a controlled publishing-frequency experiment ONLY if it passes
+        all Phase 21 Adaptive Publishing Policy rules. Never mutates the active
+        production schedule automatically.
+        """
+        ok, issues = validate_frequency_experiment_proposal(proposal)
+        if not ok:
+            raise ValueError("Frequency experiment rejected by Adaptive Publishing Policy: " + "; ".join(issues))
+
+        exp_id = proposal.get("id") or f"EXP-FREQ-{len(self.experiments) + 1:03d}"
+        exp_record = {
+            "id": exp_id,
+            "name": proposal.get("name", "Controlled Frequency Experiment"),
+            "category": "publishing_frequency",
+            "target_format": proposal.get("target_format", "all"),
+            "hypothesis": proposal["hypothesis"],
+            "changed_variables": list(proposal["changed_variables"]),
+            "target_metric": proposal.get("target_metric", "median_views_and_apv"),
+            "success_criteria": proposal["success_criteria"],
+            "control_variant": proposal.get("baseline_comparison") or proposal.get("control_variant"),
+            "test_variant": proposal.get("test_variant", ""),
+            "baseline_cadence": {
+                "longform_per_day": getattr(config, "LONGFORM_DAILY_COUNT", 1),
+                "shorts_per_day": getattr(config, "SHORTS_DAILY_COUNT", 5),
+                "timezone": getattr(config, "PUBLISHING_TIMEZONE", "Asia/Kolkata"),
+            },
+            "auto_apply_to_schedule": False,
+            "min_sample_size": max(MIN_SAMPLE_SIZE_FOR_CONCLUSION, int(proposal.get("min_sample_size", 5))),
+            "current_samples": 0,
+            "status": "in_progress",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "samples": [],
+            "conclusion": None,
+            "confidence_level": "insufficient_data",
+        }
+        self.experiments.append(exp_record)
+        self.save()
+        return exp_record
 
     def save(self) -> None:
         """Persists experiments to disk."""

@@ -919,6 +919,10 @@ def create_video(script: dict, audio_path: str, output_dir: str,
 
         # Attach audio first to know true duration
         audio      = AudioFileClip(audio_path)
+        max_short_secs = min(float(getattr(config, "SHORTS_MAX_SECONDS", 60)), 59.5)
+        if audio.duration > max_short_secs:
+            print(f"   ⚠ Short audio duration ({audio.duration:.1f}s) exceeds {max_short_secs:.1f}s cap; clamping strictly under 60s.")
+            audio = audio.subclip(0, max_short_secs)
         total_dur  = audio.duration
         print(f"   → Audio duration: {total_dur:.1f}s")
 
@@ -1016,6 +1020,10 @@ def create_video(script: dict, audio_path: str, output_dir: str,
     finally:
         try:
             final.close()
+        except Exception:
+            pass
+        try:
+            audio.close()
         except Exception:
             pass
         if os.path.exists(temp_audio):

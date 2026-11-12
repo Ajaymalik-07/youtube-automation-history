@@ -91,30 +91,39 @@ class HistoricalPerformanceDB:
         video_duration: float,
         title: str,
         thumbnail_reference: str = "",
-        views: int = 0,
-        engaged_views: int = 0,
-        watch_time_minutes: float = 0.0,
-        average_view_duration_seconds: float = 0.0,
-        average_percentage_viewed: float = 0.0,
-        impressions: int = 0,
-        ctr: float = 0.0,
-        likes: int = 0,
-        comments: int = 0,
-        subscribers_gained: int = 0,
+        views: Optional[int] = 0,
+        engaged_views: Optional[int] = 0,
+        watch_time_minutes: Optional[float] = 0.0,
+        average_view_duration_seconds: Optional[float] = 0.0,
+        average_percentage_viewed: Optional[float] = 0.0,
+        impressions: Optional[int] = 0,
+        ctr: Optional[float] = 0.0,
+        likes: Optional[int] = 0,
+        comments: Optional[int] = 0,
+        subscribers_gained: Optional[int] = 0,
+        returning_viewers: Optional[int] = None,
+        hook_style: str = "",
         traffic_sources: Optional[List[Dict[str, Any]]] = None,
         checkpoint: str = "ad_hoc",
         metadata_extras: Optional[Dict[str, Any]] = None,
+        channel_id: str = "",
+        observation_period: str = "",
+        owner_analytics_available: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Appends an immutable, timestamped snapshot checkpoint for a video.
-        Ensures earlier checkpoints are preserved and never overwritten.
+        - Preserves earlier checkpoints and never overwrites distinct historical observations.
+        - Prevents duplicate snapshots for the same (checkpoint, observation_period).
+        - Preserves None for unavailable metrics rather than coercing them to 0.
         """
         now_iso = datetime.now(timezone.utc).isoformat()
+        obs_period = observation_period or now_iso[:10]
         clean_format = "short" if "short" in str(video_format).lower() else "longform"
 
         if video_id not in self.records:
             self.records[video_id] = {
                 "video_id": video_id,
+                "channel_id": channel_id or getattr(config, "YOUTUBE_CHANNEL_ID", ""),
                 "video_format": clean_format,
                 "topic": topic,
                 "content_pillar": content_pillar,
@@ -132,6 +141,8 @@ class HistoricalPerformanceDB:
 
         rec = self.records[video_id]
         # Update mutable identity attributes only if newly supplied
+        if channel_id and not rec.get("channel_id"):
+            rec["channel_id"] = channel_id
         if topic and rec["topic"] == "Historical Topic":
             rec["topic"] = topic
         if content_pillar and rec["content_pillar"] == "General History":
@@ -146,29 +157,65 @@ class HistoricalPerformanceDB:
             rec["video_duration_seconds"] = round(float(video_duration), 1)
         if metadata_extras:
             rec["metadata_extras"].update(metadata_extras)
+        if hook_style:
+            rec["metadata_extras"]["hook_style"] = hook_style
+
+        def _opt_int(val: Optional[int]) -> Optional[int]:
+            return max(0, int(val)) if val is not None else None
+
+        def _opt_float(val: Optional[float], digits: int) -> Optional[float]:
+            return round(max(0.0, float(val)), digits) if val is not None else None
+
+        inferred_owner_avail = (
+            bool(owner_analytics_available)
+            if owner_analytics_available is not None
+            else (watch_time_minutes is not None or average_percentage_viewed is not None or subscribers_gained is not None)
+        )
+
+        metrics_dict = {
+            "views": _opt_int(views),
+            "engaged_views": _opt_int(engaged_views),
+            "watch_time_minutes": _opt_float(watch_time_minutes, 2),
+            "average_view_duration_seconds": _opt_float(average_view_duration_seconds, 1),
+            "average_percentage_viewed": _opt_float(average_percentage_viewed, 2),
+            "impressions": _opt_int(impressions),
+            "ctr": _opt_float(ctr, 4),
+            "likes": _opt_int(likes),
+            "comments": _opt_int(comments),
+            "subscribers_gained": _opt_int(subscribers_gained),
+            "returning_viewers": _opt_int(returning_viewers),
+        }
 
         snapshot_point = {
             "checkpoint": checkpoint,
+            "observation_period": obs_period,
             "retrieval_timestamp": now_iso,
-            "metrics": {
-                "views": max(0, int(views)),
-                "engaged_views": max(0, int(engaged_views)),
-                "watch_time_minutes": round(max(0.0, float(watch_time_minutes)), 2),
-                "average_view_duration_seconds": round(max(0.0, float(average_view_duration_seconds)), 1),
-                "average_percentage_viewed": round(max(0.0, float(average_percentage_viewed)), 2),
-                "impressions": max(0, int(impressions)),
-                "ctr": round(max(0.0, float(ctr)), 4),
-                "likes": max(0, int(likes)),
-                "comments": max(0, int(comments)),
-                "subscribers_gained": max(0, int(subscribers_gained)),
-            },
+            "owner_analytics_available": inferred_owner_avail,
+            "metrics": metrics_dict,
             "traffic_sources": list(traffic_sources or []),
         }
 
-        # Append to immutable audit trail
-        rec["snapshot_history"].append(snapshot_point)
+        # Deduplicate snapshots for the same (checkpoint, observation_period)
+        existing_idx = next(
+            (
+                i for i, s in enumerate(rec["snapshot_history"])
+                if s.get("checkpoint") == checkpoint and s.get("observation_period", s.get("retrieval_timestamp", "")[:10]) == obs_period
+            ),
+            None,
+        )
+        if existing_idx is not None:
+            existing_snap = rec["snapshot_history"][existing_idx]
+            # Preserve existing unless owner analytics upgraded or metrics genuinely changed
+            if (inferred_owner_avail and not existing_snap.get("owner_analytics_available")) or (
+                existing_snap.get("metrics") != metrics_dict
+            ):
+                rec["snapshot_history"][existing_idx] = snapshot_point
+        else:
+            rec["snapshot_history"].append(snapshot_point)
+
         rec["latest_retrieval_timestamp"] = now_iso
-        rec["latest_metrics"] = snapshot_point["metrics"]
+        rec["latest_metrics"] = metrics_dict
+        rec["owner_analytics_available"] = inferred_owner_avail
         if traffic_sources:
             rec["traffic_sources"] = list(traffic_sources)
 
@@ -190,6 +237,37 @@ class HistoricalPerformanceDB:
     def get_longform(self) -> List[Dict[str, Any]]:
         """Filters tracked records to Long-form documentaries only."""
         return [r for r in self.records.values() if r.get("video_format") == "longform"]
+
+    def get_videos_in_window(
+        self,
+        days: int = 30,
+        video_format: Optional[str] = None,
+        reference_time: Optional[datetime] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Returns tracked videos published (or recorded if publication_timestamp missing)
+        within the rolling `days` window (default 30 days).
+        """
+        from datetime import timedelta
+        ref = reference_time or datetime.now(timezone.utc)
+        cutoff = ref - timedelta(days=days)
+        results = []
+        for rec in self.records.values():
+            if video_format and rec.get("video_format") != video_format:
+                continue
+            ts_str = rec.get("publication_timestamp") or rec.get("created_at") or ""
+            if not ts_str:
+                results.append(rec)
+                continue
+            try:
+                dt = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                if dt >= cutoff:
+                    results.append(rec)
+            except Exception:
+                results.append(rec)
+        return results
 
     def save(self) -> None:
         """Persists the database to disk atomically."""

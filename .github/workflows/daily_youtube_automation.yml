@@ -1,5 +1,9 @@
 name: Daily YouTube Automation
 
+concurrency:
+  group: daily-youtube-automation-${{ github.ref }}
+  cancel-in-progress: false
+
 on:
   schedule:
     # Continuous advance pipeline heartbeat: runs every 1 hour to ensure YouTube scheduled queue is always filled

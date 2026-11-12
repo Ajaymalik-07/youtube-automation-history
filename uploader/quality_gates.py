@@ -11,7 +11,14 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Tuple, List, Optional
 import config
 
-DIAGNOSTICS_DIR = os.path.join(config.OUTPUT_DIR, "diagnostics")
+_DEFAULT_DIAGNOSTICS_DIR = os.path.join(config.OUTPUT_DIR, "diagnostics")
+DIAGNOSTICS_DIR = _DEFAULT_DIAGNOSTICS_DIR
+
+
+def _get_diagnostics_dir() -> str:
+    if DIAGNOSTICS_DIR != _DEFAULT_DIAGNOSTICS_DIR:
+        return DIAGNOSTICS_DIR
+    return os.path.join(config.OUTPUT_DIR, "diagnostics")
 
 
 def validate_research_gate(research: dict, min_confidence: float = 0.65) -> Tuple[bool, List[str]]:
@@ -128,11 +135,53 @@ def validate_script_gate(script: dict, is_shorts: bool = False) -> Tuple[bool, L
     return len(issues) == 0, issues
 
 
+def _srt_timestamp_to_seconds(ts: str) -> float:
+    h, m, rest = ts.strip().split(":")
+    s, ms = rest.split(",")
+    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000.0
+
+
+def validate_srt_captions(srt_path: str) -> Tuple[bool, List[str]]:
+    """Validate SRT caption file readability, monotonic timing, and non-empty cues."""
+    issues = []
+    if not srt_path or not os.path.exists(srt_path):
+        return False, ["SRT subtitle file does not exist."]
+    try:
+        raw = open(srt_path, encoding="utf-8").read().strip()
+    except Exception as e:
+        return False, [f"Could not read SRT file: {e}"]
+    if not raw:
+        return False, ["SRT subtitle file is empty."]
+
+    matches = re.findall(r"(\d+:\d+:\d+,\d+)\s*-->\s*(\d+:\d+:\d+,\d+)", raw)
+    if not matches:
+        return False, ["No valid SRT timestamp cues found."]
+
+    prev_start = -1.0
+    for idx, (s_ts, e_ts) in enumerate(matches, 1):
+        try:
+            start_s = _srt_timestamp_to_seconds(s_ts)
+            end_s = _srt_timestamp_to_seconds(e_ts)
+        except Exception:
+            issues.append(f"Malformed SRT timestamp in cue {idx}: {s_ts} --> {e_ts}")
+            break
+        if end_s <= start_s:
+            issues.append(f"Invalid SRT cue {idx}: end ({e_ts}) <= start ({s_ts}).")
+            break
+        if start_s < prev_start - 0.05:
+            issues.append(f"Non-monotonic SRT cue {idx}: start {start_s:.2f}s < previous {prev_start:.2f}s.")
+            break
+        prev_start = start_s
+    return len(issues) == 0, issues
+
+
 def validate_video_gate(
     video_path: str,
     thumb_path: Optional[str] = None,
     is_shorts: bool = False,
-    deep_probe: bool = True
+    deep_probe: bool = True,
+    check_black_frames: bool = False,
+    srt_path: Optional[str] = None,
 ) -> Tuple[bool, List[str]]:
     """
     Validates physical video file integrity, format parameters, and thumbnail assets.
@@ -198,9 +247,15 @@ def validate_video_gate(
                     if is_shorts:
                         if w > h:
                             issues.append(f"Invalid aspect ratio for Shorts: {w}x{h} is landscape (must be vertical 9:16).")
+                        elif (w, h) != (getattr(config, "SHORTS_WIDTH", 1080), getattr(config, "SHORTS_HEIGHT", 1920)):
+                            issues.append(
+                                f"Invalid Shorts resolution: {w}x{h} (expected {getattr(config, 'SHORTS_WIDTH', 1080)}x{getattr(config, 'SHORTS_HEIGHT', 1920)})."
+                            )
                     else:
                         if h > w:
                             issues.append(f"Invalid aspect ratio for long-form: {w}x{h} is vertical (must be 16:9 widescreen).")
+                        elif w < 1920 or h < 1080:
+                            issues.append(f"Long-form resolution below 1920x1080 minimum: {w}x{h}.")
 
                 if not a_stream:
                     issues.append("No audio stream found in media container (narration audio is missing).")
@@ -208,11 +263,39 @@ def validate_video_gate(
                 duration = float(probe_data.get("format", {}).get("duration", 0))
                 if duration <= 0.5:
                     issues.append(f"Video duration ({duration}s) is too short or empty.")
+                elif is_shorts:
+                    max_short_s = float(getattr(config, "SHORTS_MAX_SECONDS", 60))
+                    if duration > max_short_s + 0.5:
+                        issues.append(f"Short duration ({duration:.1f}s) exceeds maximum allowed {max_short_s:.0f}s cap.")
+                else:
+                    if duration > 900.0:
+                        issues.append(f"Long-form duration ({duration:.1f}s) exceeds YouTube 15-minute (900s) cap.")
+
+                if check_black_frames and duration > 2.0:
+                    try:
+                        b_cmd = [
+                            "ffmpeg", "-v", "info", "-i", video_path,
+                            "-vf", "blackdetect=d=1.5:pix_th=0.10", "-an", "-f", "null", "-"
+                        ]
+                        b_res = subprocess.run(b_cmd, capture_output=True, text=True, timeout=30)
+                        blacks = [ln for ln in b_res.stderr.splitlines() if "blackdetect" in ln]
+                        if blacks:
+                            issues.append(f"Detected {len(blacks)} unintended prolonged black-frame segment(s) (>= 1.5s).")
+                    except FileNotFoundError:
+                        pass
+                    except Exception:
+                        pass
         except FileNotFoundError:
             # ffprobe not installed in environment, fallback to basic container check
             pass
         except Exception as probe_err:
             issues.append(f"Deep stream inspection error: {probe_err}")
+
+    # Optional SRT subtitle validation when srt_path provided
+    if srt_path and os.path.exists(srt_path):
+        srt_ok, srt_issues = validate_srt_captions(srt_path)
+        if not srt_ok:
+            issues.extend(srt_issues)
 
     # Thumbnail validation
     if thumb_path:
@@ -412,9 +495,10 @@ def evaluate_all_quality_gates(
 
     # Persist diagnostic report on disk
     try:
-        os.makedirs(DIAGNOSTICS_DIR, exist_ok=True)
+        diag_dir = _get_diagnostics_dir()
+        os.makedirs(diag_dir, exist_ok=True)
         filename_seed = os.path.basename(video_path) if video_path else f"run_{int(datetime.now().timestamp())}"
-        diag_path = os.path.join(DIAGNOSTICS_DIR, f"diagnostic_{filename_seed}.json")
+        diag_path = os.path.join(diag_dir, f"diagnostic_{filename_seed}.json")
         with open(diag_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
         report["diagnostic_file"] = diag_path

@@ -96,21 +96,96 @@ def audit_token_scopes(token_path: str = TOKEN_FILE) -> Dict[str, Any]:
     return result
 
 
-def safe_refresh_credentials(creds, token_path: str = TOKEN_FILE) -> bool:
+def _should_sync_env(token_path: str, sync_env: Optional[bool]) -> bool:
+    """Only sync .env when explicitly requested or operating on the live root TOKEN_FILE outside pytest."""
+    if sync_env is not None:
+        return bool(sync_env)
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return False
+    return os.path.abspath(token_path) == os.path.abspath(TOKEN_FILE)
+
+
+def _atomic_write_pickle(obj: Any, target_path: str) -> None:
+    """Atomically write pickle bytes to disk without leaving partial files."""
+    parent = os.path.dirname(os.path.abspath(target_path))
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    tmp_path = f"{target_path}.tmp"
+    with open(tmp_path, "wb") as f:
+        pickle.dump(obj, f)
+    if os.path.exists(target_path):
+        os.replace(tmp_path, target_path)
+    else:
+        os.rename(tmp_path, target_path)
+
+
+def verify_granted_scopes(creds) -> Tuple[bool, List[str]]:
+    """Checks that credentials object covers all REQUIRED_SCOPES."""
+    granted = list(getattr(creds, "scopes", None) or [])
+    has_full_youtube = "https://www.googleapis.com/auth/youtube" in granted
+    missing = []
+    for req in REQUIRED_SCOPES:
+        if req in granted:
+            continue
+        if has_full_youtube and req in (
+            "https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.readonly",
+        ):
+            continue
+        missing.append(req)
+    return len(missing) == 0, missing
+
+
+def verify_channel_identity(
+    creds,
+    expected_channel_id: Optional[str] = None,
+) -> Tuple[bool, Dict[str, Any]]:
     """
-    Safely refreshes an expired credential object and persists it to disk and .env.
-    Never logs tokens.
+    Verifies OAuth credentials against YouTube Data API v3 channels.list(mine=True)
+    and optionally confirms the authenticated channel matches `expected_channel_id`.
+    """
+    yt = build("youtube", "v3", credentials=creds)
+    ch_resp = yt.channels().list(mine=True, part="snippet,id").execute()
+    items = ch_resp.get("items", [])
+    if not items:
+        return False, {"error": "Authenticated Google account does not own a YouTube channel."}
+
+    channel_id = items[0].get("id", "")
+    channel_title = items[0].get("snippet", {}).get("title", "Unknown Channel")
+
+    exp = (expected_channel_id or "").strip()
+    if exp and exp.startswith("UC") and channel_id != exp:
+        return False, {
+            "error": (
+                f"Channel identity mismatch: authorized '{channel_title}' ({channel_id}), "
+                f"expected '{exp}'. Existing valid token preserved."
+            ),
+            "channel_id": channel_id,
+            "channel_title": channel_title,
+            "expected_channel_id": exp,
+        }
+
+    return True, {"channel_id": channel_id, "channel_title": channel_title}
+
+
+def safe_refresh_credentials(
+    creds,
+    token_path: str = TOKEN_FILE,
+    sync_env: Optional[bool] = None,
+) -> bool:
+    """
+    Safely refreshes an expired credential object and persists it atomically to disk
+    (and .env only for live production credentials). Never logs tokens.
     """
     if not creds or not creds.refresh_token:
         return False
     try:
         creds.refresh(Request())
-        with open(token_path, "wb") as f:
-            pickle.dump(creds, f)
-        if hasattr(config, "update_youtube_token_env"):
+        _atomic_write_pickle(creds, token_path)
+        if _should_sync_env(token_path, sync_env) and hasattr(config, "update_youtube_token_env"):
             with open(token_path, "rb") as f:
                 config.update_youtube_token_env(f.read())
-        return creds.valid
+        return bool(creds.valid)
     except Exception:
         return False
 
@@ -120,14 +195,16 @@ def reauthorize_channel(
     token_path: str = TOKEN_FILE,
     open_browser: bool = True,
     timeout_seconds: int = 240,
+    expected_channel_id: Optional[str] = None,
+    sync_env: Optional[bool] = None,
 ) -> Tuple[bool, Dict[str, Any]]:
     """
     Executes safe Google OAuth reauthorization requesting all required scopes.
     Safeguards:
-    - Creates a backup (.bak) of existing token before attempting flow.
-    - Restores backup if reauthorization fails or is cancelled.
+    - Does NOT overwrite a valid existing token or .env until scope AND channel identity checks succeed.
+    - Creates a backup (.bak) of existing token before writing the verified new token.
+    - Restores backup if disk persistence fails.
     - Never logs credentials or secrets.
-    - Updates .env (YOUTUBE_TOKEN_BASE64) on success to maintain synchronization.
     """
     config.sync_client_secret_file()
     cs_file = client_secret_file or getattr(config, "YOUTUBE_CLIENT_SECRET_FILE", "client_secret.json")
@@ -135,14 +212,9 @@ def reauthorize_channel(
     if not os.path.exists(cs_file):
         return False, {"error": f"Client secret file not found: {cs_file}"}
 
-    # Backup existing working token
+    prev_insecure = os.environ.get("OAUTHLIB_INSECURE_TRANSPORT")
     backup_created = False
-    if os.path.exists(token_path):
-        try:
-            shutil.copy2(token_path, BACKUP_TOKEN_FILE)
-            backup_created = True
-        except Exception as e:
-            print(f"   ⚠ Could not create token backup: {e}")
+    wrote_new_token = False
 
     try:
         os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
@@ -161,7 +233,7 @@ def reauthorize_channel(
             webbrowser.open(auth_url)
 
         creds = flow.run_local_server(
-            bind_addr="0.0.0.0",
+            bind_addr="127.0.0.1",
             port=8080,
             open_browser=False,
             timeout_seconds=timeout_seconds,
@@ -171,23 +243,35 @@ def reauthorize_channel(
         if not creds or not creds.valid:
             raise RuntimeError("OAuth server returned invalid credentials.")
 
-        # Persist new token
-        with open(token_path, "wb") as f:
-            pickle.dump(creds, f)
+        # 1. Verify all required scopes BEFORE overwriting any existing token
+        scopes_ok, missing_scopes = verify_granted_scopes(creds)
+        if not scopes_ok:
+            raise RuntimeError(
+                "Authorization succeeded but required OAuth scopes were not granted: "
+                + ", ".join(missing_scopes)
+            )
 
-        # Update base64 in .env
-        if hasattr(config, "update_youtube_token_env"):
+        # 2. Verify channel access & identity BEFORE overwriting any existing token
+        id_ok, id_info = verify_channel_identity(creds, expected_channel_id=expected_channel_id)
+        if not id_ok:
+            raise RuntimeError(id_info.get("error", "Channel identity verification failed."))
+
+        # 3. Backup existing working token, then persist verified token atomically
+        if os.path.exists(token_path):
+            try:
+                shutil.copy2(token_path, BACKUP_TOKEN_FILE)
+                backup_created = True
+            except Exception as e:
+                print(f"   ⚠ Could not create token backup: {e}")
+
+        _atomic_write_pickle(creds, token_path)
+        wrote_new_token = True
+
+        # 4. Update base64 in .env only for live credentials after all checks succeed
+        if _should_sync_env(token_path, sync_env) and hasattr(config, "update_youtube_token_env"):
             with open(token_path, "rb") as f:
                 config.update_youtube_token_env(f.read())
 
-        # Verify channel access
-        yt = build("youtube", "v3", credentials=creds)
-        ch_resp = yt.channels().list(mine=True, part="snippet,id").execute()
-        items = ch_resp.get("items", [])
-        channel_title = items[0]["snippet"]["title"] if items else "Unknown Channel"
-        channel_id = items[0]["id"] if items else ""
-
-        # Remove backup on confirmed success
         if backup_created and os.path.exists(BACKUP_TOKEN_FILE):
             try:
                 os.remove(BACKUP_TOKEN_FILE)
@@ -195,18 +279,22 @@ def reauthorize_channel(
                 pass
 
         return True, {
-            "channel_title": channel_title,
-            "channel_id": channel_id,
+            "channel_title": id_info["channel_title"],
+            "channel_id": id_info["channel_id"],
             "scopes": list(creds.scopes) if creds.scopes else [],
         }
 
     except Exception as e:
         err_msg = str(e)
-        # Restore backup if available
-        if backup_created and os.path.exists(BACKUP_TOKEN_FILE):
+        if wrote_new_token and backup_created and os.path.exists(BACKUP_TOKEN_FILE):
             try:
                 shutil.copy2(BACKUP_TOKEN_FILE, token_path)
-                print("   ℹ Restored previous working token from backup after reauthorization error.")
+                print("   ℹ Restored previous working token from backup after persistence error.")
             except Exception:
                 pass
         return False, {"error": err_msg}
+    finally:
+        if prev_insecure is None:
+            os.environ.pop("OAUTHLIB_INSECURE_TRANSPORT", None)
+        else:
+            os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = prev_insecure

@@ -21,6 +21,11 @@ from typing import Dict, Any, List, Optional, Tuple
 import config
 from apis.growth_database import get_performance_db, HistoricalPerformanceDB
 from agents.experiment_tracker import get_experiment_tracker
+from agents.statistical_validator import (
+    calculate_median,
+    compute_publication_age_days,
+    normalize_views_by_age,
+)
 
 REPORT_JSON_PATH = os.path.join(config.OUTPUT_DIR, "weekly_growth_intelligence.json")
 REPORT_MD_PATH = os.path.join(config.OUTPUT_DIR, "weekly_growth_intelligence.md")
@@ -105,14 +110,59 @@ def classify_shorts_format(title: str, topic: str = "", metadata: Optional[dict]
     return "historical_mystery"
 
 
+def classify_hook_style(title: str, metadata: Optional[dict] = None) -> str:
+    """Classifies opening hook style for topic/hook performance tracking."""
+    meta = metadata or {}
+    explicit = meta.get("hook_style")
+    if explicit:
+        return str(explicit).lower()
+    t = (title or "").lower()
+    if "?" in t or any(w in t for w in ("why", "how", "did", "what", "क्यों", "कैसे", "क्या")):
+        return "question_paradox"
+    if any(w in t for w in ("secret", "hidden", "truth", "never", "myth", "रहस्य", "सच", "छुपा")):
+        return "contradiction_secret"
+    if any(w in t for w in ("found", "discovered", "submerged", "excavation", "carved", "खोज")):
+        return "artifact_reveal"
+    return "narrative_chronicle"
+
+
+def _fmt_metric(val: Any, suffix: str = "", unavailable_label: str = "Unavailable") -> str:
+    """Format metric value for Markdown, displaying unavailable_label when None instead of 0."""
+    if val is None:
+        return unavailable_label
+    return f"{val}{suffix}"
+
+
+def _summarize_dimension_buckets(groups: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Dict[str, Any]]:
+    """Shared helper to summarize performance across topic, hook, or duration buckets."""
+    summary: Dict[str, Dict[str, Any]] = {}
+    for bucket, items in groups.items():
+        if not items:
+            continue
+        views_list = [float(i["views"]) for i in items if i.get("views") is not None]
+        apv_list = [float(i["apv"]) for i in items if i.get("apv") is not None and float(i["apv"]) > 0]
+        avd_list = [float(i["avd"]) for i in items if i.get("avd") is not None and float(i["avd"]) > 0]
+        wt_list = [float(i["watch_time"]) for i in items if i.get("watch_time") is not None]
+        wt_total = round(sum(wt_list), 2) if wt_list else None
+        summary[bucket] = {
+            "count": len(items),
+            "median_views": calculate_median(views_list) if views_list else None,
+            "avg_views": int(sum(views_list) / len(views_list)) if views_list else None,
+            "total_watch_time_minutes": wt_total,
+            "avg_apv": round(sum(apv_list) / len(apv_list), 2) if apv_list else None,
+            "avg_view_duration_seconds": round(sum(avd_list) / len(avd_list), 1) if avd_list else None,
+            "confidence": "preliminary (sample < 3)" if len(items) < 3 else "directional (sample >= 3)",
+        }
+    return summary
+
+
 def analyze_shorts_performance(shorts: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Performs independent analysis of YouTube Shorts:
-    - Format traction across 8 documentary formats
-    - Swipe rate and engagement patterns (where available)
-    - Pacing & duration correlation
-    - Hook style patterns
-    - Subscriber conversion per 1,000 views
+    - Median views per video, watch time, AVD, APV, subscriber conversion per 1,000 views
+    - Returning viewers (where available)
+    - Breakdown by format (8 classes), topic pillar, hook style, and duration bucket
+    - Accounts for publication age via age-adjusted view velocity
     - Prevents premature conclusions if sample size < 3
     """
     if not shorts:
@@ -120,53 +170,136 @@ def analyze_shorts_performance(shorts: List[Dict[str, Any]]) -> Dict[str, Any]:
             "sample_size": 0,
             "status": "insufficient_data",
             "message": "No Shorts data recorded in the historical performance database.",
-            "format_breakdown": {},
+            "total_views": 0,
+            "median_views_per_video": 0.0,
+            "total_watch_time_minutes": 0.0,
+            "avg_watch_time_minutes": 0.0,
+            "avg_view_duration_seconds": 0.0,
+            "median_view_duration_seconds": 0.0,
             "observed_avg_apv": 0.0,
+            "median_apv": 0.0,
             "target_apv_benchmark": 70.0,
             "retention_benchmarks": {"target_apv": 70.0, "observed_avg_apv": 0.0},
+            "total_subscribers_gained": 0,
             "sub_conversion_per_1k": 0.0,
+            "returning_viewers": {"available": False, "total": None, "note": "No Shorts records available."},
+            "format_breakdown": {},
+            "topic_breakdown": {},
+            "hook_breakdown": {},
+            "duration_breakdown": {},
+            "avg_publication_age_days": None,
+            "median_age_adjusted_velocity": 0.0,
             "observations": ["Initial baseline phase: Produce and track at least 3 Shorts per format."],
         }
 
     format_groups: Dict[str, List[dict]] = {f: [] for f in SHORTS_FORMAT_CLASSES}
+    topic_groups: Dict[str, List[dict]] = {}
+    hook_groups: Dict[str, List[dict]] = {}
+    duration_groups: Dict[str, List[dict]] = {"under_35s": [], "35_to_50s": [], "over_50s": [], "unknown_duration": []}
+
     total_views = 0
-    total_subs = 0
-    apv_list = []
-    duration_perf = {"under_35s": [], "35_to_50s": [], "over_50s": []}
+    views_present = False
+    watch_samples: List[float] = []
+    subs_samples: List[int] = []
+    views_list: List[float] = []
+    avd_list: List[float] = []
+    apv_list: List[float] = []
+    apv_present = False
+    avd_present = False
+    ret_viewers_list: List[int] = []
+    age_days_list: List[float] = []
+    age_velocities: List[float] = []
 
     for s in shorts:
         m = s.get("latest_metrics", {})
-        views = m.get("views", 0)
-        subs = m.get("subscribers_gained", 0)
-        apv = m.get("average_percentage_viewed", 0.0)
-        dur = s.get("video_duration_seconds", 0.0)
+        raw_views = m.get("views")
+        views = int(raw_views) if raw_views is not None else None
+        raw_wt = m.get("watch_time_minutes")
+        watch_min = float(raw_wt) if raw_wt is not None else None
+        raw_avd = m.get("average_view_duration_seconds")
+        avd = float(raw_avd) if raw_avd is not None else None
+        raw_apv = m.get("average_percentage_viewed")
+        apv = float(raw_apv) if raw_apv is not None else None
+        raw_subs = m.get("subscribers_gained")
+        subs = int(raw_subs) if raw_subs is not None else None
+        ret_v = m.get("returning_viewers")
+        dur = float(s.get("video_duration_seconds", 0.0) or 0.0)
+        meta = s.get("metadata_extras", {})
 
-        total_views += views
-        total_subs += subs
-        if apv > 0:
-            apv_list.append(apv)
+        if views is not None:
+            views_present = True
+            total_views += views
+            views_list.append(float(views))
+        if watch_min is not None:
+            watch_samples.append(watch_min)
+        if subs is not None:
+            subs_samples.append(subs)
+        if avd is not None:
+            avd_present = True
+            if avd > 0:
+                avd_list.append(avd)
+        if apv is not None:
+            apv_present = True
+            if apv > 0:
+                apv_list.append(apv)
+        if ret_v is not None:
+            ret_viewers_list.append(int(ret_v))
 
-        fmt = classify_shorts_format(s.get("title", ""), s.get("topic", ""), s.get("metadata_extras", {}))
-        format_groups.setdefault(fmt, []).append({
+        age_days = compute_publication_age_days(s.get("publication_timestamp"))
+        if age_days is not None and views is not None:
+            age_days_list.append(age_days)
+            age_velocities.append(normalize_views_by_age(views, age_days))
+
+        title = s.get("title", "")
+        topic = s.get("topic", "")
+        pillar = s.get("content_pillar") or classify_content_pillar(title, topic)
+        fmt = classify_shorts_format(title, topic, meta)
+        hook_style = classify_hook_style(title, meta)
+
+        item_summary = {
             "video_id": s.get("video_id"),
-            "title": s.get("title"),
-            "topic": s.get("topic"),
+            "title": title,
+            "topic": topic,
             "views": views,
+            "watch_time": watch_min,
+            "avd": avd,
             "apv": apv,
             "duration": dur,
             "subs": subs,
-        })
+        }
+
+        format_groups.setdefault(fmt, []).append(item_summary)
+        topic_groups.setdefault(pillar, []).append(item_summary)
+        hook_groups.setdefault(hook_style, []).append(item_summary)
 
         if dur > 0:
             if dur < 35.0:
-                duration_perf["under_35s"].append((views, apv))
+                duration_groups["under_35s"].append(item_summary)
             elif dur <= 50.0:
-                duration_perf["35_to_50s"].append((views, apv))
+                duration_groups["35_to_50s"].append(item_summary)
             else:
-                duration_perf["over_50s"].append((views, apv))
+                duration_groups["over_50s"].append(item_summary)
+        else:
+            duration_groups["unknown_duration"].append(item_summary)
 
-    observed_avg_apv = round(sum(apv_list) / len(apv_list), 2) if apv_list else 0.0
-    sub_conv = round((total_subs / total_views * 1000), 2) if total_views > 0 else 0.0
+    total_watch_min = round(sum(watch_samples), 2) if watch_samples else None
+    avg_watch_min = round(sum(watch_samples) / len(watch_samples), 2) if watch_samples else None
+    total_subs = sum(subs_samples) if subs_samples else None
+    median_views = calculate_median(views_list) if views_present else None
+    observed_avg_apv = (round(sum(apv_list) / len(apv_list), 2) if apv_list else 0.0) if apv_present else None
+    median_apv = (calculate_median(apv_list) if apv_list else 0.0) if apv_present else None
+    avg_avd = (round(sum(avd_list) / len(avd_list), 1) if avd_list else 0.0) if avd_present else None
+    median_avd = (calculate_median(avd_list) if avd_list else 0.0) if avd_present else None
+    sub_conv = (round((total_subs / total_views * 1000), 2) if total_views > 0 else 0.0) if total_subs is not None else None
+    returning_info = (
+        {"available": True, "total": sum(ret_viewers_list)}
+        if ret_viewers_list
+        else {
+            "available": False,
+            "total": None,
+            "note": "Returning viewers unavailable (requires YouTube Analytics API v2 audience-type support with yt-analytics.readonly scope).",
+        }
+    )
 
     format_summary = {}
     for fmt, vids in format_groups.items():
@@ -174,19 +307,23 @@ def analyze_shorts_performance(shorts: List[Dict[str, Any]]) -> Dict[str, Any]:
             format_summary[fmt] = {
                 "count": 0,
                 "avg_views": 0,
-                "avg_apv": 0.0,
+                "median_views": 0.0,
+                "avg_apv": None,
                 "confidence": "no_data",
             }
             continue
 
         cnt = len(vids)
-        avg_v = int(sum(v["views"] for v in vids) / cnt)
-        pcts = [v["apv"] for v in vids if v["apv"] > 0]
-        avg_pct = round(sum(pcts) / len(pcts), 2) if pcts else 0.0
+        v_vals = [float(v["views"]) for v in vids if v["views"] is not None]
+        avg_v = int(sum(v_vals) / len(v_vals)) if v_vals else 0
+        has_fmt_apv = any(v["apv"] is not None for v in vids)
+        pcts = [v["apv"] for v in vids if v["apv"] is not None and v["apv"] > 0]
+        avg_pct = (round(sum(pcts) / len(pcts), 2) if pcts else 0.0) if has_fmt_apv else None
         conf = "high (sample >= 3)" if cnt >= 3 else "preliminary (sample < 3)"
         format_summary[fmt] = {
             "count": cnt,
             "avg_views": avg_v,
+            "median_views": calculate_median(v_vals) if v_vals else 0.0,
             "avg_apv": avg_pct,
             "confidence": conf,
         }
@@ -196,25 +333,55 @@ def analyze_shorts_performance(shorts: List[Dict[str, Any]]) -> Dict[str, Any]:
     if len(shorts) < 3:
         observations.append(f"Sample size is limited ({len(shorts)} Short(s)). Withhold definitive hook conclusions until >= 3 samples per format are logged.")
     else:
-        # Check best format with sufficient sample size
         viable_formats = {k: v for k, v in format_summary.items() if v["count"] >= 3}
         if viable_formats:
-            best_fmt = max(viable_formats.items(), key=lambda x: (x[1]["avg_apv"], x[1]["avg_views"]))
-            observations.append(f"Strongest validated Shorts format: '{best_fmt[0]}' (Avg APV: {best_fmt[1]['avg_apv']}%, Avg Views: {best_fmt[1]['avg_views']}).")
+            best_fmt = max(viable_formats.items(), key=lambda x: (x[1]["avg_apv"] or 0.0, x[1]["median_views"]))
+            if best_fmt[1]["avg_apv"] is not None and best_fmt[1]["avg_apv"] > 0:
+                observations.append(
+                    f"Strongest observed Shorts format (correlation, N={best_fmt[1]['count']}): "
+                    f"'{best_fmt[0]}' (Avg APV: {best_fmt[1]['avg_apv']}%, Median Views: {best_fmt[1]['median_views']})."
+                )
+            else:
+                observations.append(
+                    f"Leading observed Shorts format by public views (retention APV unavailable — pending Analytics OAuth scope, N={best_fmt[1]['count']}): "
+                    f"'{best_fmt[0]}' (Median Views: {best_fmt[1]['median_views']})."
+                )
         else:
             observations.append("All individual Shorts formats currently have < 3 samples. Topic clusters are actively gathering data.")
 
-    if observed_avg_apv > 0 and observed_avg_apv < 70.0:
+    if observed_avg_apv is None:
+        observations.append("Shorts APV, watch time, AVD, and subscriber conversion are currently unavailable (requires YouTube Analytics API v2 yt-analytics.readonly scope).")
+    elif observed_avg_apv > 0 and observed_avg_apv < 70.0:
         observations.append(f"Average percentage viewed is {observed_avg_apv}%, below the 70.0% viral benchmark for Shorts. Pacing must eliminate slow preamble in the first 2.5 seconds.")
 
     return {
         "sample_size": len(shorts),
         "total_views": total_views,
+        "median_views_per_video": median_views,
+        "total_watch_time_minutes": total_watch_min,
+        "avg_watch_time_minutes": avg_watch_min,
+        "avg_view_duration_seconds": avg_avd,
+        "median_view_duration_seconds": median_avd,
         "total_subscribers_gained": total_subs,
         "sub_conversion_per_1k": sub_conv,
         "observed_avg_apv": observed_avg_apv,
+        "median_apv": median_apv,
         "target_apv_benchmark": 70.0,
+        "metrics_availability": {
+            "views": views_present,
+            "watch_time_minutes": bool(watch_samples),
+            "average_view_duration_seconds": avd_present,
+            "average_percentage_viewed": apv_present,
+            "subscribers_gained": bool(subs_samples),
+            "returning_viewers": returning_info["available"],
+        },
+        "returning_viewers": returning_info,
+        "avg_publication_age_days": round(sum(age_days_list) / len(age_days_list), 2) if age_days_list else None,
+        "median_age_adjusted_velocity": calculate_median(age_velocities),
         "format_breakdown": format_summary,
+        "topic_breakdown": _summarize_dimension_buckets(topic_groups),
+        "hook_breakdown": _summarize_dimension_buckets(hook_groups),
+        "duration_breakdown": _summarize_dimension_buckets(duration_groups),
         "observations": observations,
         "swiped_away_reporting": "API does not expose granular swiped-away ratios in v2 dimensions; engagement and APV proxy used.",
     }
@@ -223,79 +390,190 @@ def analyze_shorts_performance(shorts: List[Dict[str, Any]]) -> Dict[str, Any]:
 def analyze_longform_performance(longform: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Performs independent analysis of long-form documentaries:
-    - Impressions, CTR, Watch Time, AVD, APV
+    - Median views per video, Watch Time, AVD, APV, Impressions, CTR, Subscriber conversion/1k, Returning viewers
     - Explicitly separates packaging diagnostics (Impressions / CTR) from storytelling/retention diagnostics (AVD / APV)
+    - Breakdown by topic pillar, hook style, and duration bucket
+    - Accounts for video publication age via age-adjusted velocity
     - Traffic source breakdown
-    - Contextual thumbnail recommendations (never advises changing thumbnails purely on CTR without considering impressions and traffic source)
     """
     if not longform:
         return {
             "sample_size": 0,
             "status": "insufficient_data",
             "message": "No long-form documentary data recorded in the historical performance database.",
+            "total_views": 0,
+            "median_views_per_video": 0.0,
+            "total_watch_time_minutes": 0.0,
+            "avg_view_duration_seconds": 0.0,
+            "median_view_duration_seconds": 0.0,
+            "total_subscribers_gained": 0,
+            "sub_conversion_per_1k": 0.0,
+            "returning_viewers": {"available": False, "total": None, "note": "No long-form records available."},
             "packaging_diagnostics": {},
             "storytelling_diagnostics": {},
+            "topic_breakdown": {},
+            "hook_breakdown": {},
+            "duration_breakdown": {},
+            "avg_publication_age_days": None,
+            "median_age_adjusted_velocity": 0.0,
             "traffic_sources": {},
             "observations": ["Initial baseline phase: Produce and publish at least 3 long-form documentaries to gather retention data."],
         }
 
     total_views = 0
-    total_watch_min = 0.0
-    total_impressions = 0
-    total_subs = 0
-    ctr_list = []
-    avd_list = []
-    apv_list = []
+    views_present = False
+    watch_samples: List[float] = []
+    impr_samples: List[int] = []
+    subs_samples: List[int] = []
+    views_list: List[float] = []
+    ctr_list: List[float] = []
+    ctr_present = False
+    avd_list: List[float] = []
+    avd_present = False
+    apv_list: List[float] = []
+    apv_present = False
+    ret_viewers_list: List[int] = []
+    age_days_list: List[float] = []
+    age_velocities: List[float] = []
 
+    topic_groups: Dict[str, List[dict]] = {}
+    hook_groups: Dict[str, List[dict]] = {}
+    duration_groups: Dict[str, List[dict]] = {"under_8m": [], "8_to_11m": [], "11_to_15m": [], "over_15m": [], "unknown_duration": []}
     traffic_aggregate: Dict[str, int] = {}
 
     for lf in longform:
         m = lf.get("latest_metrics", {})
-        views = m.get("views", 0)
-        watch_min = m.get("watch_time_minutes", 0.0)
-        impr = m.get("impressions", 0)
-        ctr = m.get("ctr", 0.0)
-        avd = m.get("average_view_duration_seconds", 0.0)
-        apv = m.get("average_percentage_viewed", 0.0)
-        subs = m.get("subscribers_gained", 0)
+        raw_views = m.get("views")
+        views = int(raw_views) if raw_views is not None else None
+        raw_wt = m.get("watch_time_minutes")
+        watch_min = float(raw_wt) if raw_wt is not None else None
+        raw_impr = m.get("impressions")
+        impr = int(raw_impr) if raw_impr is not None else None
+        raw_ctr = m.get("ctr")
+        ctr = float(raw_ctr) if raw_ctr is not None else None
+        raw_avd = m.get("average_view_duration_seconds")
+        avd = float(raw_avd) if raw_avd is not None else None
+        raw_apv = m.get("average_percentage_viewed")
+        apv = float(raw_apv) if raw_apv is not None else None
+        raw_subs = m.get("subscribers_gained")
+        subs = int(raw_subs) if raw_subs is not None else None
+        ret_v = m.get("returning_viewers")
+        dur = float(lf.get("video_duration_seconds", 0.0) or 0.0)
+        meta = lf.get("metadata_extras", {})
 
-        total_views += views
-        total_watch_min += watch_min
-        total_impressions += impr
-        total_subs += subs
+        if views is not None:
+            views_present = True
+            total_views += views
+            views_list.append(float(views))
+        if watch_min is not None:
+            watch_samples.append(watch_min)
+        if impr is not None:
+            impr_samples.append(impr)
+        if subs is not None:
+            subs_samples.append(subs)
 
-        if ctr > 0:
-            ctr_list.append(ctr)
-        if avd > 0:
-            avd_list.append(avd)
-        if apv > 0:
-            apv_list.append(apv)
+        if ctr is not None:
+            ctr_present = True
+            if ctr > 0:
+                ctr_list.append(ctr)
+        if avd is not None:
+            avd_present = True
+            if avd > 0:
+                avd_list.append(avd)
+        if apv is not None:
+            apv_present = True
+            if apv > 0:
+                apv_list.append(apv)
+        if ret_v is not None:
+            ret_viewers_list.append(int(ret_v))
+
+        age_days = compute_publication_age_days(lf.get("publication_timestamp"))
+        if age_days is not None and views is not None:
+            age_days_list.append(age_days)
+            age_velocities.append(normalize_views_by_age(views, age_days))
+
+        title = lf.get("title", "")
+        topic = lf.get("topic", "")
+        pillar = lf.get("content_pillar") or classify_content_pillar(title, topic)
+        hook_style = classify_hook_style(title, meta)
+
+        item_summary = {
+            "video_id": lf.get("video_id"),
+            "title": title,
+            "topic": topic,
+            "views": views,
+            "watch_time": watch_min,
+            "avd": avd,
+            "apv": apv,
+            "duration": dur,
+            "subs": subs,
+        }
+        topic_groups.setdefault(pillar, []).append(item_summary)
+        hook_groups.setdefault(hook_style, []).append(item_summary)
+
+        if dur > 0:
+            if dur < 480.0:
+                duration_groups["under_8m"].append(item_summary)
+            elif dur <= 660.0:
+                duration_groups["8_to_11m"].append(item_summary)
+            elif dur <= 900.0:
+                duration_groups["11_to_15m"].append(item_summary)
+            else:
+                duration_groups["over_15m"].append(item_summary)
+        else:
+            duration_groups["unknown_duration"].append(item_summary)
 
         for ts in lf.get("traffic_sources", []):
             src_name = ts.get("traffic_source", "OTHER")
             traffic_aggregate[src_name] = traffic_aggregate.get(src_name, 0) + ts.get("views", 0)
 
-    avg_ctr = round(sum(ctr_list) / len(ctr_list), 4) if ctr_list else 0.0
-    avg_avd = round(sum(avd_list) / len(avd_list), 1) if avd_list else 0.0
-    avg_apv = round(sum(apv_list) / len(apv_list), 2) if apv_list else 0.0
-    sub_conv = round((total_subs / total_views * 1000), 2) if total_views > 0 else 0.0
+    total_watch_min = round(sum(watch_samples), 1) if watch_samples else None
+    avg_watch_min = round(sum(watch_samples) / len(watch_samples), 2) if watch_samples else None
+    total_impressions = sum(impr_samples) if impr_samples else None
+    total_subs = sum(subs_samples) if subs_samples else None
+    median_views = calculate_median(views_list) if views_present else None
+    avg_ctr = (round(sum(ctr_list) / len(ctr_list), 4) if ctr_list else 0.0) if ctr_present else None
+    median_ctr = (calculate_median(ctr_list) if ctr_list else 0.0) if ctr_present else None
+    avg_avd = (round(sum(avd_list) / len(avd_list), 1) if avd_list else 0.0) if avd_present else None
+    median_avd = (calculate_median(avd_list) if avd_list else 0.0) if avd_present else None
+    avg_apv = (round(sum(apv_list) / len(apv_list), 2) if apv_list else 0.0) if apv_present else None
+    median_apv = (calculate_median(apv_list) if apv_list else 0.0) if apv_present else None
+    sub_conv = (round((total_subs / total_views * 1000), 2) if total_views > 0 else 0.0) if total_subs is not None else None
+    returning_info = (
+        {"available": True, "total": sum(ret_viewers_list)}
+        if ret_viewers_list
+        else {
+            "available": False,
+            "total": None,
+            "note": "Returning viewers unavailable (requires YouTube Analytics API v2 audience-type support with yt-analytics.readonly scope).",
+        }
+    )
 
+    ctr_avail = (total_impressions is not None and total_impressions > 0) or len(ctr_list) > 0
     # Diagnostic separation: Packaging vs Storytelling
     packaging_diag = {
         "total_impressions": total_impressions,
         "avg_ctr": avg_ctr,
+        "median_ctr": median_ctr,
+        "ctr_available": ctr_avail,
         "evaluation": (
-            "Healthy CTR (>= 4.0%)" if avg_ctr >= 0.04 else
+            "Unavailable: Impressions and CTR are not exposed via standard YouTube Analytics API v2 reports.query."
+            if not ctr_avail else
+            "Healthy CTR (>= 4.0%)" if (avg_ctr or 0.0) >= 0.04 else
             "Low CTR (< 4.0%): Evaluate impressions volume and traffic source context before modifying thumbnail design."
-            if total_impressions > 500 else "Insufficient impressions volume to reliably judge thumbnail packaging."
+            if (total_impressions or 0) > 500 else "Insufficient impressions volume to judge thumbnail packaging."
         ),
     }
 
     storytelling_diag = {
         "avg_view_duration_seconds": avg_avd,
+        "median_view_duration_seconds": median_avd,
         "avg_percentage_viewed": avg_apv,
+        "median_percentage_viewed": median_apv,
         "target_apv_benchmark": 45.0,
         "evaluation": (
+            "Unavailable (requires YouTube Analytics API v2 yt-analytics.readonly scope)."
+            if avg_apv is None else
             "Strong retention (>= 45.0% APV)" if avg_apv >= 45.0 else
             f"Retention bottleneck (Avg APV: {avg_apv}% < 45.0% benchmark). Pacing and chapter transitions require reinforcement."
             if avg_apv > 0 else "Pending retention observation."
@@ -307,7 +585,7 @@ def analyze_longform_performance(longform: List[Dict[str, Any]]) -> Dict[str, An
     if len(longform) < 3:
         observations.append(f"Sample size is preliminary ({len(longform)} documentary video(s)). Gather >= 3 published long-form videos for full trend validity.")
 
-    if avg_ctr < 0.04 and total_impressions > 1000:
+    if ctr_avail and avg_ctr is not None and avg_ctr < 0.04 and (total_impressions or 0) > 1000:
         search_traffic = traffic_aggregate.get("YT_SEARCH", 0)
         browse_traffic = traffic_aggregate.get("BROWSE_FEATURES", 0)
         observations.append(
@@ -315,19 +593,40 @@ def analyze_longform_performance(longform: List[Dict[str, Any]]) -> Dict[str, An
             f"Browse share: {browse_traffic}, Search share: {search_traffic}. Consider testing Curiosity-oriented title angle in next scheduled run."
         )
 
-    if avg_apv > 0 and avg_apv < 45.0:
+    if avg_apv is None:
+        observations.append("Long-form watch time, AVD, APV, and subscriber conversion are currently unavailable (requires YouTube Analytics API v2 yt-analytics.readonly scope).")
+    elif avg_apv > 0 and avg_apv < 45.0:
         observations.append(
-            f"Storytelling observation: APV is {avg_apv}% (< 45% standard). Reinforce Chapter 1 hook and integrate tactical map reveals at 3-minute marks."
+            f"Storytelling observation: APV is {avg_apv}% (< 45% standard). Reinforce Chapter 1 hook and align mid-video evidence reveals with topic."
         )
 
     return {
         "sample_size": len(longform),
         "total_views": total_views,
-        "total_watch_time_minutes": round(total_watch_min, 1),
+        "median_views_per_video": median_views,
+        "total_watch_time_minutes": total_watch_min,
+        "avg_watch_time_minutes": avg_watch_min,
+        "avg_view_duration_seconds": avg_avd,
+        "median_view_duration_seconds": median_avd,
         "total_subscribers_gained": total_subs,
         "sub_conversion_per_1k": sub_conv,
+        "metrics_availability": {
+            "views": views_present,
+            "watch_time_minutes": bool(watch_samples),
+            "average_view_duration_seconds": avd_present,
+            "average_percentage_viewed": apv_present,
+            "impressions_and_ctr": ctr_avail,
+            "subscribers_gained": bool(subs_samples),
+            "returning_viewers": returning_info["available"],
+        },
+        "returning_viewers": returning_info,
+        "avg_publication_age_days": round(sum(age_days_list) / len(age_days_list), 2) if age_days_list else None,
+        "median_age_adjusted_velocity": calculate_median(age_velocities),
         "packaging_diagnostics": packaging_diag,
         "storytelling_diagnostics": storytelling_diag,
+        "topic_breakdown": _summarize_dimension_buckets(topic_groups),
+        "hook_breakdown": _summarize_dimension_buckets(hook_groups),
+        "duration_breakdown": _summarize_dimension_buckets(duration_groups),
         "traffic_sources": traffic_aggregate,
         "observations": observations,
     }
@@ -365,10 +664,10 @@ def analyze_topic_pillars(all_videos: List[Dict[str, Any]]) -> Dict[str, Any]:
             pillar = classify_content_pillar(title, topic)
 
         m = v.get("latest_metrics", {})
-        views = m.get("views", 0)
-        watch_min = m.get("watch_time_minutes", 0.0)
-        subs = m.get("subscribers_gained", 0)
-        apv = m.get("average_percentage_viewed", 0.0)
+        views = int(m.get("views") or 0)
+        watch_min = float(m.get("watch_time_minutes") or 0.0)
+        subs = int(m.get("subscribers_gained") or 0)
+        apv = float(m.get("average_percentage_viewed") or 0.0)
 
         p_entry = pillar_stats[pillar]
         p_entry["video_count"] += 1
@@ -450,28 +749,115 @@ def analyze_title_and_thumbnail(all_videos: List[Dict[str, Any]]) -> Dict[str, A
     }
 
 
-def generate_growth_intelligence_dossier() -> Dict[str, Any]:
+def analyze_production_and_quality_gates(
+    production_db: Optional[Dict[str, Any]] = None,
+    diagnostics_dir: Optional[str] = None,
+) -> Dict[str, Any]:
     """
-    Compiles the full weekly YouTube Growth Intelligence Dossier for Stories Malik:
-    - Top 10 Shorts & Top 10 Long-form videos
-    - Best-performing & weak-performing topics
-    - Subscriber conversion across formats
-    - Retention & packaging observations
-    - Recommended topics & controlled experiments
-    - Data completeness & sample size confidence limitations
+    Evaluates production failures and automated quality-gate rejection rates
+    from uploader/safety.py (production_database.json) and output/diagnostics/.
+    """
+    from uploader.safety import load_production_db, PublishingState
+    from uploader.quality_gates import DIAGNOSTICS_DIR
+
+    prod_db = production_db if production_db is not None else load_production_db()
+    diag_dir = diagnostics_dir or DIAGNOSTICS_DIR
+
+    total_records = len(prod_db)
+    blocked_count = 0
+    failed_count = 0
+    gate_failures: Dict[str, int] = {"research": 0, "script": 0, "video": 0, "metadata": 0}
+    recent_blocking_reasons: List[str] = []
+
+    for rec in prod_db.values():
+        if not isinstance(rec, dict):
+            continue
+        state_val = rec.get("current_state", "")
+        if state_val == PublishingState.BLOCKED_QUALITY_GATE.value:
+            blocked_count += 1
+        elif state_val == PublishingState.FAILED.value:
+            failed_count += 1
+
+        q_gate = rec.get("quality_gate") or rec.get("metadata", {}).get("quality_report")
+        if isinstance(q_gate, dict) and not q_gate.get("passed", True):
+            for gate_name, gate_res in q_gate.get("gates", {}).items():
+                if isinstance(gate_res, dict) and not gate_res.get("passed", True):
+                    gate_failures[gate_name] = gate_failures.get(gate_name, 0) + 1
+            for iss in q_gate.get("blocking_issues", [])[:3]:
+                if iss not in recent_blocking_reasons:
+                    recent_blocking_reasons.append(iss)
+
+    diag_total = 0
+    diag_blocked = 0
+    if diag_dir and os.path.exists(diag_dir):
+        for fname in os.listdir(diag_dir):
+            if not fname.endswith(".json"):
+                continue
+            diag_total += 1
+            try:
+                with open(os.path.join(diag_dir, fname), encoding="utf-8") as f:
+                    d = json.load(f)
+                if not d.get("passed", True):
+                    diag_blocked += 1
+            except Exception:
+                pass
+
+    effective_total = max(total_records, diag_total)
+    effective_blocked = max(blocked_count, diag_blocked)
+    rejection_rate_pct = round((effective_blocked / effective_total) * 100, 2) if effective_total > 0 else 0.0
+    failure_rate_pct = round((failed_count / total_records) * 100, 2) if total_records > 0 else 0.0
+
+    return {
+        "total_tracked_productions": total_records,
+        "diagnostics_evaluated": diag_total,
+        "quality_gate_blocked_count": effective_blocked,
+        "quality_gate_rejection_rate_pct": rejection_rate_pct,
+        "production_failures_count": failed_count,
+        "production_failure_rate_pct": failure_rate_pct,
+        "gate_failure_breakdown": gate_failures,
+        "recent_blocking_reasons": recent_blocking_reasons[:5],
+        "quality_gate_enforcement": "Mandatory per-video enforcement; failing videos are blocked individually without lowering channel standards.",
+    }
+
+
+def generate_growth_intelligence_dossier(
+    evaluation_window_days: Optional[int] = None,
+    db_override: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """
+    Compiles the full weekly YouTube Growth Intelligence Dossier for Stories Malik
+    over a rolling 30-day evaluation period:
+    - Preserves established 5 Shorts + 1 Long-form daily publishing cadence (Asia/Kolkata)
+    - Top 10 Shorts & Top 10 Long-form videos (with publication-age accounting)
+    - Separate Shorts & Long-form analysis (median views, watch time, AVD, APV, CTR, sub conversion/1k, returning viewers)
+    - Performance by topic, format, hook, and duration
+    - Production failures & quality-gate rejection rates
+    - Analytics capabilities & explicit limitations
+    - Correlation vs demonstrated improvement distinction
     - Writes output/weekly_growth_intelligence.json and output/weekly_growth_intelligence.md
     """
-    db = get_performance_db()
-    all_vids = db.get_all_videos()
-    shorts = db.get_shorts()
-    longform = db.get_longform()
+    from apis.youtube_analytics import get_analytics_capabilities_and_limitations
+
+    window_days = evaluation_window_days or getattr(config, "EVALUATION_WINDOW_DAYS", 30)
+    db = db_override or get_performance_db()
+    all_vids = db.get_videos_in_window(days=window_days)
+    shorts = db.get_videos_in_window(days=window_days, video_format="short")
+    longform = db.get_videos_in_window(days=window_days, video_format="longform")
     tracker = get_experiment_tracker()
 
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
+    now_iso = now_dt.isoformat()
 
-    # Sort top performers
-    sorted_shorts = sorted(shorts, key=lambda x: (x.get("latest_metrics", {}).get("views", 0), x.get("latest_metrics", {}).get("average_percentage_viewed", 0.0)), reverse=True)
-    sorted_longform = sorted(longform, key=lambda x: (x.get("latest_metrics", {}).get("watch_time_minutes", 0.0), x.get("latest_metrics", {}).get("views", 0)), reverse=True)
+    # Sort top performers accounting for publication age velocity
+    def _age_sort_key(item: Dict[str, Any], primary_metric: str) -> Tuple[float, float]:
+        m = item.get("latest_metrics", {})
+        views = int(m.get("views", 0) or 0)
+        age = compute_publication_age_days(item.get("publication_timestamp"), now_dt)
+        vel = normalize_views_by_age(views, age) if age is not None else float(views)
+        return (vel, float(m.get(primary_metric, 0.0) or 0.0))
+
+    sorted_shorts = sorted(shorts, key=lambda x: _age_sort_key(x, "average_percentage_viewed"), reverse=True)
+    sorted_longform = sorted(longform, key=lambda x: _age_sort_key(x, "watch_time_minutes"), reverse=True)
 
     top_10_shorts = [
         {
@@ -480,7 +866,13 @@ def generate_growth_intelligence_dossier() -> Dict[str, Any]:
             "topic": s["topic"],
             "views": s.get("latest_metrics", {}).get("views", 0),
             "apv": s.get("latest_metrics", {}).get("average_percentage_viewed", 0.0),
+            "avd_seconds": s.get("latest_metrics", {}).get("average_view_duration_seconds", 0.0),
             "subs": s.get("latest_metrics", {}).get("subscribers_gained", 0),
+            "publication_age_days": compute_publication_age_days(s.get("publication_timestamp"), now_dt),
+            "age_adjusted_velocity": normalize_views_by_age(
+                int(s.get("latest_metrics", {}).get("views", 0) or 0),
+                compute_publication_age_days(s.get("publication_timestamp"), now_dt) or 1.0,
+            ),
         }
         for s in sorted_shorts[:10]
     ]
@@ -492,9 +884,15 @@ def generate_growth_intelligence_dossier() -> Dict[str, Any]:
             "topic": lf["topic"],
             "views": lf.get("latest_metrics", {}).get("views", 0),
             "watch_time_minutes": lf.get("latest_metrics", {}).get("watch_time_minutes", 0.0),
+            "avd_seconds": lf.get("latest_metrics", {}).get("average_view_duration_seconds", 0.0),
             "apv": lf.get("latest_metrics", {}).get("average_percentage_viewed", 0.0),
             "ctr": lf.get("latest_metrics", {}).get("ctr", 0.0),
             "subs": lf.get("latest_metrics", {}).get("subscribers_gained", 0),
+            "publication_age_days": compute_publication_age_days(lf.get("publication_timestamp"), now_dt),
+            "age_adjusted_velocity": normalize_views_by_age(
+                int(lf.get("latest_metrics", {}).get("views", 0) or 0),
+                compute_publication_age_days(lf.get("publication_timestamp"), now_dt) or 1.0,
+            ),
         }
         for lf in sorted_longform[:10]
     ]
@@ -503,22 +901,24 @@ def generate_growth_intelligence_dossier() -> Dict[str, Any]:
     longform_analysis = analyze_longform_performance(longform)
     topic_intelligence = analyze_topic_pillars(all_vids)
     packaging_analysis = analyze_title_and_thumbnail(all_vids)
+    production_reliability = analyze_production_and_quality_gates()
+    analytics_caps = get_analytics_capabilities_and_limitations()
 
-    # Compute data completeness
+    # Compute data completeness (requires actual views > 0 AND owner analytics availability for full completeness)
     total_tracked = len(all_vids)
-    complete_records = sum(1 for v in all_vids if v.get("latest_metrics", {}).get("views", 0) > 0)
+    complete_records = sum(1 for v in all_vids if (v.get("latest_metrics", {}).get("views") or 0) > 0)
+    owner_complete_records = sum(1 for v in all_vids if v.get("owner_analytics_available"))
     data_completeness = round((complete_records / max(1, total_tracked)) * 100, 1)
+    owner_analytics_completeness = round((owner_complete_records / max(1, total_tracked)) * 100, 1)
 
     # Recommended next production topics
     recommended_topics = []
-    # Suggest 1 underexplored pillar topic
     if topic_intelligence["underexplored_pillars"]:
         recommended_topics.append({
             "pillar": topic_intelligence["underexplored_pillars"][0],
             "reason": "Underexplored historical pillar on Stories Malik; expands thematic breadth while maintaining evidence rigor.",
             "target_format": "longform",
         })
-    # Suggest 1 top-performing pillar topic
     if topic_intelligence["high_performing_pillars"]:
         recommended_topics.append({
             "pillar": topic_intelligence["high_performing_pillars"][0],
@@ -533,11 +933,23 @@ def generate_growth_intelligence_dossier() -> Dict[str, Any]:
         })
 
     active_exps = tracker.get_all_experiments()
+    cadence_policy = dict(getattr(config, "PUBLISHING_CADENCE_POLICY", {
+        "longform_per_day": 1,
+        "shorts_per_day": 5,
+        "total_per_day": 6,
+        "timezone": "Asia/Kolkata",
+        "auto_reduce_frequency": False,
+        "require_human_approval": False,
+    }))
 
     report = {
         "channel_name": config.CHANNEL_NAME,
         "report_generated_at": now_iso,
+        "evaluation_window_days": window_days,
+        "review_cadence": "weekly",
+        "cadence_policy": cadence_policy,
         "data_completeness_pct": data_completeness,
+        "owner_analytics_completeness_pct": owner_analytics_completeness,
         "total_videos_analyzed": total_tracked,
         "shorts_count": len(shorts),
         "longform_count": len(longform),
@@ -547,14 +959,21 @@ def generate_growth_intelligence_dossier() -> Dict[str, Any]:
         "longform_performance": longform_analysis,
         "topic_intelligence": topic_intelligence,
         "packaging_and_titles": packaging_analysis,
+        "production_reliability": production_reliability,
+        "analytics_capabilities": analytics_caps,
+        "analytics_limitations": analytics_caps["limitations"],
         "recommended_topics": recommended_topics,
         "active_experiments": active_exps,
+        "correlation_vs_demonstrated_improvement": (
+            "Observational pillar/format rankings represent correlation only and account for publication age. "
+            "Causal improvement requires a completed single-variable controlled experiment with statistically sufficient samples."
+        ),
         "confidence_limitations": {
             "sample_size_warning": len(all_vids) < 10,
             "message": (
-                "Dataset contains fewer than 10 total videos. Trend insights are directional hypotheses. "
-                "Do not make drastic editorial pivots without verifying across multiple production cycles."
-                if len(all_vids) < 10 else "Sufficient statistical sample available for operational guidance."
+                "Dataset contains fewer than 10 total videos in the 30-day window. Trend insights are directional hypotheses only; "
+                "publishing cadence (5 Shorts + 1 Long-form daily) is preserved without automated reduction."
+                if len(all_vids) < 10 else "Sufficient statistical sample available for directional evaluation; frequency changes still require controlled experiments."
             ),
         },
     }
@@ -573,10 +992,19 @@ def generate_growth_intelligence_dossier() -> Dict[str, Any]:
 
 def _generate_markdown_report(report: dict) -> None:
     """Renders executive Markdown growth report for Stories Malik."""
+    cad = report.get("cadence_policy", {})
+    rel = report.get("production_reliability", {})
+    sh = report["shorts_performance"]
+    lf = report["longform_performance"]
+    lf_story = lf.get("storytelling_diagnostics", {})
+    lf_pkg = lf.get("packaging_diagnostics", {})
+
     lines = [
         "# 📊 Stories Malik — Weekly YouTube Growth Intelligence Report",
         f"**Generated:** {report['report_generated_at']}  ",
         f"**Channel:** {report['channel_name']}  ",
+        f"**Evaluation Window:** Rolling {report.get('evaluation_window_days', 30)} days (Weekly Review)  ",
+        f"**Published Cadence (Preserved):** {cad.get('longform_per_day', 1)} Long-form + {cad.get('shorts_per_day', 5)} Shorts = {cad.get('total_per_day', 6)}/day ({cad.get('timezone', 'Asia/Kolkata')})  ",
         f"**Total Videos Tracked:** {report['total_videos_analyzed']} ({report['shorts_count']} Shorts, {report['longform_count']} Long-form)  ",
         f"**Data Completeness:** {report['data_completeness_pct']}%  ",
         "",
@@ -585,42 +1013,73 @@ def _generate_markdown_report(report: dict) -> None:
         "## 1. Executive Summary & Confidence Limitations",
         f"> **Confidence Status:** {report['confidence_limitations']['message']}",
         "",
+        f"> **Correlation vs Demonstrated Improvement:** {report.get('correlation_vs_demonstrated_improvement', '')}",
+        "",
         "## 2. Shorts Performance (Independent Analysis)",
-        f"- **Total Shorts Analyzed:** {report['shorts_performance']['sample_size']}",
-        f"- **Average Percentage Viewed (APV):** {report['shorts_performance']['observed_avg_apv']}% (Target: {report['shorts_performance']['target_apv_benchmark']}%)",
-        f"- **Subscriber Conversion:** {report['shorts_performance']['sub_conversion_per_1k']} subs per 1,000 views",
+        f"- **Total Shorts Analyzed:** {sh['sample_size']}",
+        f"- **Median Views per Video:** {_fmt_metric(sh.get('median_views_per_video'))}",
+        f"- **Watch Time (Total / Avg):** {_fmt_metric(sh.get('total_watch_time_minutes'), ' min', 'Unavailable (pending Analytics OAuth)')} / {_fmt_metric(sh.get('avg_watch_time_minutes'), ' min', 'Unavailable')}",
+        f"- **Average View Duration (AVD):** {_fmt_metric(sh.get('avg_view_duration_seconds'), 's', 'Unavailable (pending Analytics OAuth)')} (Median: {_fmt_metric(sh.get('median_view_duration_seconds'), 's', 'Unavailable')})",
+        f"- **Average Percentage Viewed (APV):** {_fmt_metric(sh.get('observed_avg_apv'), '%', 'Unavailable (pending Analytics OAuth)')} (Median: {_fmt_metric(sh.get('median_apv'), '%', 'Unavailable')}, Target: {sh['target_apv_benchmark']}%)",
+        f"- **Subscriber Conversion:** {_fmt_metric(sh.get('sub_conversion_per_1k'), ' subs per 1,000 views', 'Unavailable (pending Analytics OAuth)')}",
+        f"- **Returning Viewers:** {sh.get('returning_viewers', {}).get('total') if sh.get('returning_viewers', {}).get('available') else sh.get('returning_viewers', {}).get('note', 'Unavailable')}",
         "- **Key Observations:**",
     ]
-    for obs in report["shorts_performance"]["observations"]:
+    for obs in sh["observations"]:
         lines.append(f"  - {obs}")
+
+    lf_ctr_str = (
+        f"{round(lf_pkg['avg_ctr'] * 100, 2)}% avg CTR"
+        if lf_pkg.get("ctr_available") and lf_pkg.get("avg_ctr") is not None
+        else "Unavailable via standard Analytics API v2"
+    )
+    lf_impr_str = _fmt_metric(lf_pkg.get("total_impressions"), " impressions", "Unavailable via standard Analytics API v2")
 
     lines.extend([
         "",
         "## 3. Long-Form Documentaries (Independent Analysis)",
-        f"- **Total Long-form Analyzed:** {report['longform_performance']['sample_size']}",
-        f"- **Average Percentage Viewed (APV):** {report['longform_performance'].get('storytelling_diagnostics', {}).get('avg_percentage_viewed', 0.0)}%",
-        f"- **Packaging Evaluation:** {report['longform_performance'].get('packaging_diagnostics', {}).get('evaluation', 'N/A')}",
-        f"- **Storytelling Evaluation:** {report['longform_performance'].get('storytelling_diagnostics', {}).get('evaluation', 'N/A')}",
+        f"- **Total Long-form Analyzed:** {lf['sample_size']}",
+        f"- **Median Views per Video:** {_fmt_metric(lf.get('median_views_per_video'))}",
+        f"- **Watch Time (Total / Avg):** {_fmt_metric(lf.get('total_watch_time_minutes'), ' min', 'Unavailable (pending Analytics OAuth)')} / {_fmt_metric(lf.get('avg_watch_time_minutes'), ' min', 'Unavailable')}",
+        f"- **Average View Duration (AVD):** {_fmt_metric(lf_story.get('avg_view_duration_seconds'), 's', 'Unavailable (pending Analytics OAuth)')} (Median: {_fmt_metric(lf_story.get('median_view_duration_seconds'), 's', 'Unavailable')})",
+        f"- **Average Percentage Viewed (APV):** {_fmt_metric(lf_story.get('avg_percentage_viewed'), '%', 'Unavailable (pending Analytics OAuth)')} (Median: {_fmt_metric(lf_story.get('median_percentage_viewed'), '%', 'Unavailable')})",
+        f"- **Impressions / CTR:** {lf_impr_str} / {lf_ctr_str}",
+        f"- **Subscriber Conversion:** {_fmt_metric(lf.get('sub_conversion_per_1k'), ' subs per 1,000 views', 'Unavailable (pending Analytics OAuth)')}",
+        f"- **Returning Viewers:** {lf.get('returning_viewers', {}).get('total') if lf.get('returning_viewers', {}).get('available') else lf.get('returning_viewers', {}).get('note', 'Unavailable')}",
+        f"- **Packaging Evaluation:** {lf_pkg.get('evaluation', 'N/A')}",
+        f"- **Storytelling Evaluation:** {lf_story.get('evaluation', 'N/A')}",
         "- **Key Observations:**",
     ])
-    for obs in report["longform_performance"]["observations"]:
+    for obs in lf["observations"]:
         lines.append(f"  - {obs}")
 
     lines.extend([
         "",
-        "## 4. Historical Content Pillar Intelligence",
+        "## 4. Production Failures & Quality-Gate Rejection Rates",
+        f"- **Tracked Productions:** {rel.get('total_tracked_productions', 0)} (Diagnostics Evaluated: {rel.get('diagnostics_evaluated', 0)})",
+        f"- **Quality-Gate Rejection Rate:** {rel.get('quality_gate_rejection_rate_pct', 0.0)}% ({rel.get('quality_gate_blocked_count', 0)} blocked individually)",
+        f"- **Production Failure Rate:** {rel.get('production_failure_rate_pct', 0.0)}% ({rel.get('production_failures_count', 0)} failed)",
+        "",
+        "## 5. Historical Content Pillar Intelligence",
         f"- **Active Pillars:** {report['topic_intelligence']['active_pillars_count']} / {report['topic_intelligence']['evaluated_pillars_count']}",
         f"- **High-Performing Pillars:** {', '.join(report['topic_intelligence']['high_performing_pillars']) or 'Gathering baseline'}",
         f"- **Underexplored Pillars:** {', '.join(report['topic_intelligence']['underexplored_pillars'][:4])}...",
         "",
-        "## 5. Recommended Production Topics",
+        "## 6. Analytics Scope & API Limitations",
+    ])
+    for lim in report.get("analytics_limitations", []):
+        lines.append(f"- {lim}")
+
+    lines.extend([
+        "",
+        "## 7. Recommended Production Topics",
     ])
     for rec in report["recommended_topics"]:
         lines.append(f"- **Pillar:** {rec['pillar']} ({rec['target_format']}) — *{rec['reason']}*")
 
     lines.extend([
         "",
-        "## 6. Active Controlled Experiments",
+        "## 8. Active Controlled Experiments",
     ])
     for exp in report["active_experiments"]:
         lines.append(f"- **[{exp['id']}] {exp['name']}** ({exp['category']}, {exp['status']}): {exp['hypothesis']} (Confidence: {exp.get('confidence_level', 'pending')})")
@@ -647,17 +1106,30 @@ def get_adaptive_production_brief() -> Dict[str, Any]:
     # Topic discovery bias: prioritize high-traction and underexplored pillars
     preferred_pillars = high_pillars[:2] + underexplored[:2]
 
-    # Scriptwriting pacing directives
-    shorts_pacing_rule = (
-        "High-contrast visual paradox in first 2.5s; eliminate slow narrative preamble."
-        if shorts_perf.get("observed_avg_apv", 0.0) < 70.0
-        else "Maintain strong 4-part pacing and empirical conclusion."
-    )
+    # Scriptwriting pacing directives (never trigger false retention conclusions from unavailable None metrics)
+    sh_apv = shorts_perf.get("observed_avg_apv")
+    if sh_apv is None:
+        shorts_pacing_rule = "Maintain crisp 2.5s visual hook and 4-part pacing (retention APV unavailable until Analytics OAuth scope is granted)."
+    elif sh_apv < 70.0:
+        shorts_pacing_rule = "High-contrast visual paradox in first 2.5s; eliminate slow narrative preamble."
+    else:
+        shorts_pacing_rule = "Maintain strong 4-part pacing and empirical conclusion."
 
-    longform_pacing_rule = (
-        "Introduce tactical maps and primary artifacts by minute 3; keep Chapter 1 under 90s."
-        if lf_perf.get("storytelling_diagnostics", {}).get("avg_percentage_viewed", 0.0) < 45.0
-        else "Maintain chronological depth and archival quote citations."
+    lf_apv = lf_perf.get("storytelling_diagnostics", {}).get("avg_percentage_viewed")
+    if lf_apv is None:
+        longform_pacing_rule = "Maintain chronological depth, evidence-grounded reveals, and archival citations (retention APV unavailable until Analytics OAuth scope is granted)."
+    elif lf_apv < 45.0:
+        longform_pacing_rule = "Reinforce Chapter 1 hook (under 90s) and align mid-video evidence reveals with topic."
+    else:
+        longform_pacing_rule = "Maintain chronological depth and archival quote citations."
+
+    lf_pkg = lf_perf.get("packaging_diagnostics", {})
+    ctr_avail = bool(lf_pkg.get("ctr_available"))
+    avg_ctr = lf_pkg.get("avg_ctr")
+    rec_title_style = (
+        "curiosity_oriented"
+        if (not ctr_avail or avg_ctr is None or avg_ctr < 0.04)
+        else "story_oriented"
     )
 
     return {
@@ -665,7 +1137,8 @@ def get_adaptive_production_brief() -> Dict[str, Any]:
         "preferred_pillars": preferred_pillars,
         "shorts_pacing_directive": shorts_pacing_rule,
         "longform_pacing_directive": longform_pacing_rule,
-        "recommended_title_style": "curiosity_oriented" if lf_perf.get("packaging_diagnostics", {}).get("avg_ctr", 0.0) < 0.04 else "story_oriented",
+        "recommended_title_style": rec_title_style,
+        "ctr_analytics_available": ctr_avail,
         "recommended_thumbnail_style": "cinematic" if len(high_pillars) > 0 else "impact",
         "governance": "All generated topics must strictly pass the research evidence quality gate.",
     }
@@ -736,3 +1209,233 @@ def analyze_channel_growth_and_performance(history_runs: Optional[List[dict]] = 
 def generate_weekly_growth_report() -> Dict[str, Any]:
     """Generates the weekly executive growth dossier for Stories Malik."""
     return generate_growth_intelligence_dossier()
+
+
+def _classify_format_from_record(key: str, rec: dict) -> str:
+    meta = rec.get("metadata", {}) or {}
+    rtype = str(meta.get("type") or "").lower()
+    if rtype in ("short", "shorts") or meta.get("is_shorts") is True:
+        return "shorts"
+    if rtype in ("longform", "long", "normal"):
+        return "longform"
+    fname = os.path.basename(key or rec.get("video_path", "")).lower()
+    if "short" in fname or "shorts_batch" in str(rec.get("video_path", "")).lower():
+        return "shorts"
+    return "longform"
+
+
+def _empty_reliability_bucket() -> Dict[str, Any]:
+    return {
+        "jobs_started": 0,
+        "jobs_completed": 0,
+        "jobs_failed": 0,
+        "blocked_by_quality_gates": 0,
+        "rendering_failures": 0,
+        "upload_failures": 0,
+        "scheduling_failures": 0,
+        "retry_counts": 0,
+        "recovery_success": 0,
+        "publication_status": {
+            "SCHEDULED": 0,
+            "PUBLISHED": 0,
+            "UPLOADED_PRIVATE": 0,
+            "ANALYTICS_PENDING": 0,
+            "COMPLETED": 0,
+            "UPLOAD_QUEUED": 0,
+            "IN_PROGRESS": 0,
+        },
+        "quality_gate_reasons": [],
+    }
+
+
+def generate_production_reliability_report(output_dir: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Phase 22 Production Reliability Report:
+    Aggregates separated telemetry for Shorts and Long-form from production_database.json,
+    scheduled_queue, pending_uploads, diagnostics, and OAuth/analytics sync status.
+    Persists JSON & Markdown summaries in output_dir (default config.OUTPUT_DIR).
+    """
+    base_dir = output_dir or getattr(config, "OUTPUT_DIR", "output")
+    os.makedirs(base_dir, exist_ok=True)
+
+    prod_db_path = os.path.join(base_dir, "production_database.json")
+    prod_db = {}
+    if os.path.exists(prod_db_path):
+        try:
+            with open(prod_db_path, encoding="utf-8") as f:
+                raw = json.load(f)
+                if isinstance(raw, dict):
+                    prod_db = raw
+        except Exception:
+            prod_db = {}
+
+    buckets = {
+        "shorts": _empty_reliability_bucket(),
+        "longform": _empty_reliability_bucket(),
+    }
+
+    terminal_success_states = {"SCHEDULED", "PUBLISHED", "UPLOADED_PRIVATE", "ANALYTICS_PENDING", "COMPLETED"}
+    in_progress_states = {
+        "TOPIC_SELECTED", "RESEARCH_IN_PROGRESS", "RESEARCH_VALIDATED",
+        "SCRIPT_GENERATED", "SCRIPT_VALIDATED", "VIDEO_RENDERING",
+        "VIDEO_RENDERED", "VIDEO_VALIDATED", "METADATA_VALIDATED", "UPLOADING",
+    }
+
+    for key, rec in prod_db.items():
+        if not isinstance(rec, dict):
+            continue
+        fmt = _classify_format_from_record(key, rec)
+        b = buckets[fmt]
+        b["jobs_started"] += 1
+
+        curr = str(rec.get("current_state", "")).upper()
+        meta = rec.get("metadata", {}) or {}
+        err_type = str(meta.get("error_type", "")).lower()
+        err_msg = str(meta.get("error", "")).lower()
+
+        b["retry_counts"] += int(rec.get("retry_count", 0))
+        b["recovery_success"] += int(rec.get("recovered_count", 0))
+
+        if curr in terminal_success_states:
+            b["jobs_completed"] += 1
+            b["publication_status"][curr] = b["publication_status"].get(curr, 0) + 1
+            # Also count the immediate pre-ANALYTICS_PENDING terminal state from history if applicable
+            if curr == "ANALYTICS_PENDING":
+                hist = rec.get("history", []) or []
+                for h in reversed(hist):
+                    to_s = str(h.get("to_state", "")).upper()
+                    if to_s in ("SCHEDULED", "PUBLISHED", "UPLOADED_PRIVATE"):
+                        b["publication_status"][to_s] += 1
+                        break
+        elif curr == "UPLOAD_QUEUED":
+            b["publication_status"]["UPLOAD_QUEUED"] += 1
+        elif curr == "BLOCKED_QUALITY_GATE":
+            b["blocked_by_quality_gates"] += 1
+            q_rep = rec.get("quality_gate") or meta.get("quality_report") or {}
+            for iss in q_rep.get("blocking_issues", [])[:5]:
+                b["quality_gate_reasons"].append(iss)
+        elif curr == "FAILED":
+            b["jobs_failed"] += 1
+            if "render" in err_type or "render" in str(meta.get("last_retry_stage", "")):
+                b["rendering_failures"] += 1
+            elif "schedul" in err_type or "publishat" in err_msg:
+                b["scheduling_failures"] += 1
+            elif "http" in err_type or "quota" in err_type or "upload" in err_type or "processing" in err_type or "channel" in err_type:
+                b["upload_failures"] += 1
+        elif curr in in_progress_states:
+            b["publication_status"]["IN_PROGRESS"] += 1
+
+    # Inspect pending_uploads queue and scheduled_queue on disk
+    pending_dir = os.path.join(base_dir, "pending_uploads")
+    pending_items = {"shorts": 0, "longform": 0, "total": 0}
+    if os.path.isdir(pending_dir):
+        for fname in os.listdir(pending_dir):
+            if fname.endswith(".json"):
+                pending_items["total"] += 1
+                try:
+                    pdata = json.load(open(os.path.join(pending_dir, fname), encoding="utf-8"))
+                    if pdata.get("is_shorts") or "short" in fname.lower():
+                        pending_items["shorts"] += 1
+                    else:
+                        pending_items["longform"] += 1
+                except Exception:
+                    pass
+
+    sched_dir = os.path.join(base_dir, "scheduled_queue")
+    queued_items = {"shorts": 0, "longform": 0, "total": 0}
+    if os.path.isdir(sched_dir):
+        for fname in os.listdir(sched_dir):
+            if fname.endswith(".json"):
+                queued_items["total"] += 1
+                if fname.startswith("short"):
+                    queued_items["shorts"] += 1
+                else:
+                    queued_items["longform"] += 1
+
+    # Analytics & OAuth capability check (never fabricate live owner analytics)
+    try:
+        from apis.youtube_analytics import get_analytics_capabilities_and_limitations
+        caps = get_analytics_capabilities_and_limitations()
+    except Exception as cap_err:
+        caps = {"owner_analytics_connected": False, "error": str(cap_err)}
+
+    db_inst = get_performance_db()
+    synced_videos = db_inst.get_all_videos() if db_inst else {}
+    analytics_status = {
+        "owner_analytics_connected": bool(caps.get("owner_analytics_connected", False)),
+        "status": "CONNECTED" if caps.get("owner_analytics_connected") else "BLOCKED",
+        "data_api_key_fallback_available": bool(caps.get("has_public_data_api_fallback", caps.get("data_api_key_available", False))),
+        "missing_scopes": caps.get("missing_scopes", []),
+        "tracked_videos_in_growth_db": len(synced_videos),
+        "limitations": caps.get("limitations", []),
+    }
+
+    report = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "timezone": getattr(config, "PUBLISHING_TIMEZONE", "Asia/Kolkata"),
+        "cadence_policy": {
+            "longform_per_day": getattr(config, "LONGFORM_DAILY_COUNT", 1),
+            "shorts_per_day": getattr(config, "SHORTS_DAILY_COUNT", 5),
+            "total_per_day": getattr(config, "TOTAL_DAILY_VIDEOS", 6),
+        },
+        "formats": buckets,
+        "totals": {
+            "jobs_started": buckets["shorts"]["jobs_started"] + buckets["longform"]["jobs_started"],
+            "jobs_completed": buckets["shorts"]["jobs_completed"] + buckets["longform"]["jobs_completed"],
+            "jobs_failed": buckets["shorts"]["jobs_failed"] + buckets["longform"]["jobs_failed"],
+            "blocked_by_quality_gates": buckets["shorts"]["blocked_by_quality_gates"] + buckets["longform"]["blocked_by_quality_gates"],
+            "rendering_failures": buckets["shorts"]["rendering_failures"] + buckets["longform"]["rendering_failures"],
+            "upload_failures": buckets["shorts"]["upload_failures"] + buckets["longform"]["upload_failures"],
+            "scheduling_failures": buckets["shorts"]["scheduling_failures"] + buckets["longform"]["scheduling_failures"],
+            "retry_counts": buckets["shorts"]["retry_counts"] + buckets["longform"]["retry_counts"],
+            "recovery_success": buckets["shorts"]["recovery_success"] + buckets["longform"]["recovery_success"],
+        },
+        "queues": {
+            "pending_uploads": pending_items,
+            "scheduled_queue": queued_items,
+        },
+        "analytics_sync_status": analytics_status,
+    }
+
+    json_path = os.path.join(base_dir, "production_reliability_report.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
+
+    md_lines = [
+        "# Production Reliability Report — Stories Malik",
+        f"Generated: {report['generated_at']} ({report['timezone']})",
+        "",
+        f"Cadence Policy: {report['cadence_policy']['longform_per_day']} Long-Form + {report['cadence_policy']['shorts_per_day']} Shorts = {report['cadence_policy']['total_per_day']}/day",
+        "",
+        "| Metric | Shorts | Long-Form | Total |",
+        "|---|---:|---:|---:|",
+    ]
+    for label, key_name in [
+        ("Jobs Started", "jobs_started"),
+        ("Jobs Completed", "jobs_completed"),
+        ("Jobs Failed", "jobs_failed"),
+        ("Blocked by Quality Gates", "blocked_by_quality_gates"),
+        ("Rendering Failures", "rendering_failures"),
+        ("Upload Failures", "upload_failures"),
+        ("Scheduling Failures", "scheduling_failures"),
+        ("Retry Counts", "retry_counts"),
+        ("Recovery Success", "recovery_success"),
+    ]:
+        sv = buckets["shorts"][key_name]
+        lv = buckets["longform"][key_name]
+        md_lines.append(f"| {label} | {sv} | {lv} | {sv + lv} |")
+
+    md_lines.extend([
+        "",
+        "## Analytics Sync Status",
+        f"- Owner Analytics Status: **{analytics_status['status']}**",
+        f"- Missing OAuth Scopes: {', '.join(analytics_status['missing_scopes']) if analytics_status['missing_scopes'] else 'None'}",
+        f"- Tracked Videos in Growth DB: {analytics_status['tracked_videos_in_growth_db']}",
+    ])
+    md_path = os.path.join(base_dir, "production_reliability_report.md")
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(md_lines) + "\n")
+
+    report["json_path"] = json_path
+    report["markdown_path"] = md_path
+    return report

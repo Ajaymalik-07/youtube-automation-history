@@ -200,6 +200,49 @@ CONTENT_CATEGORY    = os.getenv("CONTENT_CATEGORY", "Historical documentaries, a
 PUBLISHING_TIMEZONE = os.getenv("PUBLISHING_TIMEZONE", "Asia/Kolkata")
 TARGET_TIMEZONE     = PUBLISHING_TIMEZONE
 
+
+def _parse_int_list(raw: str, default: list) -> list:
+    """Parse a comma-separated integer list from env, preserving defaults on invalid input."""
+    if not raw:
+        return list(default)
+    parsed = []
+    for part in str(raw).split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            parsed.append(int(part))
+        except ValueError:
+            return list(default)
+    return parsed or list(default)
+
+
+# Canonical Daily Publishing Cadence (Phase 21 Cadence Preservation Amendment)
+# Default: 1 Long-Form + 5 YouTube Shorts = 6 videos daily in Asia/Kolkata.
+# Configurable via environment variables / automation_schedule.json without silent reduction.
+LONGFORM_DAILY_COUNT = max(0, int(os.getenv("LONGFORM_DAILY_COUNT", "1")))
+SHORTS_DAILY_COUNT   = max(0, int(os.getenv("SHORTS_DAILY_COUNT", "5")))
+TOTAL_DAILY_VIDEOS   = LONGFORM_DAILY_COUNT + SHORTS_DAILY_COUNT
+
+LONGFORM_TARGET_HOURS_IST = _parse_int_list(os.getenv("LONGFORM_TARGET_HOURS_IST", ""), [19])
+SHORTS_TARGET_HOURS_IST   = _parse_int_list(os.getenv("SHORTS_TARGET_HOURS_IST", ""), [9, 12, 16, 19, 22])
+
+EVALUATION_WINDOW_DAYS = int(os.getenv("EVALUATION_WINDOW_DAYS", "30"))
+WEEKLY_REVIEW_INTERVAL_DAYS = int(os.getenv("WEEKLY_REVIEW_INTERVAL_DAYS", "7"))
+
+PUBLISHING_CADENCE_POLICY = {
+    "longform_per_day": LONGFORM_DAILY_COUNT,
+    "shorts_per_day": SHORTS_DAILY_COUNT,
+    "total_per_day": TOTAL_DAILY_VIDEOS,
+    "timezone": PUBLISHING_TIMEZONE,
+    "longform_target_hours_ist": LONGFORM_TARGET_HOURS_IST,
+    "shorts_target_hours_ist": SHORTS_TARGET_HOURS_IST,
+    "auto_reduce_frequency": False,
+    "require_human_approval": False,
+    "evaluation_window_days": EVALUATION_WINDOW_DAYS,
+    "review_cadence_days": WEEKLY_REVIEW_INTERVAL_DAYS,
+}
+
 # On-video branding: the "▶ CHANNEL NAME" tag in the hook and on Shorts,
 # plus the channel line on thumbnails. Leave BRAND_TEXT empty to use CHANNEL_NAME.
 SHOW_CHANNEL_BRAND = os.getenv("SHOW_CHANNEL_BRAND", "True").lower() in ("1", "true", "yes", "on")
@@ -377,7 +420,9 @@ LONGFORM_UPLOAD_CONFIG = {
     "embeddable": True,
     "license": "youtube",
     "public_stats_viewable": True,
-    "target_hour_ist": 19,  # 7:00 PM IST
+    "target_hour_ist": LONGFORM_TARGET_HOURS_IST[0],  # Default: 19 (7:00 PM IST)
+    "target_hours_ist": list(LONGFORM_TARGET_HOURS_IST),
+    "daily_count": LONGFORM_DAILY_COUNT,
 }
 
 # Centralized Shorts Upload Configuration
@@ -390,7 +435,8 @@ SHORTS_UPLOAD_CONFIG = {
     "embeddable": True,
     "license": "youtube",
     "public_stats_viewable": True,
-    "target_hours_ist": [10, 18],  # 10:00 AM & 6:00 PM IST
+    "target_hours_ist": list(SHORTS_TARGET_HOURS_IST),  # Default: [9, 12, 16, 19, 22] IST (5 daily)
+    "daily_count": SHORTS_DAILY_COUNT,
 }
 
 # ─────────────────────────────────────────

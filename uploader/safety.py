@@ -7,12 +7,23 @@ No manual human approval is required.
 import os
 import json
 import time
+import threading
+import uuid
 from enum import Enum
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple, Optional, List
 import config
 
-PRODUCTION_DB_FILE = os.path.join(config.OUTPUT_DIR, "production_database.json")
+_DEFAULT_PRODUCTION_DB_FILE = os.path.join(config.OUTPUT_DIR, "production_database.json")
+PRODUCTION_DB_FILE = _DEFAULT_PRODUCTION_DB_FILE
+_DB_LOCK = threading.RLock()
+
+
+def _get_production_db_file() -> str:
+    """Resolve production DB path dynamically so config.OUTPUT_DIR monkeypatches work safely."""
+    if PRODUCTION_DB_FILE != _DEFAULT_PRODUCTION_DB_FILE:
+        return PRODUCTION_DB_FILE
+    return os.path.join(config.OUTPUT_DIR, "production_database.json")
 
 
 class PublishingState(str, Enum):
@@ -140,7 +151,12 @@ PERMITTED_TRANSITIONS = {
         PublishingState.RESEARCH_IN_PROGRESS,
         PublishingState.SCRIPT_GENERATED,
         PublishingState.VIDEO_RENDERING,
+        PublishingState.VIDEO_VALIDATED,
+        PublishingState.METADATA_VALIDATED,
         PublishingState.UPLOAD_QUEUED,
+        PublishingState.SCHEDULED,
+        PublishingState.PUBLISHED,
+        PublishingState.UPLOADED_PRIVATE,
     },
     PublishingState.BLOCKED_QUALITY_GATE: {
         PublishingState.TOPIC_SELECTED,
@@ -165,22 +181,31 @@ def normalize_state(state: str) -> PublishingState:
 
 
 def load_production_db() -> dict:
-    """Load persistent production database."""
-    os.makedirs(config.OUTPUT_DIR, exist_ok=True)
-    if os.path.exists(PRODUCTION_DB_FILE):
-        try:
-            with open(PRODUCTION_DB_FILE, encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
+    """Load persistent production database with thread-safe lock."""
+    db_file = _get_production_db_file()
+    os.makedirs(os.path.dirname(db_file) or ".", exist_ok=True)
+    with _DB_LOCK:
+        if os.path.exists(db_file):
+            try:
+                with open(db_file, encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data
+            except Exception:
+                pass
+        return {}
 
 
 def save_production_db(db: dict) -> None:
-    """Save persistent production database to disk."""
-    os.makedirs(config.OUTPUT_DIR, exist_ok=True)
-    with open(PRODUCTION_DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(db, f, indent=2)
+    """Atomically save persistent production database to disk under lock."""
+    db_file = _get_production_db_file()
+    db_dir = os.path.dirname(db_file) or "."
+    os.makedirs(db_dir, exist_ok=True)
+    with _DB_LOCK:
+        tmp_path = os.path.join(db_dir, f".{os.path.basename(db_file)}.{uuid.uuid4().hex[:8]}.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(db, f, indent=2)
+        os.replace(tmp_path, db_file)
 
 
 def validate_transition(current_state: str, next_state: str) -> Tuple[bool, Optional[str]]:
@@ -210,45 +235,93 @@ def get_production_record(video_path: str) -> Optional[dict]:
 
 def record_production_state(video_path: str, state: str, metadata: Optional[dict] = None) -> dict:
     """
-    Updates or initializes a video's production lifecycle state.
+    Updates or initializes a video's production lifecycle state atomically.
+    Tracks recovery transitions and job/content metadata for reliability reporting.
     """
-    db = load_production_db()
-    norm_path = os.path.normpath(video_path)
-    key = norm_path
+    with _DB_LOCK:
+        db = load_production_db()
+        norm_path = os.path.normpath(video_path)
+        key = norm_path
 
-    record = db.get(key)
-    now = datetime.now(timezone.utc).isoformat()
-    norm_target_state = normalize_state(state).value
+        record = db.get(key)
+        now = datetime.now(timezone.utc).isoformat()
+        norm_target_state = normalize_state(state).value
 
-    if not record:
-        record = {
+        if not record:
+            record = {
+                "video_path": video_path,
+                "filename": os.path.basename(video_path),
+                "current_state": norm_target_state,
+                "history": [],
+                "quality_gate": None,
+                "metadata": metadata or {},
+                "retry_count": 0,
+                "recovered_count": 0,
+                "was_failed": norm_target_state == PublishingState.FAILED.value,
+                "created_at": now,
+                "updated_at": now,
+            }
+        elif record["current_state"] != norm_target_state:
+            prev_state = record["current_state"]
+            is_valid, err = validate_transition(prev_state, norm_target_state)
+            if not is_valid:
+                print(f"   ⚠ State transition warning: {err}")
+            record["history"].append({
+                "from_state": prev_state,
+                "to_state": norm_target_state,
+                "timestamp": now,
+            })
+            if norm_target_state == PublishingState.FAILED.value:
+                record["was_failed"] = True
+            elif (prev_state == PublishingState.FAILED.value or record.get("was_failed")) and norm_target_state in (
+                PublishingState.UPLOADED_PRIVATE.value,
+                PublishingState.SCHEDULED.value,
+                PublishingState.PUBLISHED.value,
+                PublishingState.ANALYTICS_PENDING.value,
+                PublishingState.COMPLETED.value,
+            ):
+                record["recovered_count"] = int(record.get("recovered_count", 0)) + 1
+                record["was_failed"] = False
+            record["current_state"] = norm_target_state
+
+        if metadata:
+            record.setdefault("metadata", {}).update(metadata)
+        record["updated_at"] = now
+
+        db[key] = record
+        save_production_db(db)
+        return record
+
+
+def record_retry_attempt(video_path: str, stage: str, error_msg: str, job_id: Optional[str] = None) -> dict:
+    """Increment and persist retry count and failure reason for a video/job."""
+    with _DB_LOCK:
+        db = load_production_db()
+        norm_path = os.path.normpath(video_path)
+        now = datetime.now(timezone.utc).isoformat()
+        record = db.get(norm_path) or {
             "video_path": video_path,
             "filename": os.path.basename(video_path),
-            "current_state": norm_target_state,
+            "current_state": PublishingState.FAILED.value,
             "history": [],
             "quality_gate": None,
-            "metadata": metadata or {},
+            "metadata": {},
+            "retry_count": 0,
+            "recovered_count": 0,
             "created_at": now,
             "updated_at": now,
         }
-    elif record["current_state"] != norm_target_state:
-        is_valid, err = validate_transition(record["current_state"], norm_target_state)
-        if not is_valid:
-            print(f"   ⚠ State transition warning: {err}")
-        record["history"].append({
-            "from_state": record["current_state"],
-            "to_state": norm_target_state,
-            "timestamp": now,
-        })
-        record["current_state"] = norm_target_state
-
-    if metadata:
-        record["metadata"].update(metadata)
-    record["updated_at"] = now
-
-    db[key] = record
-    save_production_db(db)
-    return record
+        record["retry_count"] = int(record.get("retry_count", 0)) + 1
+        meta = record.setdefault("metadata", {})
+        if job_id:
+            meta["job_id"] = job_id
+        meta["last_retry_stage"] = stage
+        meta["last_error"] = str(error_msg)[:500]
+        meta["last_retry_at"] = now
+        record["updated_at"] = now
+        db[norm_path] = record
+        save_production_db(db)
+        return record
 
 
 def record_quality_gate_result(video_path: str, report: dict) -> dict:
@@ -256,18 +329,19 @@ def record_quality_gate_result(video_path: str, report: dict) -> dict:
     Records an automated quality gate validation report.
     Transitions state to METADATA_VALIDATED if passed, or BLOCKED_QUALITY_GATE if failed.
     """
-    passed = report.get("passed", False)
-    target_state = (
-        PublishingState.METADATA_VALIDATED.value
-        if passed
-        else PublishingState.BLOCKED_QUALITY_GATE.value
-    )
-    rec = record_production_state(video_path, target_state, metadata={"quality_report": report})
-    rec["quality_gate"] = report
-    db = load_production_db()
-    db[os.path.normpath(video_path)] = rec
-    save_production_db(db)
-    return rec
+    with _DB_LOCK:
+        passed = report.get("passed", False)
+        target_state = (
+            PublishingState.METADATA_VALIDATED.value
+            if passed
+            else PublishingState.BLOCKED_QUALITY_GATE.value
+        )
+        rec = record_production_state(video_path, target_state, metadata={"quality_report": report})
+        rec["quality_gate"] = report
+        db = load_production_db()
+        db[os.path.normpath(video_path)] = rec
+        save_production_db(db)
+        return rec
 
 
 def is_eligible_for_upload(video_path: str) -> Tuple[bool, Optional[str]]:
@@ -290,11 +364,12 @@ def is_eligible_for_upload(video_path: str) -> Tuple[bool, Optional[str]]:
 
     curr_state = normalize_state(record.get("current_state", PublishingState.TOPIC_SELECTED.value))
 
-    # Duplicate Prevention Check
+    # Duplicate Prevention Check (includes ANALYTICS_PENDING since uploads transition there immediately)
     if curr_state in (
         PublishingState.UPLOADED_PRIVATE,
         PublishingState.SCHEDULED,
         PublishingState.PUBLISHED,
+        PublishingState.ANALYTICS_PENDING,
         PublishingState.COMPLETED,
     ):
         yt_id = record.get("metadata", {}).get("youtube_id")

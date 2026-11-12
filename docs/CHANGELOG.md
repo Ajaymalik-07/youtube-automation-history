@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.6.0] - 2026-11-12 - Phase 22: Production Reliability & End-to-End Validation
+
+### Added
+- **Per-Job Isolation, Checkpointing & 19:00 IST Slot Safety (`automation.py`):**
+  - Added deterministic `content_id`, unique `job_id`, isolated run directories (`output/runs/<content_id>/`, `output/shorts_batch/<date>_short_<NN>/`), and stage `checkpoint.json` resume across research, script, images, narration, and rendering.
+  - Added thread-safe slot locks (`_SLOT_LOCKS`) and atomic file-replace (`os.replace`) persistence for `automation_schedule.json` and `production_database.json`, preventing concurrent 19:00 IST Short 4/5 and Long-form collisions.
+  - Added `retry_pending_uploads()` recovery runner inside `run_advance_pipeline()` and `--retry-pending` CLI flag.
+- **Hardened Rendering & Content QA Gates (`uploader/quality_gates.py`, `video/creator.py`, `video/stock.py`):**
+  - Enforced real stream resolution checks (`1080x1920` Shorts, `>= 1920x1080` Long-form), strict duration caps (`SHORTS_MAX_SECONDS <= 60s`, Long-form `<= 900s`), optional FFmpeg `blackdetect` check (`>= 1.5s`), and SRT caption validation (`validate_srt_captions()`).
+  - Enforced Shorts `SHORTS_MAX_SECONDS` (`59.5s` max clamp) in `video/creator.py` and thread-safe stock credit locking in `video/stock.py`.
+- **Production Reliability Reporting (`agents/growth_analyst.py`):**
+  - Added `generate_production_reliability_report()` (wired into `--weekly-review` and `--reliability-report`) outputting separated Shorts vs Long-form reliability metrics (`output/production_reliability_report.json` / `.md`) and explicit OAuth analytics `BLOCKED` status.
+- **GitHub Actions Concurrency Guard (`.github/workflows/daily_youtube_automation.yml`):**
+  - Added `concurrency` group to prevent overlapping scheduled workflow runs from racing on state persistence.
+- **Validation & Documentation (`tests/test_phase22_production_reliability.py`, `docs/PHASE_22_PRODUCTION_RELIABILITY.md`):**
+  - Added 9 Phase 22 reliability, concurrency, retry recovery, channel guard, and real FFmpeg QA tests.
+
+### Fixed
+- Fixed `uploader/youtube.py` returning `None` on YouTube processing failures (now returns `"local://failed_processing/..."`), added bounded chunk retries on 5xx errors, aligned quota exhaustion return string (`"local://pending_quota_reset/..."`), and added pre-upload channel identity verification against `YOUTUBE_CHANNEL_ID`.
+- Fixed duplicate-upload prevention in `uploader/youtube.py` and `uploader/safety.py` to recognize `ANALYTICS_PENDING` and `UPLOADED_PRIVATE` states cleanly and record `recovered_count` across multi-hop retries (`FAILED` -> `METADATA_VALIDATED` -> `SCHEDULED`).
+- Fixed `automation.py` pre-rendered queue reuse (`scheduled_queue/*.json`) dropping `research` and `script`, which previously triggered guaranteed quality-gate rejections on reuse, and prevented failed/blocked daemon uploads from deleting manifests or marking slots completed.
+- Cleaned leaked pytest artifacts from live `output/pending_uploads/` and `output/diagnostics/`.
+
+---
+
+## [2.5.1] - 2026-11-12 - Phase 21.1: OAuth Reauthorization & Live Analytics Validation
+
+### Added
+- **OAuth Identity & Scope Guard (`uploader/oauth_manager.py`, `authorize_youtube.py`):**
+  - Added `verify_granted_scopes()` and `verify_channel_identity()` checking `config.YOUTUBE_CHANNEL_ID` and all 3 `REQUIRED_SCOPES` **before** overwriting any valid token or `.env`.
+  - Added atomic pickle writes and `_should_sync_env()` protection.
+- **Duplicate Snapshot Prevention & Unavailable Metric Representation (`apis/growth_database.py`, `apis/youtube_analytics.py`):**
+  - Preserved `None` (`Unavailable`) instead of coercing missing private metrics to `0`.
+  - Deduplicated `snapshot_history` per `(checkpoint, observation_period)` while preserving prior checkpoints.
+  - Added explicit `metrics_retrieved`, `metrics_unavailable`, `metrics_delayed`, and `metrics_unavailable_at_video_level` reporting.
+- **Global Test Isolation & Validation Suite (`tests/conftest.py`, `tests/test_phase21_1_live_analytics_validation.py`):**
+  - Added `isolate_production_artifacts` `autouse` fixture preventing pytest runs from mutating `output/` or `.env`.
+  - Added 8 Phase 21.1 tests (total suite: **155 passing tests**).
+  - Documented live audit, validation results, unresolved OAuth blocker, and exact next actions in `docs/PHASE_21_1_LIVE_ANALYTICS_VALIDATION.md`.
+
+### Fixed
+- Prevented `get_video_analytics()` from substituting last-video public stats for arbitrary `video_id` lookups.
+- Prevented `get_adaptive_production_brief()` and `ExperimentTracker.record_experiment_sample()` from using unavailable (`None`) metrics to drive directives or experiment conclusions.
+- Restored `.env` `YOUTUBE_TOKEN_BASE64` from `youtube_token.pickle` after discovering prior test contamination.
+
+---
+
+## [2.5.0] - 2026-11-12 - Phase 21: Publishing Cadence Preservation Amendment
+
+### Added
+- **Configurable Canonical Daily Cadence (`config.py`, `automation.py`, `uploader/youtube.py`):**
+  - Preserved established default cadence: **1 Long-Form (`19:00 IST`) + 5 YouTube Shorts (`09:00, 12:00, 16:00, 19:00, 22:00 IST`) = 6 videos/day** in `Asia/Kolkata`, configurable via `.env` and `automation_schedule.json`.
+  - Added `get_effective_cadence()`, `PUBLISHING_CADENCE_POLICY`, and `--weekly-review` CLI runner in `automation.py`.
+- **Owner Analytics Sync & Limitation Reporting (`apis/youtube_analytics.py`, `apis/growth_database.py`):**
+  - Added `get_analytics_capabilities_and_limitations()`, `sync_owner_channel_analytics(days_back=30)`, and rolling 30-day window filtering (`get_videos_in_window`).
+- **Expanded Format-Separated Metrics & Production Reliability (`agents/growth_analyst.py`, `agents/statistical_validator.py`):**
+  - Added median views per video, Shorts watch time & AVD, returning viewers tracking/limitation reporting, topic/format/hook/duration breakdowns, publication-age accounting, and `analyze_production_and_quality_gates()` (production failures & quality-gate rejection rates).
+  - Explicitly separated correlation from statistically demonstrated improvement.
+- **Adaptive Publishing Policy Governance (`agents/experiment_tracker.py`, `agents/adaptive_engine.py`):**
+  - Added `validate_frequency_experiment_proposal()`, `create_frequency_experiment()`, and `evaluate_cadence_change_eligibility()` preventing silent schedule changes or frequency reductions without sufficient rolling 30-day evidence.
+- **Phase 21 Report & Test Suite (`docs/PHASE_21_CADENCE_PRESERVATION.md`, `tests/test_phase21_cadence_preservation.py`):**
+  - Documented pre-implementation audit findings, implementation details, and live analytics limitations; added 9 new Phase 21 tests and isolated `tests/test_oauth_analytics.py` from `output/`.
+
+### Fixed
+- Fixed `format_choice` `NameError` in `automation.py` (`create_and_publish_single_short`).
+- Updated `run_advance_pipeline` to handle `local://blocked_quality_gate` individually without halting remaining daily slots.
+- Prevented `adapt_upload_slot()` from shifting release slots on insufficient runs (`< 5`).
+- Updated `docs/PUBLISHING_EXPERIMENT_PLAN.md` to reflect the preserved 1 Long-form + 5 Shorts daily cadence.
+
+---
+
 ## [2.4.0] - 2026-11-11 - Phase 20: Adaptive AI Content Optimization Engine
 
 ### Added

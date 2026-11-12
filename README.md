@@ -55,7 +55,11 @@ Key configuration items:
   ```bash
   python pipeline.py
   ```
-- **Run Automated Test Suite (138 tests):**
+- **Weekly Rolling 30-Day Performance Review:**
+  ```bash
+  python automation.py --weekly-review
+  ```
+- **Run Automated Test Suite (164 tests):**
   ```bash
   pytest
   ```
@@ -113,7 +117,7 @@ Phase 17 removes all mandatory manual approval dependencies. The production work
    - **Video:** File exists, container valid, healthy file size, valid thumbnail dimensions.
    - **Metadata:** Title, description, tags, language (`hi`), and category verified.
 3. **Supported Upload Modes:**
-   - `SCHEDULED_PUBLICATION` (default production mode): Uploads with `privacyStatus: "private"` and future `publishAt` timestamp in `Asia/Kolkata` (19:00 IST for long-form, 10:00 & 18:00 IST for Shorts).
+   - `SCHEDULED_PUBLICATION` (default production mode): Uploads with `privacyStatus: "private"` and future `publishAt` timestamp in `Asia/Kolkata` (19:00 IST for long-form; 09:00, 12:00, 16:00, 19:00, 22:00 IST for 5 daily Shorts).
    - `IMMEDIATE_PUBLICATION`: Public upload without `publishAt`.
    - `PRIVATE_ARCHIVE`: Private upload without `publishAt`.
 4. **Idempotent Duplicate Prevention:**
@@ -205,11 +209,15 @@ See full documentation at [docs/PHASE_20_ADAPTIVE_CONTENT_OPTIMIZATION.md](docs/
 │   ├── PHASE_18_PRODUCTION_READINESS.md
 │   ├── PHASE_18_1_OAUTH_ANALYTICS.md
 │   ├── PHASE_19_GROWTH_INTELLIGENCE.md
+│   ├── PHASE_20_ADAPTIVE_CONTENT_OPTIMIZATION.md
+│   ├── PHASE_21_CADENCE_PRESERVATION.md
+│   ├── PHASE_21_1_LIVE_ANALYTICS_VALIDATION.md
+│   ├── PHASE_22_PRODUCTION_RELIABILITY.md
 │   ├── PUBLISHING_EXPERIMENT_PLAN.md
 │   ├── IMPLEMENTATION_PLAN.md
 │   └── CHANGELOG.md
 │
-└── tests/                      ← 123 automated pytest tests
+└── tests/                      ← 164 automated pytest tests
 ```
 
 ---
@@ -234,6 +242,10 @@ For detailed architectural guidelines, consult the `docs/` suite:
 - [Phase 18 Production Readiness Audit](docs/PHASE_18_PRODUCTION_READINESS.md)
 - [Phase 18.1 OAuth & Analytics Verification](docs/PHASE_18_1_OAUTH_ANALYTICS.md)
 - [Phase 19 Growth Intelligence Engine](docs/PHASE_19_GROWTH_INTELLIGENCE.md)
+- [Phase 20 Adaptive Content Optimization](docs/PHASE_20_ADAPTIVE_CONTENT_OPTIMIZATION.md)
+- [Phase 21 Publishing Cadence Preservation](docs/PHASE_21_CADENCE_PRESERVATION.md)
+- [Phase 21.1 OAuth Reauthorization & Live Analytics Validation](docs/PHASE_21_1_LIVE_ANALYTICS_VALIDATION.md)
+- [Phase 22 Production Reliability & End-to-End Validation](docs/PHASE_22_PRODUCTION_RELIABILITY.md)
 - [30-Day Publishing Experiment Plan](docs/PUBLISHING_EXPERIMENT_PLAN.md)
 - [Full Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
 - [Release Changelog](docs/CHANGELOG.md)
