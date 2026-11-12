@@ -579,6 +579,12 @@ def get_production_run_brief(video_type: str = "longform") -> Dict[str, Any]:
         pillar_name=selected_topic_cand["pillar"],
         video_type=video_type,
     )
+    from agents.phase29_content_intelligence import get_phase29_production_directives
+    phase29_dir = get_phase29_production_directives(
+        video_type=video_type,
+        topic=selected_topic_cand["topic"],
+        pillar_name=selected_topic_cand["pillar"],
+    )
 
     exp = strategy["recommended_next_experiment"]
 
@@ -587,6 +593,7 @@ def get_production_run_brief(video_type: str = "longform") -> Dict[str, Any]:
         "video_type": video_type,
         "selected_candidate": selected_topic_cand,
         "narrative_directive": directive,
+        "phase29_directives": phase29_dir,
         "diversity_score": strategy["content_diversity"]["diversity_score"],
         "active_experiment": exp,
         "preferred_title_style": "curiosity_oriented",

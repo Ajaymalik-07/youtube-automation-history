@@ -262,6 +262,11 @@ Respond with ONLY a valid JSON object. No markdown fences, no explanatory preamb
     if growth_brief and growth_brief.get("preferred_pillars"):
         pillars_str = ", ".join(growth_brief["preferred_pillars"])
         growth_block = f"\nHISTORICAL GROWTH DIRECTIVES (PAST CHANNEL TRACTION):\n- Prioritize high-traction and underexplored pillars: {pillars_str}\n"
+    growth_block += (
+        "\nEPISTEMIC EVIDENCE CLASSIFICATION RULE:\n"
+        "- Explicitly separate verified historical/archaeological facts, scholarly interpretations, "
+        "disputed claims, and legends/folklore. Never present folklore as established historical fact.\n"
+    )
 
     prompt = f"""You are the Chief Historical Researcher for Stories Malik, a premier YouTube documentary channel dedicated to verified Indian and World history.
 

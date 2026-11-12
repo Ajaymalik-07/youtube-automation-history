@@ -162,6 +162,14 @@ def _write_longform_script(
     pacing_directive = ""
     if growth_brief and growth_brief.get("longform_pacing_directive"):
         pacing_directive = f"\nHISTORICAL RETENTION DIRECTIVE (PAST PERFORMANCE INSIGHT):\n- {growth_brief['longform_pacing_directive']}\n"
+    if growth_brief and growth_brief.get("phase29_directives"):
+        p29 = growth_brief["phase29_directives"]
+        pacing_directive += (
+            f"\nPHASE 29 OPENING & EPISTEMIC DIRECTIVES:\n"
+            f"- Hook: {p29.get('hook_directive', '')}\n"
+            f"- First Frame: {p29.get('first_frame_directive', '')}\n"
+            f"- Evidence: {p29.get('epistemic_directive', '')}\n"
+        )
 
     lang_instruction = (
         "LANGUAGE: Write all narration, section titles, and captions in authentic, broadcast-quality HINDI (हिंदी - Devanagari script). "
@@ -246,6 +254,14 @@ def _write_shorts_script(
     pacing_directive = ""
     if growth_brief and growth_brief.get("shorts_pacing_directive"):
         pacing_directive = f"\nHISTORICAL RETENTION DIRECTIVE (PAST PERFORMANCE INSIGHT):\n- {growth_brief['shorts_pacing_directive']}\n"
+    if growth_brief and growth_brief.get("phase29_directives"):
+        p29 = growth_brief["phase29_directives"]
+        pacing_directive += (
+            f"\nPHASE 29 SHORTS HOOK & FIRST-FRAME DIRECTIVES:\n"
+            f"- Hook: {p29.get('hook_directive', '')}\n"
+            f"- First Frame: {p29.get('first_frame_directive', '')}\n"
+            f"- Evidence: {p29.get('epistemic_directive', '')}\n"
+        )
 
     lang_instruction = (
         "LANGUAGE: Write all narration in punchy, dramatic HINDI (हिंदी - Devanagari script). "

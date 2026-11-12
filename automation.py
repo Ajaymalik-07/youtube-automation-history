@@ -401,6 +401,7 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
         prod_brief = get_production_run_brief("longform")
         if prod_brief.get("narrative_directive"):
             growth_brief["longform_pacing_directive"] = prod_brief["narrative_directive"].get("pacing_directive", growth_brief.get("longform_pacing_directive"))
+        growth_brief["phase29_directives"] = prod_brief.get("phase29_directives")
 
         record_production_state(planned_video_path, PublishingState.RESEARCH_IN_PROGRESS.value)
         research_file = os.path.join(work_dir, "research.json")
@@ -946,6 +947,7 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
         prod_brief = get_production_run_brief("shorts")
         if prod_brief.get("narrative_directive"):
             growth_brief["shorts_pacing_directive"] = prod_brief["narrative_directive"].get("pacing_directive", growth_brief.get("shorts_pacing_directive"))
+        growth_brief["phase29_directives"] = prod_brief.get("phase29_directives")
 
         script_file = os.path.join(item_dir, "script.json")
         if "script" in ckpt.get("stages_completed", []) and os.path.exists(script_file):
@@ -1659,6 +1661,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
     )
     from agents.adaptive_engine import generate_weekly_adaptive_strategy
     from agents.phase28_video_diagnosis import generate_phase28_reports
+    from agents.phase29_content_intelligence import generate_phase29_reports
 
     sync_res = sync_owner_channel_analytics(days_back=days_back)
     reconciliation = reconcile_channel_publications()
@@ -1673,6 +1676,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
     phase25_report = generate_phase25_execution_report(evaluation_window_days=days_back)
     phase26_reports = generate_phase26_reports(evaluation_window_days=days_back)
     phase28_reports = generate_phase28_reports(days_back=days_back)
+    phase29_reports = generate_phase29_reports()
 
     print("\n" + "=" * 70)
     print(f"  📊 Weekly Performance Review Complete (Rolling {days_back}-Day Window)")
@@ -1696,6 +1700,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
         "state_manifest": sqlite_manifest,
         "phase23_reports": phase23_reports,
         "phase28_reports": phase28_reports,
+        "phase29_reports": phase29_reports,
     }
 
 
