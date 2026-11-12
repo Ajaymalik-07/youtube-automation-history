@@ -1,0 +1,53 @@
+[
+  {
+    "id": "EXP-001",
+    "name": "Shorts Opening Hook Pacing",
+    "category": "hook_variation",
+    "target_format": "short",
+    "hypothesis": "Opening with an archaeological artifact contradiction in the first 2.5s achieves >= 75% APV compared to narrative storytelling introductions.",
+    "target_metric": "average_percentage_viewed",
+    "control_variant": "Standard narrative intro",
+    "test_variant": "High-contrast visual paradox + direct question",
+    "min_sample_size": 3,
+    "current_samples": 0,
+    "status": "in_progress",
+    "created_at": "2026-11-11T06:48:50.003330+00:00",
+    "samples": [],
+    "conclusion": null,
+    "confidence_level": "insufficient_data"
+  },
+  {
+    "id": "EXP-002",
+    "name": "Long-form Title Pacing: Curiosity vs Search",
+    "category": "title_approach",
+    "target_format": "longform",
+    "hypothesis": "Curiosity-oriented titles with historical contradictions generate higher CTR and subscriber conversions than generic search titles.",
+    "target_metric": "ctr",
+    "control_variant": "Search-oriented title",
+    "test_variant": "Curiosity-oriented contradiction title",
+    "min_sample_size": 3,
+    "current_samples": 0,
+    "status": "in_progress",
+    "created_at": "2026-11-11T06:48:50.003330+00:00",
+    "samples": [],
+    "conclusion": null,
+    "confidence_level": "insufficient_data"
+  },
+  {
+    "id": "EXP-003",
+    "name": "Ancient Engineering Retention Lift",
+    "category": "topic_cluster",
+    "target_format": "longform",
+    "hypothesis": "Pillar 5 (Ancient Engineering & Architecture) with technical 3D diagrams yields >= 50% AVD compared to dynastic biography chronicles.",
+    "target_metric": "average_percentage_viewed",
+    "control_variant": "Dynastic biography narrative",
+    "test_variant": "Step-by-step engineering forensics with architectural diagrams",
+    "min_sample_size": 3,
+    "current_samples": 0,
+    "status": "in_progress",
+    "created_at": "2026-11-11T06:48:50.003330+00:00",
+    "samples": [],
+    "conclusion": null,
+    "confidence_level": "insufficient_data"
+  }
+]

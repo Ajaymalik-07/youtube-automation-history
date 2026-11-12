@@ -11,11 +11,15 @@ Stores and versions complete analytics records:
 """
 import os
 import json
+import time
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 import config
+from uploader.safety import CrossProcessFileLock
 
-DB_FILE = os.path.join(config.OUTPUT_DIR, "historical_performance_db.json")
+_DEFAULT_DB_FILE = os.path.join(config.OUTPUT_DIR, "historical_performance_db.json")
+DB_FILE = _DEFAULT_DB_FILE
 LEGACY_SNAPSHOT_FILE = os.path.join(config.OUTPUT_DIR, "analytics_snapshots.json")
 
 
@@ -31,26 +35,35 @@ class HistoricalPerformanceDB:
         self.load()
 
     def load(self) -> None:
-        """Loads records from disk, gracefully importing from legacy snapshots if present."""
+        """Loads records from disk with lock protection, migrating legacy v1/snapshot schemas."""
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
-        if os.path.exists(self.db_path):
-            try:
-                with open(self.db_path, encoding="utf-8") as f:
-                    self.records = json.load(f)
-                    return
-            except Exception:
-                self.records = {}
+        with CrossProcessFileLock(f"{self.db_path}.lock"):
+            if os.path.exists(self.db_path):
+                try:
+                    with open(self.db_path, encoding="utf-8") as f:
+                        raw = json.load(f)
+                    if isinstance(raw, dict):
+                        if "records" in raw and isinstance(raw.get("records"), dict) and "schema_version" in raw:
+                            raw = raw["records"]
+                        for vid, rec in raw.items():
+                            if isinstance(rec, dict):
+                                rec.setdefault("schema_version", 2)
+                                rec.setdefault("revision", 1)
+                        self.records = raw
+                        return
+                except Exception:
+                    self.records = {}
 
-        # Fallback / migration: import existing legacy snapshots if available
-        if os.path.exists(LEGACY_SNAPSHOT_FILE):
-            try:
-                with open(LEGACY_SNAPSHOT_FILE, encoding="utf-8") as f:
-                    legacy = json.load(f)
-                    for vid, data in legacy.items():
-                        if isinstance(data, dict):
-                            self._import_legacy_record(vid, data)
-            except Exception:
-                pass
+            # Fallback / migration: import existing legacy snapshots if available
+            if os.path.exists(LEGACY_SNAPSHOT_FILE):
+                try:
+                    with open(LEGACY_SNAPSHOT_FILE, encoding="utf-8") as f:
+                        legacy = json.load(f)
+                        for vid, data in legacy.items():
+                            if isinstance(data, dict):
+                                self._import_legacy_record(vid, data)
+                except Exception:
+                    pass
 
     def _import_legacy_record(self, video_id: str, data: dict) -> None:
         """Converts legacy snapshot structure to normalized versioned record."""
@@ -120,107 +133,123 @@ class HistoricalPerformanceDB:
         obs_period = observation_period or now_iso[:10]
         clean_format = "short" if "short" in str(video_format).lower() else "longform"
 
-        if video_id not in self.records:
-            self.records[video_id] = {
-                "video_id": video_id,
-                "channel_id": channel_id or getattr(config, "YOUTUBE_CHANNEL_ID", ""),
-                "video_format": clean_format,
-                "topic": topic,
-                "content_pillar": content_pillar,
-                "publication_timestamp": publication_timestamp,
-                "video_duration_seconds": round(float(video_duration), 1),
-                "title": title,
-                "thumbnail_reference": thumbnail_reference,
-                "created_at": now_iso,
-                "latest_retrieval_timestamp": now_iso,
-                "snapshot_history": [],
-                "latest_metrics": {},
-                "traffic_sources": [],
-                "metadata_extras": metadata_extras or {},
+        with CrossProcessFileLock(f"{self.db_path}.lock"):
+            if os.path.exists(self.db_path):
+                try:
+                    with open(self.db_path, encoding="utf-8") as f:
+                        on_disk = json.load(f)
+                    if isinstance(on_disk, dict):
+                        if "records" in on_disk and isinstance(on_disk.get("records"), dict) and "schema_version" in on_disk:
+                            on_disk = on_disk["records"]
+                        for k_disk, v_disk in on_disk.items():
+                            if k_disk not in self.records:
+                                self.records[k_disk] = v_disk
+                except Exception:
+                    pass
+
+            if video_id not in self.records:
+                self.records[video_id] = {
+                    "video_id": video_id,
+                    "channel_id": channel_id or getattr(config, "YOUTUBE_CHANNEL_ID", ""),
+                    "video_format": clean_format,
+                    "topic": topic,
+                    "content_pillar": content_pillar,
+                    "publication_timestamp": publication_timestamp,
+                    "video_duration_seconds": round(float(video_duration), 1),
+                    "title": title,
+                    "thumbnail_reference": thumbnail_reference,
+                    "created_at": now_iso,
+                    "latest_retrieval_timestamp": now_iso,
+                    "snapshot_history": [],
+                    "latest_metrics": {},
+                    "traffic_sources": [],
+                    "metadata_extras": metadata_extras or {},
+                }
+
+            rec = self.records[video_id]
+            # Update mutable identity attributes only if newly supplied
+            if channel_id and not rec.get("channel_id"):
+                rec["channel_id"] = channel_id
+            if topic and rec["topic"] == "Historical Topic":
+                rec["topic"] = topic
+            if content_pillar and rec["content_pillar"] == "General History":
+                rec["content_pillar"] = content_pillar
+            if title:
+                rec["title"] = title
+            if thumbnail_reference:
+                rec["thumbnail_reference"] = thumbnail_reference
+            if publication_timestamp and not rec["publication_timestamp"]:
+                rec["publication_timestamp"] = publication_timestamp
+            if video_duration > 0 and rec["video_duration_seconds"] == 0:
+                rec["video_duration_seconds"] = round(float(video_duration), 1)
+            if metadata_extras:
+                rec["metadata_extras"].update(metadata_extras)
+            if hook_style:
+                rec["metadata_extras"]["hook_style"] = hook_style
+
+            def _opt_int(val: Optional[int]) -> Optional[int]:
+                return max(0, int(val)) if val is not None else None
+
+            def _opt_float(val: Optional[float], digits: int) -> Optional[float]:
+                return round(max(0.0, float(val)), digits) if val is not None else None
+
+            inferred_owner_avail = (
+                bool(owner_analytics_available)
+                if owner_analytics_available is not None
+                else (watch_time_minutes is not None or average_percentage_viewed is not None or subscribers_gained is not None)
+            )
+
+            metrics_dict = {
+                "views": _opt_int(views),
+                "engaged_views": _opt_int(engaged_views),
+                "watch_time_minutes": _opt_float(watch_time_minutes, 2),
+                "average_view_duration_seconds": _opt_float(average_view_duration_seconds, 1),
+                "average_percentage_viewed": _opt_float(average_percentage_viewed, 2),
+                "impressions": _opt_int(impressions),
+                "ctr": _opt_float(ctr, 4),
+                "likes": _opt_int(likes),
+                "comments": _opt_int(comments),
+                "subscribers_gained": _opt_int(subscribers_gained),
+                "returning_viewers": _opt_int(returning_viewers),
             }
 
-        rec = self.records[video_id]
-        # Update mutable identity attributes only if newly supplied
-        if channel_id and not rec.get("channel_id"):
-            rec["channel_id"] = channel_id
-        if topic and rec["topic"] == "Historical Topic":
-            rec["topic"] = topic
-        if content_pillar and rec["content_pillar"] == "General History":
-            rec["content_pillar"] = content_pillar
-        if title:
-            rec["title"] = title
-        if thumbnail_reference:
-            rec["thumbnail_reference"] = thumbnail_reference
-        if publication_timestamp and not rec["publication_timestamp"]:
-            rec["publication_timestamp"] = publication_timestamp
-        if video_duration > 0 and rec["video_duration_seconds"] == 0:
-            rec["video_duration_seconds"] = round(float(video_duration), 1)
-        if metadata_extras:
-            rec["metadata_extras"].update(metadata_extras)
-        if hook_style:
-            rec["metadata_extras"]["hook_style"] = hook_style
+            snapshot_point = {
+                "checkpoint": checkpoint,
+                "observation_period": obs_period,
+                "retrieval_timestamp": now_iso,
+                "owner_analytics_available": inferred_owner_avail,
+                "metrics": metrics_dict,
+                "traffic_sources": list(traffic_sources or []),
+            }
 
-        def _opt_int(val: Optional[int]) -> Optional[int]:
-            return max(0, int(val)) if val is not None else None
+            # Deduplicate snapshots for the same (checkpoint, observation_period)
+            existing_idx = next(
+                (
+                    i for i, s in enumerate(rec["snapshot_history"])
+                    if s.get("checkpoint") == checkpoint and s.get("observation_period", s.get("retrieval_timestamp", "")[:10]) == obs_period
+                ),
+                None,
+            )
+            if existing_idx is not None:
+                existing_snap = rec["snapshot_history"][existing_idx]
+                # Preserve existing unless owner analytics upgraded or metrics genuinely changed
+                if (inferred_owner_avail and not existing_snap.get("owner_analytics_available")) or (
+                    existing_snap.get("metrics") != metrics_dict
+                ):
+                    rec["snapshot_history"][existing_idx] = snapshot_point
+            else:
+                rec["snapshot_history"].append(snapshot_point)
 
-        def _opt_float(val: Optional[float], digits: int) -> Optional[float]:
-            return round(max(0.0, float(val)), digits) if val is not None else None
+            rec["latest_retrieval_timestamp"] = now_iso
+            rec["latest_metrics"] = metrics_dict
+            rec["owner_analytics_available"] = inferred_owner_avail
+            rec["schema_version"] = 2
+            rec["revision"] = int(rec.get("revision", 0)) + 1
+            if traffic_sources:
+                rec["traffic_sources"] = list(traffic_sources)
 
-        inferred_owner_avail = (
-            bool(owner_analytics_available)
-            if owner_analytics_available is not None
-            else (watch_time_minutes is not None or average_percentage_viewed is not None or subscribers_gained is not None)
-        )
-
-        metrics_dict = {
-            "views": _opt_int(views),
-            "engaged_views": _opt_int(engaged_views),
-            "watch_time_minutes": _opt_float(watch_time_minutes, 2),
-            "average_view_duration_seconds": _opt_float(average_view_duration_seconds, 1),
-            "average_percentage_viewed": _opt_float(average_percentage_viewed, 2),
-            "impressions": _opt_int(impressions),
-            "ctr": _opt_float(ctr, 4),
-            "likes": _opt_int(likes),
-            "comments": _opt_int(comments),
-            "subscribers_gained": _opt_int(subscribers_gained),
-            "returning_viewers": _opt_int(returning_viewers),
-        }
-
-        snapshot_point = {
-            "checkpoint": checkpoint,
-            "observation_period": obs_period,
-            "retrieval_timestamp": now_iso,
-            "owner_analytics_available": inferred_owner_avail,
-            "metrics": metrics_dict,
-            "traffic_sources": list(traffic_sources or []),
-        }
-
-        # Deduplicate snapshots for the same (checkpoint, observation_period)
-        existing_idx = next(
-            (
-                i for i, s in enumerate(rec["snapshot_history"])
-                if s.get("checkpoint") == checkpoint and s.get("observation_period", s.get("retrieval_timestamp", "")[:10]) == obs_period
-            ),
-            None,
-        )
-        if existing_idx is not None:
-            existing_snap = rec["snapshot_history"][existing_idx]
-            # Preserve existing unless owner analytics upgraded or metrics genuinely changed
-            if (inferred_owner_avail and not existing_snap.get("owner_analytics_available")) or (
-                existing_snap.get("metrics") != metrics_dict
-            ):
-                rec["snapshot_history"][existing_idx] = snapshot_point
-        else:
-            rec["snapshot_history"].append(snapshot_point)
-
-        rec["latest_retrieval_timestamp"] = now_iso
-        rec["latest_metrics"] = metrics_dict
-        rec["owner_analytics_available"] = inferred_owner_avail
-        if traffic_sources:
-            rec["traffic_sources"] = list(traffic_sources)
-
-        self.save()
-        return rec
+            self._save_unlocked()
+            return rec
 
     def get_video(self, video_id: str) -> Optional[Dict[str, Any]]:
         """Retrieves complete record for a video."""
@@ -269,15 +298,24 @@ class HistoricalPerformanceDB:
                 results.append(rec)
         return results
 
-    def save(self) -> None:
-        """Persists the database to disk atomically."""
+    def _save_unlocked(self) -> None:
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
-        temp_path = f"{self.db_path}.tmp"
+        temp_path = f"{self.db_path}.{uuid.uuid4().hex[:8]}.tmp"
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(self.records, f, indent=2, ensure_ascii=False)
-        if os.path.exists(self.db_path):
-            os.remove(self.db_path)
-        os.rename(temp_path, self.db_path)
+        for _ in range(15):
+            try:
+                os.replace(temp_path, self.db_path)
+                return
+            except PermissionError:
+                time.sleep(0.01)
+        os.replace(temp_path, self.db_path)
+
+    def save(self) -> None:
+        """Persists the database atomically under cross-process lock."""
+        os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
+        with CrossProcessFileLock(f"{self.db_path}.lock"):
+            self._save_unlocked()
 
 
 # Singleton helper

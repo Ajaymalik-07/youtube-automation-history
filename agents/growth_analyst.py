@@ -1497,3 +1497,146 @@ def generate_production_reliability_report(output_dir: Optional[str] = None) -> 
     report["json_path"] = json_path
     report["markdown_path"] = md_path
     return report
+
+
+def generate_phase23_reports(
+    base_dir: Optional[str] = None,
+    evaluation_window_days: int = 30,
+    is_mock_or_test_data: bool = False,
+) -> Dict[str, Any]:
+    """
+    Phase 23 Consolidated Reporting Suite:
+    Produces and saves all 6 authoritative governance reports with explicit data provenance labels
+    (`verified_live_data`, `public_data_api`, `private_owner_analytics`, `mock_or_test_data`, `unavailable`):
+      1. output/persistent_state_health_report.json
+      2. output/youtube_reconciliation_report.json
+      3. output/weekly_shorts_performance_report.json
+      4. output/weekly_longform_performance_report.json
+      5. output/rolling_30day_growth_report.json
+      6. output/experiment_evaluation_report.json
+    """
+    from apis.state_store import generate_persistent_state_health_report
+    from uploader.youtube import reconcile_channel_publications
+    from agents.experiment_tracker import get_experiment_tracker
+    from apis.youtube_analytics import get_analytics_capabilities_and_limitations
+
+    out_dir = base_dir or getattr(config, "OUTPUT_DIR", "output")
+    os.makedirs(out_dir, exist_ok=True)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    state_health = generate_persistent_state_health_report(base_dir=out_dir)
+    reconciliation = reconcile_channel_publications(output_dir=out_dir)
+    rel_report = generate_production_reliability_report(output_dir=out_dir)
+
+    db_inst = get_performance_db()
+    window_vids = db_inst.get_videos_in_window(days=evaluation_window_days) if db_inst else []
+    shorts_vids = [v for v in window_vids if v.get("video_format") == "short"]
+    longform_vids = [v for v in window_vids if v.get("video_format") != "short"]
+
+    caps = get_analytics_capabilities_and_limitations()
+    owner_connected = bool(caps.get("owner_analytics_connected"))
+
+    shorts_perf = analyze_shorts_performance(shorts_vids)
+    longform_perf = analyze_longform_performance(longform_vids)
+    prod_qa_perf = analyze_production_and_quality_gates()
+
+    provenance_summary = {
+        "mode": "mock_or_test_data" if is_mock_or_test_data else "verified_live_data",
+        "public_data_api": bool(caps.get("has_public_data_api_fallback")),
+        "private_owner_analytics": "private_owner_analytics" if owner_connected else "unavailable (BLOCKED: missing yt-analytics.readonly)",
+        "unavailable_metrics_preserved_as_null": True,
+    }
+
+    # Weekly Shorts Performance Report
+    shorts_report = {
+        "generated_at": now_iso,
+        "evaluation_window_days": 7,
+        "rolling_baseline_days": evaluation_window_days,
+        "data_provenance": provenance_summary,
+        "owner_analytics_status": "CONNECTED" if owner_connected else "BLOCKED",
+        "cadence_target": {"shorts_per_day": getattr(config, "SHORTS_DAILY_COUNT", 5), "timezone": getattr(config, "PUBLISHING_TIMEZONE", "Asia/Kolkata")},
+        "performance": shorts_perf,
+    }
+    shorts_path = os.path.join(out_dir, "weekly_shorts_performance_report.json")
+    with open(shorts_path, "w", encoding="utf-8") as f:
+        json.dump(shorts_report, f, indent=2, ensure_ascii=False)
+
+    # Weekly Long-Form Performance Report
+    longform_report = {
+        "generated_at": now_iso,
+        "evaluation_window_days": 7,
+        "rolling_baseline_days": evaluation_window_days,
+        "data_provenance": provenance_summary,
+        "owner_analytics_status": "CONNECTED" if owner_connected else "BLOCKED",
+        "cadence_target": {"longform_per_day": getattr(config, "LONGFORM_DAILY_COUNT", 1), "timezone": getattr(config, "PUBLISHING_TIMEZONE", "Asia/Kolkata")},
+        "performance": longform_perf,
+    }
+    longform_path = os.path.join(out_dir, "weekly_longform_performance_report.json")
+    with open(longform_path, "w", encoding="utf-8") as f:
+        json.dump(longform_report, f, indent=2, ensure_ascii=False)
+
+    # Rolling 30-Day Channel Growth Report
+    totals = rel_report.get("totals", {})
+    started = totals.get("jobs_started", 0)
+    upload_ok = totals.get("upload_completed", 0)
+    upload_rate = round(upload_ok / started, 4) if started > 0 else None
+    target_daily = getattr(config, "TOTAL_DAILY_VIDEOS", 6)
+    expected_30d = target_daily * evaluation_window_days
+    observed_pub_count = reconciliation.get("live_videos_inspected", 0)
+    pub_consistency = round(min(1.0, observed_pub_count / max(1, expected_30d)), 4)
+
+    rolling_growth = {
+        "generated_at": now_iso,
+        "evaluation_window_days": evaluation_window_days,
+        "data_provenance": provenance_summary,
+        "shorts_analytics": shorts_perf,
+        "longform_analytics": longform_perf,
+        "operational_reliability": {
+            "production_failure_rate": prod_qa_perf.get("production_failure_rate"),
+            "quality_gate_rejection_rate": prod_qa_perf.get("quality_gate_rejection_rate"),
+            "upload_success_rate": upload_rate,
+            "actual_publication_consistency_ratio": pub_consistency,
+            "live_videos_inspected": observed_pub_count,
+            "expected_videos_at_6_per_day": expected_30d,
+        },
+        "reconciliation_coverage_pct": reconciliation.get("reconciliation_coverage_pct"),
+        "analytics_limitations": caps.get("limitations", []),
+    }
+    rolling_path = os.path.join(out_dir, "rolling_30day_growth_report.json")
+    with open(rolling_path, "w", encoding="utf-8") as f:
+        json.dump(rolling_growth, f, indent=2, ensure_ascii=False)
+
+    # Experiment Evaluation Report
+    tracker = get_experiment_tracker()
+    all_exps = tracker.get_all_experiments() if tracker else []
+    exp_report = {
+        "generated_at": now_iso,
+        "evaluation_window_days": evaluation_window_days,
+        "data_provenance": provenance_summary,
+        "total_experiments": len(all_exps),
+        "active_experiments": len([e for e in all_exps if e.get("status") == "in_progress"]),
+        "completed_experiments": len([e for e in all_exps if e.get("status") == "completed"]),
+        "auto_frequency_mutation_blocked": True,
+        "multiple_comparison_policy": "bonferroni_0.05_over_active_experiments",
+        "experiments": all_exps,
+    }
+    exp_path = os.path.join(out_dir, "experiment_evaluation_report.json")
+    with open(exp_path, "w", encoding="utf-8") as f:
+        json.dump(exp_report, f, indent=2, ensure_ascii=False)
+
+    return {
+        "persistent_state_health": state_health,
+        "youtube_reconciliation": reconciliation,
+        "weekly_shorts_performance": shorts_report,
+        "weekly_longform_performance": longform_report,
+        "rolling_30day_growth": rolling_growth,
+        "experiment_evaluation": exp_report,
+        "paths": {
+            "persistent_state_health": state_health.get("report_path"),
+            "youtube_reconciliation": reconciliation.get("report_path"),
+            "weekly_shorts_performance": shorts_path,
+            "weekly_longform_performance": longform_path,
+            "rolling_30day_growth": rolling_path,
+            "experiment_evaluation": exp_path,
+        },
+    }

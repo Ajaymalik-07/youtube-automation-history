@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.7.0] - 2026-11-12 - Phase 23: Persistent Production State & 30-Day Growth Validation
+
+### Added
+- **Authoritative Persistent State Architecture (`apis/state_store.py`, `.gitignore`, `.github/workflows/daily_youtube_automation.yml`):**
+  - Implemented git-tracked authoritative JSON state (`output/production_database.json`, `output/historical_performance_db.json`, `output/automation_schedule.json`, `output/growth_experiments.json`, `output/state_manifest.json`, `output/pending_uploads/*.json`) paired with a free local SQLite WAL ledger (`output/yaas_state.sqlite`), SHA-256 checksummed rolling backups (`output/backups/`), schema `v2` migrations, and monotonic `(revision, updated_at)` merge guards against stale overwrites.
+  - Restricted GitHub Actions `actions/cache` strictly to transient pre-rendered media (`output/scheduled_queue`) while persisting authoritative JSON databases via CI commits and pre-run backups.
+- **Channel Reconciliation & Historical Recovery (`uploader/youtube.py`):**
+  - Extended `reconcile_channel_publications()` to correlate live uploads across production records, upload manifests, and `automation_schedule.json`, safely recover missing historical growth records (`owner_analytics_available=False`, no fabricated metadata), classify unmatched external uploads separately from local failed jobs, and track coverage history (`output/reconciliation_history.json`, `output/youtube_reconciliation_report.json`).
+- **30-Day Growth Validation & Consolidated Reporting (`agents/growth_analyst.py`, `apis/youtube_analytics.py`):**
+  - Added `generate_phase23_reports()` (and CLI flags `--phase23-reports`, `--backup-state` in `automation.py`) generating provenance-labeled reports: `persistent_state_health_report.json`, `youtube_reconciliation_report.json`, `weekly_shorts_performance_report.json`, `weekly_longform_performance_report.json`, `rolling_30day_growth_report.json`, and `experiment_evaluation_report.json`.
+  - Updated `generate_weekly_format_report()` to query `HistoricalPerformanceDB` cleanly and keep unavailable private metrics as `None` instead of `0.0`.
+- **Experiment Statistical Governance (`agents/experiment_tracker.py`):**
+  - Added `CrossProcessFileLock` atomic persistence, confidence intervals, Welch's $t$-test uncertainty reporting, Bonferroni multiple-comparisons adjusted alpha ($0.05 / m$), and `register_controlled_experiment()`.
+- **Validation Suite & Documentation (`tests/test_phase23_persistent_state_and_growth.py`, `docs/PHASE_23_PERSISTENT_STATE_AND_GROWTH_VALIDATION.md`):**
+  - Added 7 Phase 23 tests covering schema migrations, stale-state conflict handling, SQLite WAL + backup restore, multi-process persistence, channel reconciliation, 30-day growth reports, and Bonferroni experiment governance.
+
+---
+
 ## [2.6.1] - 2026-11-12 - Phase 22.1: Live Publishing Reliability & Production Verification
 
 ### Added

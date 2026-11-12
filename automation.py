@@ -1649,7 +1649,8 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
     4. Updates weekly adaptive strategy dossier while preserving 5 Shorts + 1 Long-form daily cadence.
     """
     from apis.youtube_analytics import sync_owner_channel_analytics, generate_weekly_format_report
-    from agents.growth_analyst import generate_growth_intelligence_dossier
+    from apis.state_store import create_state_backup, sync_to_sqlite
+    from agents.growth_analyst import generate_growth_intelligence_dossier, generate_phase23_reports
     from agents.adaptive_engine import generate_weekly_adaptive_strategy
 
     sync_res = sync_owner_channel_analytics(days_back=days_back)
@@ -1658,12 +1659,16 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
     growth_dossier = generate_growth_intelligence_dossier(evaluation_window_days=days_back)
     adaptive_strategy = generate_weekly_adaptive_strategy(evaluation_window_days=days_back)
     reliability_report = generate_production_reliability_report()
+    backup_info = create_state_backup(label="weekly_review")
+    sqlite_manifest = sync_to_sqlite()
+    phase23_reports = generate_phase23_reports(evaluation_window_days=days_back)
 
     print("\n" + "=" * 70)
     print(f"  📊 Weekly Performance Review Complete (Rolling {days_back}-Day Window)")
     print(f"  Cadence Preserved : {growth_dossier['cadence_policy']['longform_per_day']} Long-Form + {growth_dossier['cadence_policy']['shorts_per_day']} Shorts = {growth_dossier['cadence_policy']['total_per_day']}/day ({growth_dossier['cadence_policy']['timezone']})")
     print(f"  Analytics Source  : {sync_res['source']} ({sync_res['videos_synced']} video(s) synced)")
-    print(f"  Channel Reconcile : {reconciliation['live_videos_inspected']} live videos ({reconciliation['source']}), {reconciliation['matched_schedule_history_count']} matched local history")
+    print(f"  Channel Reconcile : {reconciliation['live_videos_inspected']} live videos ({reconciliation['source']}), coverage={reconciliation.get('reconciliation_coverage_pct', 0)}%")
+    print(f"  Authoritative Sync: SQLite WAL + backup ({os.path.basename(backup_info['backup_dir'])})")
     print(f"  OAuth Owner API   : {'Connected' if sync_res['capabilities']['owner_analytics_connected'] else 'Limited (missing scopes)'}")
     for lim in sync_res.get("limitations", []):
         print(f"   ℹ Limitation: {lim}")
@@ -1676,6 +1681,9 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
         "growth_dossier": growth_dossier,
         "adaptive_strategy": adaptive_strategy,
         "reliability_report": reliability_report,
+        "backup": backup_info,
+        "state_manifest": sqlite_manifest,
+        "phase23_reports": phase23_reports,
     }
 
 
@@ -1814,6 +1822,8 @@ if __name__ == "__main__":
     parser.add_argument("--run-long", action="store_true", help="Execute deep history video pipeline (<15 min safe) immediately")
     parser.add_argument("--run-all", action="store_true", help="Execute Shorts FIRST, then Long-form immediately")
     parser.add_argument("--weekly-review", action="store_true", help="Run weekly rolling 30-day analytics sync & performance review")
+    parser.add_argument("--phase23-reports", action="store_true", help="Generate Phase 23 persistent state, reconciliation & 30-day growth reports")
+    parser.add_argument("--backup-state", action="store_true", help="Create checksummed backup and sync SQLite WAL state ledger")
     parser.add_argument("--reliability-report", action="store_true", help="Generate production reliability report (Shorts vs Long-form)")
     parser.add_argument("--retry-pending", action="store_true", help="Retry eligible pending uploads in output/pending_uploads")
     parser.add_argument("--status", action="store_true", help="Display current status and adaptive metrics")
@@ -1874,6 +1884,15 @@ if __name__ == "__main__":
                 print(f"   ℹ Email notification notice: {e}")
         elif args.weekly_review:
             run_weekly_performance_review(days_back=getattr(config, "EVALUATION_WINDOW_DAYS", 30))
+        elif args.phase23_reports:
+            from agents.growth_analyst import generate_phase23_reports
+            rep = generate_phase23_reports(evaluation_window_days=getattr(config, "EVALUATION_WINDOW_DAYS", 30))
+            print(json.dumps(rep["paths"], indent=2))
+        elif args.backup_state:
+            from apis.state_store import create_state_backup, sync_to_sqlite
+            sync_to_sqlite()
+            b = create_state_backup(label="manual")
+            print(json.dumps(b, indent=2))
         elif args.reliability_report:
             rep = generate_production_reliability_report()
             print(json.dumps(rep, indent=2))

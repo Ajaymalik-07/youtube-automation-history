@@ -99,18 +99,17 @@ jobs:
       - name: Ensure Queue Directory Exists
         run: mkdir -p output/scheduled_queue output/pending_uploads
 
-      - name: Restore Pre-rendered Scheduled Queue & Reliability State Cache
+      - name: Restore Pre-rendered Scheduled Queue Cache (Media Only)
         uses: actions/cache/restore@v4
         id: cache-scheduled-queue
         with:
-          path: |
-            output/scheduled_queue
-            output/pending_uploads
-            output/production_database.json
-            output/growth_history.json
+          path: output/scheduled_queue
           key: scheduled-queue-${{ github.run_id }}
           restore-keys: |
             scheduled-queue-
+
+      - name: Create Pre-Run Authoritative State Backup
+        run: python automation.py --backup-state || true
 
       - name: Run YouTube Studio Automation
         run: |
@@ -127,25 +126,25 @@ jobs:
             python automation.py --auto
           fi
 
-      - name: Save Pre-rendered Scheduled Queue & Reliability State Cache
+      - name: Reconcile Channel & Refresh Persistent State Health
+        if: always()
+        run: python automation.py --phase23-reports || true
+
+      - name: Save Pre-rendered Scheduled Queue Cache (Media Only)
         uses: actions/cache/save@v4
         if: always()
         with:
-          path: |
-            output/scheduled_queue
-            output/pending_uploads
-            output/production_database.json
-            output/growth_history.json
+          path: output/scheduled_queue
           key: scheduled-queue-${{ github.run_id }}
 
-      - name: Persist Schedule State to Repository
+      - name: Persist Authoritative State to Repository
         if: always()
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add output/automation_schedule.json || true
+          git add output/automation_schedule.json output/production_database.json output/historical_performance_db.json output/growth_experiments.json output/state_manifest.json output/pending_uploads/*.json || true
           if ! git diff --staged --quiet; then
-            git commit -m "chore: persist automated publishing state [skip ci]"
+            git commit -m "chore: persist authoritative production and analytics state [skip ci]"
             git pull --rebase origin "${GITHUB_REF_NAME:-main}" || true
             git push
           fi

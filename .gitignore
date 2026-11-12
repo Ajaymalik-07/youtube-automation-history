@@ -30,6 +30,13 @@ assets/fonts/
 # ── Generated output — large files ───────
 output/*
 !output/automation_schedule.json
+!output/production_database.json
+!output/historical_performance_db.json
+!output/growth_experiments.json
+!output/state_manifest.json
+!output/pending_uploads/
+output/pending_uploads/*
+!output/pending_uploads/*.json
 output/images/
 *.mp4
 *.mp3

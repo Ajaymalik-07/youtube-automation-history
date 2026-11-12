@@ -1,0 +1,19 @@
+{
+  "schema_version": 2,
+  "last_sync_at": "2026-11-12T08:24:33.448836+00:00",
+  "authoritative_stores": {
+    "historical_performance_db.json": {
+      "revision": 1,
+      "sha256": "1e14176176e5603e5953d6e606d3ecee05e2c8627eb542b3f31c8fce6bd56e27"
+    },
+    "automation_schedule.json": {
+      "revision": 1,
+      "sha256": "5c0a311283803a1510c3c6ab821262377eb467daa5ac80392114e567e70beb78"
+    },
+    "growth_experiments.json": {
+      "revision": 1,
+      "sha256": "cb0fb64cefdbb3ba99a23b4d14f63a52cc4bb587229eb6e5eb16a8e0928cf9a5"
+    }
+  },
+  "sqlite_ledger": "yaas_state.sqlite"
+}

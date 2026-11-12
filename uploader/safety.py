@@ -309,6 +309,15 @@ def _load_db_unlocked(db_file: str) -> dict:
             with open(db_file, encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, dict):
+                    if "records" in data and isinstance(data.get("records"), dict) and "schema_version" in data:
+                        data = data["records"]
+                    for k, rec in list(data.items()):
+                        if isinstance(rec, dict):
+                            curr = rec.get("current_state", "")
+                            if curr in LEGACY_STATE_MAPPING:
+                                rec["current_state"] = LEGACY_STATE_MAPPING[curr]
+                            rec.setdefault("schema_version", 2)
+                            rec.setdefault("revision", 1)
                     return data
         except Exception:
             pass
@@ -318,6 +327,19 @@ def _load_db_unlocked(db_file: str) -> dict:
 def _save_db_unlocked(db_file: str, db: dict) -> None:
     db_dir = os.path.dirname(db_file) or "."
     os.makedirs(db_dir, exist_ok=True)
+    # Guard against stale lower-revision overwrite if newer on-disk revision exists
+    if os.path.exists(db_file):
+        try:
+            existing = json.load(open(db_file, encoding="utf-8"))
+            if isinstance(existing, dict):
+                for k, cur_rec in existing.items():
+                    if k in db and isinstance(cur_rec, dict) and isinstance(db[k], dict):
+                        cur_rev = int(cur_rec.get("revision", 1))
+                        new_rev = int(db[k].get("revision", 1))
+                        if cur_rev > new_rev and str(cur_rec.get("updated_at", "")) > str(db[k].get("updated_at", "")):
+                            db[k] = cur_rec
+        except Exception:
+            pass
     tmp_path = os.path.join(db_dir, f".{os.path.basename(db_file)}.{uuid.uuid4().hex[:8]}.tmp")
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(db, f, indent=2)
@@ -410,6 +432,8 @@ def record_production_state(video_path: str, state: str, metadata: Optional[dict
 
             if not record:
                 record = {
+                    "schema_version": 2,
+                    "revision": 1,
                     "video_path": video_path,
                     "filename": os.path.basename(video_path),
                     "current_state": norm_target_state,
@@ -445,6 +469,8 @@ def record_production_state(video_path: str, state: str, metadata: Optional[dict
                     record["was_failed"] = False
                 record["current_state"] = norm_target_state
 
+            record["schema_version"] = 2
+            record["revision"] = int(record.get("revision", 0)) + 1
             if metadata:
                 record.setdefault("metadata", {}).update(metadata)
                 if "quality_report" in metadata and isinstance(metadata["quality_report"], dict):

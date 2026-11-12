@@ -20,6 +20,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import config
 from uploader.oauth_manager import audit_token_scopes, safe_refresh_credentials, REQUIRED_SCOPES
+from apis.growth_database import get_performance_db
 
 SNAPSHOT_FILE = os.path.join(config.OUTPUT_DIR, "analytics_snapshots.json")
 WEEKLY_REPORT_FILE = os.path.join(config.OUTPUT_DIR, "weekly_analytics_report.json")
@@ -722,7 +723,39 @@ def generate_weekly_format_report(
     - Explicitly reports analytics limitations.
     - Generates actionable future experiments.
     """
-    data = snapshots if snapshots is not None else load_snapshots()
+    if snapshots is not None:
+        data = snapshots
+        data_source_label = "provided_snapshot_dict"
+    else:
+        perf_recs = get_performance_db().get_videos_in_window(days=days_back)
+        if perf_recs:
+            data = {}
+            for rec in perf_recs:
+                m = rec.get("latest_metrics", {}) or {}
+                vid = rec.get("video_id", "")
+                if not vid:
+                    continue
+                data[vid] = {
+                    "title": rec.get("title", vid),
+                    "topic": rec.get("topic", rec.get("title", "Historical Topic")),
+                    "is_shorts": rec.get("video_format") == "short",
+                    "owner_analytics_available": bool(rec.get("owner_analytics_available")),
+                    "metrics": {
+                        "views": m.get("views"),
+                        "estimatedMinutesWatched": m.get("watch_time_minutes"),
+                        "averageViewDuration": m.get("average_view_duration_seconds"),
+                        "averageViewPercentage": m.get("average_percentage_viewed"),
+                        "subscribersGained": m.get("subscribers_gained"),
+                        "impressions": m.get("impressions"),
+                        "impressionClickThroughRate": m.get("ctr"),
+                        "returningViewers": m.get("returning_viewers"),
+                    },
+                }
+            data_source_label = "historical_performance_db"
+        else:
+            data = load_snapshots()
+            data_source_label = "legacy_analytics_snapshots"
+
     now_str = datetime.now(timezone.utc).isoformat()
     caps = get_analytics_capabilities_and_limitations()
 
@@ -732,18 +765,18 @@ def generate_weekly_format_report(
     for vid, rec in data.items():
         if not isinstance(rec, dict):
             continue
-        m = rec.get("metrics", {})
+        m = rec.get("metrics", {}) or {}
         entry = {
             "video_id": vid,
             "title": rec.get("title", vid),
             "topic": rec.get("topic", rec.get("title", "Historical Topic")),
-            "views": m.get("views", 0) or 0,
-            "watch_time_minutes": m.get("estimatedMinutesWatched") or 0.0,
-            "average_view_duration_seconds": m.get("averageViewDuration") or 0.0,
-            "average_percentage_viewed": m.get("averageViewPercentage") or 0.0,
-            "subscribers_gained": m.get("subscribersGained") or 0,
-            "impressions": m.get("impressions") or 0,
-            "ctr": m.get("impressionClickThroughRate") or 0.0,
+            "views": m.get("views"),
+            "watch_time_minutes": m.get("estimatedMinutesWatched"),
+            "average_view_duration_seconds": m.get("averageViewDuration"),
+            "average_percentage_viewed": m.get("averageViewPercentage"),
+            "subscribers_gained": m.get("subscribersGained"),
+            "impressions": m.get("impressions"),
+            "ctr": m.get("impressionClickThroughRate"),
             "returning_viewers": m.get("returningViewers"),
         }
         if rec.get("is_shorts"):
@@ -757,46 +790,67 @@ def generate_weekly_format_report(
                 "video_count": 0,
                 "total_views": 0,
                 "median_views": 0.0,
-                "total_watch_time_minutes": 0.0,
-                "avg_view_duration_seconds": 0.0,
-                "avg_percentage_viewed": 0.0,
-                "total_subscribers_gained": 0,
-                "sub_conversion_per_1k": 0.0,
+                "total_watch_time_minutes": None,
+                "avg_view_duration_seconds": None,
+                "avg_percentage_viewed": None,
+                "total_subscribers_gained": None,
+                "sub_conversion_per_1k": None,
                 "returning_viewers": {"available": False, "total": None},
                 "best_performer": None,
                 "strong_topics": [],
                 "weak_topics": [],
                 "retention_weaknesses": [],
+                "unavailable_metrics": ["all (0 videos in window)"],
             }
 
-        total_v = sum(i["views"] for i in items)
-        median_v = _median([float(i["views"]) for i in items])
-        total_wt = round(sum(i["watch_time_minutes"] for i in items), 2)
-        avd_list = [i["average_view_duration_seconds"] for i in items if i["average_view_duration_seconds"] > 0]
-        avg_avd = round(sum(avd_list) / len(avd_list), 1) if avd_list else 0.0
-        total_subs = sum(i["subscribers_gained"] for i in items)
-        pct_list = [i["average_percentage_viewed"] for i in items if i["average_percentage_viewed"] > 0]
-        avg_pct = round(sum(pct_list) / len(pct_list), 2) if pct_list else 0.0
-        sub_conv = round((total_subs / total_v * 1000), 2) if total_v > 0 else 0.0
+        view_vals = [int(i["views"]) for i in items if i.get("views") is not None]
+        total_v = sum(view_vals) if view_vals else 0
+        median_v = _median([float(v) for v in view_vals]) if view_vals else 0.0
+
+        wt_vals = [float(i["watch_time_minutes"]) for i in items if i.get("watch_time_minutes") is not None]
+        total_wt = round(sum(wt_vals), 2) if wt_vals else None
+
+        avd_list = [float(i["average_view_duration_seconds"]) for i in items if i.get("average_view_duration_seconds") is not None and float(i["average_view_duration_seconds"]) > 0]
+        avg_avd = round(sum(avd_list) / len(avd_list), 1) if avd_list else None
+
+        sub_vals = [int(i["subscribers_gained"]) for i in items if i.get("subscribers_gained") is not None]
+        total_subs = sum(sub_vals) if sub_vals else None
+
+        pct_list = [float(i["average_percentage_viewed"]) for i in items if i.get("average_percentage_viewed") is not None and float(i["average_percentage_viewed"]) > 0]
+        avg_pct = round(sum(pct_list) / len(pct_list), 2) if pct_list else None
+
+        sub_conv = round((total_subs / total_v * 1000), 2) if (total_subs is not None and total_v > 0) else None
         ret_vals = [i["returning_viewers"] for i in items if i.get("returning_viewers") is not None]
         ret_info = (
             {"available": True, "total": sum(ret_vals)}
             if ret_vals
-            else {"available": False, "total": None, "note": "Returning viewers not exposed in per-video Analytics v2 query."}
+            else {"available": False, "total": None, "note": "Returning viewers unavailable."}
         )
 
-        sorted_by_views = sorted(items, key=lambda x: x["views"], reverse=True)
+        sorted_by_views = sorted(items, key=lambda x: (x.get("views") or 0), reverse=True)
         best = sorted_by_views[0] if sorted_by_views else None
 
-        # Thresholds: Longform benchmark 45%, Shorts benchmark 70%
         retention_bench = 70.0 if is_shorts else 45.0
         retention_issues = [
             f"{i['topic']} ({i['average_percentage_viewed']}% < {retention_bench}%)"
-            for i in items if i["average_percentage_viewed"] > 0 and i["average_percentage_viewed"] < retention_bench
+            for i in items
+            if i.get("average_percentage_viewed") is not None and float(i["average_percentage_viewed"]) > 0 and float(i["average_percentage_viewed"]) < retention_bench
         ]
 
-        strong = [i["topic"] for i in sorted_by_views[:2] if i["views"] > 0]
+        strong = [i["topic"] for i in sorted_by_views[:2] if (i.get("views") or 0) > 0]
         weak = [i["topic"] for i in sorted_by_views[-2:] if len(sorted_by_views) >= 2]
+
+        unavailable = []
+        if total_wt is None:
+            unavailable.append("estimatedMinutesWatched")
+        if avg_avd is None:
+            unavailable.append("averageViewDuration")
+        if avg_pct is None:
+            unavailable.append("averageViewPercentage")
+        if total_subs is None:
+            unavailable.append("subscribersGained")
+        if not ret_info["available"]:
+            unavailable.append("returningViewers")
 
         result_group = {
             "video_count": len(items),
@@ -812,12 +866,17 @@ def generate_weekly_format_report(
             "strong_topics": strong,
             "weak_topics": weak,
             "retention_weaknesses": retention_issues,
+            "unavailable_metrics": unavailable,
         }
         if not is_shorts:
-            total_impr = sum(i["impressions"] for i in items)
-            ctr_vals = [i["ctr"] for i in items if i["ctr"] > 0]
-            result_group["total_impressions"] = total_impr
-            result_group["avg_ctr"] = round(sum(ctr_vals) / len(ctr_vals), 4) if ctr_vals else 0.0
+            impr_vals = [int(i["impressions"]) for i in items if i.get("impressions") is not None]
+            ctr_vals = [float(i["ctr"]) for i in items if i.get("ctr") is not None and float(i["ctr"]) > 0]
+            result_group["total_impressions"] = sum(impr_vals) if impr_vals else None
+            result_group["avg_ctr"] = round(sum(ctr_vals) / len(ctr_vals), 4) if ctr_vals else None
+            if result_group["total_impressions"] is None:
+                unavailable.append("impressions")
+            if result_group["avg_ctr"] is None:
+                unavailable.append("impressionClickThroughRate")
         return result_group
 
     lf_analysis = analyze_format_group(longform_videos, is_shorts=False)
@@ -837,6 +896,11 @@ def generate_weekly_format_report(
     report = {
         "report_generated_at": now_str,
         "evaluation_period_days": days_back,
+        "data_provenance": {
+            "source": data_source_label,
+            "public_data_api_used": bool(caps.get("has_public_data_api_fallback")),
+            "private_owner_analytics_status": "CONNECTED" if caps.get("owner_analytics_connected") else "BLOCKED",
+        },
         "longform_analytics": lf_analysis,
         "shorts_analytics": sh_analysis,
         "analytics_capabilities": caps,

@@ -15,9 +15,15 @@ Enforces sample size thresholds to avoid drawing false conclusions from 1-2 vide
 """
 import os
 import json
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 import config
+from agents.statistical_validator import (
+    calculate_mean_and_confidence_interval,
+    compute_welch_t_test,
+)
+from uploader.safety import CrossProcessFileLock
 
 EXPERIMENTS_FILE = os.path.join(config.OUTPUT_DIR, "growth_experiments.json")
 
@@ -188,9 +194,35 @@ class ExperimentTracker:
         return exp
 
     def _evaluate_experiment(self, exp: Dict[str, Any]) -> None:
-        """Evaluates experiment status based on valid recorded sample data."""
+        """
+        Evaluates experiment status with confidence intervals, Welch's t-test,
+        and Bonferroni multiple-comparisons adjustment across active/evaluated experiments.
+        """
+        exp.setdefault("baseline", exp.get("control_variant", "Standard baseline"))
+        exp.setdefault("primary_variable", exp.get("category", "single_variable"))
+        exp.setdefault("evaluation_window_days", getattr(config, "EVALUATION_WINDOW_DAYS", 30))
+
         samples = [s for s in exp["samples"] if s.get("metric_value") is not None]
         min_samples = exp.get("min_sample_size", MIN_SAMPLE_SIZE_FOR_CONCLUSION)
+        m_comparisons = max(1, len(self.experiments))
+        adj_alpha = round(0.05 / m_comparisons, 4)
+
+        control_vals = [float(s["metric_value"]) for s in samples if s["variant"].lower() == "control"]
+        test_vals = [float(s["metric_value"]) for s in samples if s["variant"].lower() == "test"]
+        ctrl_ci = calculate_mean_and_confidence_interval(control_vals)
+        test_ci = calculate_mean_and_confidence_interval(test_vals)
+        t_res = compute_welch_t_test(control_vals, test_vals)
+        p_val = float(t_res.get("p_value", 1.0)) if t_res.get("valid_test") else 1.0
+        sig_bonferroni = bool(t_res.get("valid_test") and p_val < adj_alpha)
+
+        exp["uncertainty_report"] = {
+            "control_ci_95": ctrl_ci,
+            "test_ci_95": test_ci,
+            "welch_t_test": t_res,
+            "multiple_comparisons_count": m_comparisons,
+            "multiple_comparison_adjusted_alpha": adj_alpha,
+            "bonferroni_significant": sig_bonferroni,
+        }
 
         if len(samples) < min_samples:
             exp["status"] = "in_progress"
@@ -198,25 +230,81 @@ class ExperimentTracker:
             exp["conclusion"] = f"Gathered {len(samples)}/{min_samples} required video observations. No statistically defensible conclusion yet."
             return
 
-        control_vals = [float(s["metric_value"]) for s in samples if s["variant"].lower() == "control"]
-        test_vals = [float(s["metric_value"]) for s in samples if s["variant"].lower() == "test"]
-
         if not control_vals or not test_vals:
             exp["status"] = "in_progress"
             exp["confidence_level"] = "insufficient_variants"
             exp["conclusion"] = "Both control and test samples are required to determine a statistical winner."
             return
 
+        # Strict significance gate when experiment explicitly requires statistical validation
+        if exp.get("require_statistical_significance") and not sig_bonferroni:
+            exp["status"] = "in_progress"
+            exp["confidence_level"] = f"preliminary (p={p_val:.4f} >= bonferroni_alpha={adj_alpha})"
+            exp["conclusion"] = (
+                f"Observed {len(control_vals)} control vs {len(test_vals)} test samples "
+                f"(p={p_val:.4f}, adjusted threshold={adj_alpha}). Insufficient evidence to declare a winner."
+            )
+            return
+
         avg_ctrl = sum(control_vals) / len(control_vals)
         avg_test = sum(test_vals) / len(test_vals)
 
         exp["status"] = "completed"
-        exp["confidence_level"] = "moderate (sample size >= 3)"
+        exp["confidence_level"] = (
+            f"statistically_sound (p={p_val:.4f} < {adj_alpha})"
+            if sig_bonferroni
+            else f"moderate (sample size >= {min_samples}, exploratory)"
+        )
         delta = round(avg_test - avg_ctrl, 2)
         if delta > 0:
             exp["conclusion"] = f"Test variant outperformed control by +{delta} on {exp['target_metric']} (Control Avg: {avg_ctrl:.2f}, Test Avg: {avg_test:.2f}). Hypothesis validated."
         else:
             exp["conclusion"] = f"Test variant did not outperform control ({delta} on {exp['target_metric']}, Control Avg: {avg_ctrl:.2f}, Test Avg: {avg_test:.2f}). Retain control or iterate variant."
+
+    def register_controlled_experiment(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Registers a strictly controlled single-variable experiment enforcing Phase 23 rules:
+        hypothesis, baseline, 1 primary variable, success metric, min samples >= 6,
+        30-day window, and Bonferroni significance requirement.
+        """
+        hypothesis = str(proposal.get("hypothesis", "")).strip()
+        if len(hypothesis) < 15:
+            raise ValueError("Controlled experiment requires a documented hypothesis (>= 15 chars).")
+        vars_list = proposal.get("changed_variables") or ([proposal["primary_variable"]] if proposal.get("primary_variable") else [])
+        if not isinstance(vars_list, list) or len(vars_list) != 1:
+            raise ValueError("Controlled experiment must isolate exactly 1 primary variable.")
+        if not proposal.get("baseline") and not proposal.get("control_variant"):
+            raise ValueError("Controlled experiment must specify a baseline / control_variant.")
+        if not proposal.get("success_metric") and not proposal.get("target_metric"):
+            raise ValueError("Controlled experiment must define a measurable success_metric.")
+
+        exp_id = proposal.get("id") or f"EXP-{len(self.experiments) + 1:03d}"
+        rec = {
+            "id": exp_id,
+            "name": proposal.get("name", f"Experiment {exp_id}"),
+            "category": proposal.get("category", "hook_variation"),
+            "target_format": proposal.get("target_format", "short"),
+            "hypothesis": hypothesis,
+            "baseline": proposal.get("baseline") or proposal.get("control_variant"),
+            "primary_variable": vars_list[0],
+            "changed_variables": list(vars_list),
+            "target_metric": proposal.get("success_metric") or proposal.get("target_metric"),
+            "control_variant": proposal.get("baseline") or proposal.get("control_variant"),
+            "test_variant": proposal.get("test_variant", "Variant B"),
+            "min_sample_size": max(6, int(proposal.get("min_sample_size", 6))),
+            "evaluation_window_days": int(proposal.get("evaluation_window_days", getattr(config, "EVALUATION_WINDOW_DAYS", 30))),
+            "require_statistical_significance": True,
+            "auto_apply_to_schedule": False,
+            "current_samples": 0,
+            "status": "in_progress",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "samples": [],
+            "conclusion": None,
+            "confidence_level": "insufficient_data",
+        }
+        self.experiments.append(rec)
+        self.save()
+        return rec
 
     def get_active_experiments(self) -> List[Dict[str, Any]]:
         """Returns list of active experiments."""
@@ -267,10 +355,13 @@ class ExperimentTracker:
         return exp_record
 
     def save(self) -> None:
-        """Persists experiments to disk."""
+        """Persists experiments atomically under cross-process lock."""
         os.makedirs(os.path.dirname(os.path.abspath(self.storage_path)), exist_ok=True)
-        with open(self.storage_path, "w", encoding="utf-8") as f:
-            json.dump(self.experiments, f, indent=2, ensure_ascii=False)
+        with CrossProcessFileLock(f"{self.storage_path}.lock"):
+            tmp_path = f"{self.storage_path}.{uuid.uuid4().hex[:8]}.tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(self.experiments, f, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, self.storage_path)
 
 
 # Singleton
