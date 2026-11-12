@@ -632,6 +632,8 @@ def get_production_run_brief(video_type: str = "longform") -> Dict[str, Any]:
     )
     phase30_guidance = _load_phase30_adaptive_guidance(video_type)
     phase31_guidance = _load_phase31_adaptive_guidance(video_type)
+    from agents.phase32_growth_optimization import get_phase32_growth_directives
+    phase32_dir = get_phase32_growth_directives(video_type)
 
     exp = strategy["recommended_next_experiment"]
 
@@ -643,6 +645,7 @@ def get_production_run_brief(video_type: str = "longform") -> Dict[str, Any]:
         "phase29_directives": phase29_dir,
         "phase30_experiment_guidance": phase30_guidance,
         "phase31_experiment_guidance": phase31_guidance,
+        "phase32_growth_directives": phase32_dir,
         "diversity_score": strategy["content_diversity"]["diversity_score"],
         "active_experiment": exp,
         "preferred_title_style": "curiosity_oriented",

@@ -143,3 +143,4 @@ def test_adaptive_engine_quality_gates_cadence_and_branch():
     assert getattr(config, "LONGFORM_DAILY_COUNT", 1) == 1
     branch = subprocess.check_output(["git", "branch", "--show-current"], text=True).strip()
     assert branch == "feature/youtube-growth-overhaul"
+

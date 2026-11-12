@@ -29,20 +29,77 @@ def generate_title_candidates(
 
     if language == "hi":
         res = {
-            "search_oriented": f"{clean_topic}: संपूर्ण ऐतिहासिक सच",
-            "story_oriented": f"{clean_topic} की खौफनाक दास्तान और अनसुना इतिहास",
-            "curiosity_oriented": f"{clean_topic}: इतिहास की किताबों ने हमसे क्या छुपाया?",
+            "search_oriented": f"{clean_topic}: ऐतिहासिक प्रमाण और पूरा सच",
+            "story_oriented": f"{clean_topic} — कैसे बदला भारत का इतिहास?",
+            "curiosity_oriented": f"{clean_topic} का वह रहस्य जो आज भी अनसुलझा है",
         }
     else:
         res = {
-            "search_oriented": f"{clean_topic}: Complete Historical Documentary",
-            "story_oriented": f"The Rise and Fall of {clean_topic}",
-            "curiosity_oriented": f"The Untold Truth Behind {clean_topic}",
+            "search_oriented": f"{clean_topic}: Historical Evidence Documentary",
+            "story_oriented": f"{clean_topic} — Rise and Fall in History",
+            "curiosity_oriented": f"{clean_topic}: The Untold Truth & Evidence",
         }
 
     valid_styles = ("search_oriented", "story_oriented", "curiosity_oriented")
     res["recommended_style"] = preferred_style if preferred_style in valid_styles else "curiosity_oriented"
     return res
+
+
+REPETITIVE_TITLE_PREFIXES = (
+    "the secret of ",
+    "the untold truth behind ",
+    "the rise and fall of ",
+    "what history books hid ",
+)
+
+
+def audit_title_and_thumbnail_packaging(
+    title: str,
+    thumbnail_concept: Optional[Dict[str, Any]] = None,
+    topic: str = "",
+    recent_titles: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """
+    Phase 32 Workstream E: Audits title and thumbnail packaging for clarity,
+    specific curiosity, readability, visual distinction, story relevance, and
+    avoidance of repetitive templates or misleading clickbait.
+    """
+    t = (title or "").strip()
+    t_low = t.lower()
+    issues: List[str] = []
+
+    has_clear_subject = len(t) >= 20 and (not topic or any(w in t_low for w in topic.lower().split() if len(w) >= 4) or len(t.split()) >= 4)
+    if not has_clear_subject:
+        issues.append("Title lacks a clear, specific historical subject.")
+
+    for pref in REPETITIVE_TITLE_PREFIXES:
+        if t_low.startswith(pref):
+            issues.append(f"Title uses repetitive boilerplate prefix: '{pref.strip()}'.")
+
+    if sanitize_title_duplicate_prefix(t) != t:
+        issues.append("Title contains duplicated prefix before ':'.")
+
+    if recent_titles:
+        lead_3 = " ".join(t_low.split()[:3])
+        if lead_3 and sum(1 for rt in recent_titles if rt.lower().strip().startswith(lead_3)) >= 2:
+            issues.append("Title opening repeats recent channel title pattern.")
+
+    thumb_text = str((thumbnail_concept or {}).get("text") or "").strip()
+    thumb_words = thumb_text.replace("*", "").split()
+    thumb_readable = (1 <= len(thumb_words) <= 5) if thumb_text else True
+    if not thumb_readable:
+        issues.append(f"Thumbnail text has {len(thumb_words)} words; keep 1-5 words for mobile readability.")
+
+    return {
+        "approved": len(issues) == 0,
+        "checks": {
+            "clear_subject": has_clear_subject,
+            "avoids_repetitive_template": not any("repetitive" in i or "duplicated" in i for i in issues),
+            "thumbnail_readable": thumb_readable,
+            "ctr_claimed": False,
+        },
+        "issues": issues,
+    }
 
 
 def sanitize_title_duplicate_prefix(title: str) -> str:

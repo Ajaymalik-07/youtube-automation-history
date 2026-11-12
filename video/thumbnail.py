@@ -530,14 +530,14 @@ def generate_thumbnail_concepts(title: str, topic: str = "", preferred_style: st
             "concept": "Clear architectural or portrait centerpiece with high contrast",
         },
         "story_oriented": {
-            "text": f"The *Rise* of {focus_phrase}",
+            "text": f"*{lead_word}* Turning Point",
             "style": "impact",
-            "concept": "Dramatic battlefield or throne confrontation with bold highlighted text",
+            "concept": "Dramatic historical confrontation with bold single focal accent",
         },
         "curiosity_oriented": {
-            "text": f"The *Untold* {focus_phrase}",
+            "text": f"*{focus_phrase}* Mystery?",
             "style": "split",
-            "concept": "Split panel highlighting archaeological mystery vs popular lore",
+            "concept": "Split panel contrasting physical archaeological artifact vs popular legend",
         },
         "recommended_style": rec_style,
     }

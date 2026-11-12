@@ -661,3 +661,4 @@ def generate_phase31_reports(
         "total_snapshots": checkpoints["total_snapshots"],
         "measured_snapshots": checkpoints["measured_snapshots"],
     }
+
