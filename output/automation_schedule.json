@@ -750,6 +750,20 @@
       "url": "local://pending_quota_reset/final_short.mp4",
       "date_ist": "2026-11-12T10:54:51.367091+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Elephants Terrified Alexanders: How 200 War Elephants Terrified...",
+      "url": "https://www.youtube.com/watch?v=emBqGaaz_2g",
+      "date_ist": "2026-11-12T17:19:43.447020+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Siege Alesia Vercingetorixs: The Siege That Should...",
+      "url": "https://www.youtube.com/watch?v=tZwFU2wLtH8",
+      "date_ist": "2026-11-12T17:20:16.998029+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -783,7 +797,7 @@
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-12",
+  "last_longform_pub_date": "2026-11-13",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -919,5 +933,9 @@
   "last_short_pub_2026-11-13_16": true,
   "last_short_pub_2026-11-13_16_url": "https://www.youtube.com/watch?v=LG1D9EyrNpQ",
   "last_short_pub_2026-11-13_19": true,
-  "last_short_pub_2026-11-13_19_url": "https://www.youtube.com/watch?v=gvAfModdX8Q"
+  "last_short_pub_2026-11-13_19_url": "https://www.youtube.com/watch?v=gvAfModdX8Q",
+  "last_short_pub_2026-11-13_22": true,
+  "last_short_pub_2026-11-13_22_url": "https://www.youtube.com/watch?v=emBqGaaz_2g",
+  "last_longform_pub_2026-11-13": true,
+  "last_longform_pub_2026-11-13_url": "https://www.youtube.com/watch?v=tZwFU2wLtH8"
 }
