@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.6.1] - 2026-11-12 - Phase 22.1: Live Publishing Reliability & Production Verification
+
+### Added
+- **Cross-Process File Locking (`uploader/safety.py`, `automation.py`):**
+  - Added `CrossProcessFileLock` using atomic `os.open(..., os.O_CREAT | os.O_EXCL)` lockfiles with PID/timestamp metadata, Win32-safe (`OpenProcess`) & POSIX-safe stale dead-PID detection (avoiding `os.kill(pid, 0)` `CTRL_C_EVENT` on Windows), and guaranteed `finally` release.
+  - Protected `production_database.json`, `automation_schedule.json`, and per-slot execution (`_acquire_cross_process_slot_lock`) across separate OS processes.
+- **9-Stage Production Reliability Reporting & Live Channel Reconciliation (`agents/growth_analyst.py`, `uploader/youtube.py`):**
+  - Extended `generate_production_reliability_report()` with explicit Shorts vs Long-form separated counters (`production_completed`, `quality_gate_passed`, `upload_completed`, `youtube_processing_completed`, `scheduled`, `actually_published`, `analytics_collected`, `failed`, `recovered`).
+  - Added `reconcile_channel_publications()` (integrated into `--weekly-review`) correlating live channel uploads against `production_database.json` and `automation_schedule.json`.
+- **Phase 22.1 Validation Suite & Report (`tests/test_phase22_1_live_publishing_validation.py`, `docs/PHASE_22_1_LIVE_PUBLISHING_VALIDATION.md`):**
+  - Added 5 multi-process locking, quota recovery preservation, state-machine completion guard, 9-stage reporting, and channel reconciliation tests.
+
+### Fixed
+- Fixed `pending_uploads` filename collision (`upload_<content_id_or_hash>_<basename>.json`) so concurrent/multi-slot Shorts sharing `final_short.mp4` never overwrite each other on quota reset, and ensured `retry_pending_uploads()` updates schedule slot flags upon verified recovery.
+- Guarded `PublishingState.COMPLETED` in `record_production_state()` against false completion of uninitialized, `FAILED`, `BLOCKED_QUALITY_GATE`, or un-collected `ANALYTICS_PENDING` records.
+- Added sibling `credits.json` third-party attribution formatting (`_with_credits_attribution`) in `uploader/youtube.py`, orphan `temp_audio_*.m4a` cleanup in `video/creator.py`, and multi-run GitHub Actions cache + branch-safe rebase in `.github/workflows/daily_youtube_automation.yml`.
+
+---
+
 ## [2.6.0] - 2026-11-12 - Phase 22: Production Reliability & End-to-End Validation
 
 ### Added

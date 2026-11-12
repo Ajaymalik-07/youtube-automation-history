@@ -7,6 +7,7 @@ idempotent duplicate prevention, and timezone-aware scheduling in Asia/Kolkata.
 import os
 import json
 import pickle
+import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, Tuple
 from googleapiclient.discovery import build
@@ -231,17 +232,62 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
 
     # --- 1. Idempotent Duplicate Prevention ---
     rec = get_production_record(video_path)
-    if rec and rec.get("current_state") in (
-        PublishingState.UPLOADED_PRIVATE.value,
-        PublishingState.SCHEDULED.value,
-        PublishingState.PUBLISHED.value,
-        PublishingState.ANALYTICS_PENDING.value,
-        PublishingState.COMPLETED.value,
+    rec_meta = (rec or {}).get("metadata", {}) or {}
+    existing_yt_id = rec_meta.get("youtube_id")
+    is_proc_failed = rec_meta.get("error_type") == "ProcessingFailure"
+    if rec and (
+        rec.get("current_state") in (
+            PublishingState.UPLOADED_PRIVATE.value,
+            PublishingState.SCHEDULED.value,
+            PublishingState.PUBLISHED.value,
+            PublishingState.ANALYTICS_PENDING.value,
+            PublishingState.COMPLETED.value,
+        )
+        or (existing_yt_id and not is_proc_failed)
     ):
-        existing_url = rec.get("metadata", {}).get("youtube_url")
+        existing_url = rec_meta.get("youtube_url") or (f"https://www.youtube.com/watch?v={existing_yt_id}" if existing_yt_id else None)
         if existing_url:
             print(f"   ℹ Idempotency check: Video already published/scheduled: {existing_url}")
             return existing_url
+
+    content_id = rec_meta.get("content_id")
+    job_id = rec_meta.get("job_id")
+    target_date_meta = rec_meta.get("target_date")
+    slot_hour_meta = rec_meta.get("slot_hour_ist")
+    slot_index_meta = rec_meta.get("index")
+    intended_publish_at = rec_meta.get("intended_publish_at") or publish_at
+
+    def _pending_manifest_path(vpath: str, content_id: Optional[str] = None) -> str:
+        safe_seed = "".join(c if (c.isalnum() or c in "-_") else "_" for c in (content_id or "")) if content_id else hashlib.sha1(
+            os.path.normpath(vpath).encode("utf-8", errors="ignore")
+        ).hexdigest()[:10]
+        return os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{safe_seed}_{os.path.basename(vpath)}.json")
+
+    def _with_credits_attribution(vpath: str, desc_text: str) -> str:
+        credits_path = os.path.join(os.path.dirname(vpath), "credits.json")
+        if not os.path.exists(credits_path):
+            return desc_text
+        try:
+            items = json.load(open(credits_path, encoding="utf-8"))
+            if not isinstance(items, list) or not items:
+                return desc_text
+            seen_lines = []
+            for item in items:
+                src = str(item.get("source", "")).strip()
+                author = str(item.get("author", "")).strip()
+                lic = str(item.get("license", "")).strip()
+                if src:
+                    entry = f"- {src}: {author or 'Contributor'} ({lic or 'Standard License'})"
+                    if entry not in seen_lines:
+                        seen_lines.append(entry)
+            if not seen_lines:
+                return desc_text
+            block = "\n\nVisual Credits:\n" + "\n".join(seen_lines[:8])
+            if "Visual Credits:" not in desc_text and len(desc_text) + len(block) <= 4950:
+                return desc_text + block
+        except Exception:
+            pass
+        return desc_text
 
     # Optimize metadata using SEO candidate generator
     from agents.seo_optimizer import optimize_for_100_percent
@@ -255,7 +301,7 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
         is_shorts=is_shorts,
     )
     final_title = opt["title"]
-    final_desc = opt["description"]
+    final_desc = _with_credits_attribution(video_path, opt["description"])
     final_tags = opt["tags"]
 
     metadata_dict = {
@@ -326,7 +372,7 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
         print("   ℹ YouTube OAuth credentials not linked or headless environment.")
         print(f"      Video {video_path} validated and ready for upload ({mode}).")
         os.makedirs(os.path.join(config.OUTPUT_DIR, "pending_uploads"), exist_ok=True)
-        manifest_path = os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{os.path.basename(video_path)}.json")
+        manifest_path = _pending_manifest_path(video_path, content_id=content_id)
         with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump({
                 "video_path": video_path,
@@ -335,9 +381,16 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
                 "description": final_desc,
                 "tags": final_tags,
                 "mode": mode,
+                "original_mode": mode,
                 "publish_at": target_publish_at,
+                "original_publish_at": intended_publish_at,
                 "privacy": target_privacy,
                 "is_shorts": bool(is_shorts),
+                "content_id": content_id,
+                "job_id": job_id,
+                "target_date": target_date_meta,
+                "slot_hour_ist": slot_hour_meta,
+                "slot_index": slot_index_meta,
                 "script": script or {},
                 "research": research or {},
                 "retry_count": 0,
@@ -488,6 +541,11 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
             "mode": mode,
             "privacy": target_privacy,
             "publish_at": target_publish_at,
+            "intended_publish_at": intended_publish_at,
+            "publication_status": next_state,
+            "upload_completed": True,
+            "youtube_processing_completed": bool(proc_res.get("is_processing_complete")),
+            "actually_published": (next_state == PublishingState.PUBLISHED.value),
             "title": final_title,
             "processing_verification": proc_res,
         })
@@ -504,9 +562,12 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
         record_production_state(video_path, PublishingState.FAILED.value, metadata={
             "error": err_str,
             "error_type": "QuotaExceeded" if is_quota else "HttpError",
+            "intended_publish_at": intended_publish_at,
+            "upload_completed": False,
+            "actually_published": False,
         })
         os.makedirs(os.path.join(config.OUTPUT_DIR, "pending_uploads"), exist_ok=True)
-        manifest_path = os.path.join(config.OUTPUT_DIR, "pending_uploads", f"upload_{os.path.basename(video_path)}.json")
+        manifest_path = _pending_manifest_path(video_path, content_id=content_id)
         existing_retry = 0
         if os.path.exists(manifest_path):
             try:
@@ -521,9 +582,16 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
                 "description": final_desc,
                 "tags": final_tags,
                 "mode": mode,
+                "original_mode": mode,
                 "publish_at": target_publish_at,
+                "original_publish_at": intended_publish_at,
                 "privacy": target_privacy,
                 "is_shorts": bool(is_shorts),
+                "content_id": content_id,
+                "job_id": job_id,
+                "target_date": target_date_meta,
+                "slot_hour_ist": slot_hour_meta,
+                "slot_index": slot_index_meta,
                 "script": script or {},
                 "research": research or {},
                 "retry_count": existing_retry,
@@ -540,3 +608,148 @@ def upload_to_youtube(script: dict, video_path: str, thumb_path: str = None,
             "error_type": "UnexpectedException",
         })
         return f"local://failed_upload/{os.path.basename(video_path)}"
+
+
+def reconcile_channel_publications(
+    output_dir: Optional[str] = None,
+    max_results: int = 25,
+    youtube_service=None,
+) -> Dict[str, Any]:
+    """
+    Correlates actual channel uploads (via YouTube Data API v3 or OAuth) with local
+    production_database.json and automation_schedule.json history records.
+    Updates publication_status / actually_published when a scheduled video becomes public.
+    """
+    import requests
+    from uploader.safety import load_production_db
+
+    base_dir = output_dir or getattr(config, "OUTPUT_DIR", "output")
+    expected_cid = getattr(config, "YOUTUBE_CHANNEL_ID", "") or ""
+    api_key = getattr(config, "YOUTUBE_API_KEY", "") or ""
+
+    live_items: list = []
+    source = "unavailable"
+    errors: list = []
+
+    if youtube_service is not None:
+        try:
+            ch = youtube_service.channels().list(part="contentDetails,snippet", id=expected_cid or None, mine=(None if expected_cid else True)).execute()
+            items = ch.get("items", [])
+            if items:
+                up_pl = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
+                pl = youtube_service.playlistItems().list(part="contentDetails", playlistId=up_pl, maxResults=min(max_results, 50)).execute()
+                vids = [it["contentDetails"]["videoId"] for it in pl.get("items", []) if it.get("contentDetails", {}).get("videoId")]
+                if vids:
+                    vresp = youtube_service.videos().list(part="snippet,status,processingDetails,contentDetails", id=",".join(vids)).execute()
+                    live_items = vresp.get("items", [])
+                    source = "oauth_service"
+        except Exception as e:
+            errors.append(str(e))
+    elif api_key and expected_cid:
+        try:
+            ch = requests.get(
+                "https://www.googleapis.com/youtube/v3/channels",
+                params={"part": "contentDetails,snippet", "id": expected_cid, "key": api_key},
+                timeout=15,
+            ).json()
+            items = ch.get("items", [])
+            if items:
+                up_pl = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
+                pl = requests.get(
+                    "https://www.googleapis.com/youtube/v3/playlistItems",
+                    params={"part": "contentDetails", "playlistId": up_pl, "maxResults": min(max_results, 50), "key": api_key},
+                    timeout=15,
+                ).json()
+                vids = [it["contentDetails"]["videoId"] for it in pl.get("items", []) if it.get("contentDetails", {}).get("videoId")]
+                if vids:
+                    vresp = requests.get(
+                        "https://www.googleapis.com/youtube/v3/videos",
+                        params={"part": "snippet,status,contentDetails", "id": ",".join(vids), "key": api_key},
+                        timeout=15,
+                    ).json()
+                    live_items = vresp.get("items", [])
+                    source = "youtube_data_api_key_fallback"
+        except Exception as e:
+            errors.append(str(e))
+
+    prod_db = load_production_db()
+    by_yt_id = {}
+    for k, rec in prod_db.items():
+        if isinstance(rec, dict):
+            yt_id = (rec.get("metadata") or {}).get("youtube_id")
+            if yt_id:
+                by_yt_id[yt_id] = (k, rec)
+
+    sched_urls = {}
+    sched_path = os.path.join(base_dir, "automation_schedule.json")
+    if os.path.exists(sched_path):
+        try:
+            sdata = json.load(open(sched_path, encoding="utf-8"))
+            for r in sdata.get("history_runs", []) or []:
+                url = str(r.get("url", ""))
+                if "watch?v=" in url:
+                    vid = url.split("watch?v=")[-1].split("&")[0]
+                    sched_urls[vid] = r
+        except Exception:
+            pass
+
+    reconciled = []
+    untracked_on_channel = []
+    ownership_mismatches = []
+
+    for v in live_items:
+        vid = v.get("id", "")
+        snip = v.get("snippet", {})
+        stat = v.get("status", {})
+        actual_cid = snip.get("channelId", "")
+        privacy_status = stat.get("privacyStatus", "unknown")
+        publish_at = stat.get("publishAt")
+        published_at = snip.get("publishedAt")
+        if expected_cid and actual_cid and actual_cid != expected_cid:
+            ownership_mismatches.append({"video_id": vid, "channel_id": actual_cid})
+
+        matched_prod = vid in by_yt_id
+        matched_sched = vid in sched_urls
+        if matched_prod:
+            vkey, rec = by_yt_id[vid]
+            if privacy_status == "public":
+                record_production_state(
+                    rec.get("video_path", vkey),
+                    rec.get("current_state", PublishingState.PUBLISHED.value),
+                    metadata={
+                        "publication_status": PublishingState.PUBLISHED.value,
+                        "actually_published": True,
+                        "actual_published_at": published_at,
+                    },
+                )
+        elif not matched_sched:
+            untracked_on_channel.append({
+                "video_id": vid,
+                "title": snip.get("title", ""),
+                "published_at": published_at,
+                "privacy_status": privacy_status,
+            })
+
+        reconciled.append({
+            "video_id": vid,
+            "channel_id": actual_cid,
+            "title": snip.get("title", ""),
+            "privacy_status": privacy_status,
+            "scheduled_publish_at": publish_at,
+            "actual_published_at": published_at,
+            "matched_production_db": matched_prod,
+            "matched_schedule_history": matched_sched,
+        })
+
+    return {
+        "source": source,
+        "expected_channel_id": expected_cid,
+        "live_videos_inspected": len(live_items),
+        "matched_production_db_count": sum(1 for r in reconciled if r["matched_production_db"]),
+        "matched_schedule_history_count": sum(1 for r in reconciled if r["matched_schedule_history"]),
+        "untracked_on_channel_count": len(untracked_on_channel),
+        "untracked_on_channel": untracked_on_channel[:20],
+        "ownership_mismatches": ownership_mismatches,
+        "videos": reconciled,
+        "errors": errors,
+    }

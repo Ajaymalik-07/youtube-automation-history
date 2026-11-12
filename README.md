@@ -59,7 +59,7 @@ Key configuration items:
   ```bash
   python automation.py --weekly-review
   ```
-- **Run Automated Test Suite (164 tests):**
+- **Run Automated Test Suite (169 tests):**
   ```bash
   pytest
   ```
@@ -213,11 +213,12 @@ See full documentation at [docs/PHASE_20_ADAPTIVE_CONTENT_OPTIMIZATION.md](docs/
 │   ├── PHASE_21_CADENCE_PRESERVATION.md
 │   ├── PHASE_21_1_LIVE_ANALYTICS_VALIDATION.md
 │   ├── PHASE_22_PRODUCTION_RELIABILITY.md
+│   ├── PHASE_22_1_LIVE_PUBLISHING_VALIDATION.md
 │   ├── PUBLISHING_EXPERIMENT_PLAN.md
 │   ├── IMPLEMENTATION_PLAN.md
 │   └── CHANGELOG.md
 │
-└── tests/                      ← 164 automated pytest tests
+└── tests/                      ← 169 automated pytest tests
 ```
 
 ---
@@ -246,6 +247,7 @@ For detailed architectural guidelines, consult the `docs/` suite:
 - [Phase 21 Publishing Cadence Preservation](docs/PHASE_21_CADENCE_PRESERVATION.md)
 - [Phase 21.1 OAuth Reauthorization & Live Analytics Validation](docs/PHASE_21_1_LIVE_ANALYTICS_VALIDATION.md)
 - [Phase 22 Production Reliability & End-to-End Validation](docs/PHASE_22_PRODUCTION_RELIABILITY.md)
+- [Phase 22.1 Live Publishing Reliability & Production Verification](docs/PHASE_22_1_LIVE_PUBLISHING_VALIDATION.md)
 - [30-Day Publishing Experiment Plan](docs/PUBLISHING_EXPERIMENT_PLAN.md)
 - [Full Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
 - [Release Changelog](docs/CHANGELOG.md)

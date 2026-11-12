@@ -1031,6 +1031,16 @@ def create_video(script: dict, audio_path: str, output_dir: str,
                 os.remove(temp_audio)
             except Exception:
                 pass
+        # Clean up any orphaned MoviePy temporary audio files in render directory
+        try:
+            for orphan in os.listdir(os.path.dirname(output_path) or "."):
+                if orphan.startswith("temp_audio_") and orphan.endswith(".m4a"):
+                    try:
+                        os.remove(os.path.join(os.path.dirname(output_path), orphan))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
     size_mb = os.path.getsize(output_path) // (1024 * 1024)
     print(f"\n   ✅ Video rendered: {output_path} ({size_mb} MB)")

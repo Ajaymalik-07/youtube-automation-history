@@ -1235,6 +1235,16 @@ def _empty_reliability_bucket() -> Dict[str, Any]:
         "scheduling_failures": 0,
         "retry_counts": 0,
         "recovery_success": 0,
+        # Phase 22.1 explicit separated lifecycle stage counters
+        "production_completed": 0,
+        "quality_gate_passed": 0,
+        "upload_completed": 0,
+        "youtube_processing_completed": 0,
+        "scheduled": 0,
+        "actually_published": 0,
+        "analytics_collected": 0,
+        "failed": 0,
+        "recovered": 0,
         "publication_status": {
             "SCHEDULED": 0,
             "PUBLISHED": 0,
@@ -1290,32 +1300,64 @@ def generate_production_reliability_report(output_dir: Optional[str] = None) -> 
 
         curr = str(rec.get("current_state", "")).upper()
         meta = rec.get("metadata", {}) or {}
+        hist = rec.get("history", []) or []
+        visited_states = {str(h.get("from_state", "")).upper() for h in hist} | {str(h.get("to_state", "")).upper() for h in hist} | {curr}
         err_type = str(meta.get("error_type", "")).lower()
         err_msg = str(meta.get("error", "")).lower()
 
         b["retry_counts"] += int(rec.get("retry_count", 0))
-        b["recovery_success"] += int(rec.get("recovered_count", 0))
+        recov = int(rec.get("recovered_count", 0))
+        b["recovery_success"] += recov
+        b["recovered"] += recov
+
+        # Separated 9-stage counters (Phase 22.1)
+        if visited_states & {"VIDEO_RENDERED", "VIDEO_VALIDATED", "METADATA_VALIDATED", "UPLOAD_QUEUED", "UPLOADING", "UPLOADED_PRIVATE", "SCHEDULED", "PUBLISHED", "ANALYTICS_PENDING", "COMPLETED"}:
+            b["production_completed"] += 1
+
+        q_rep = rec.get("quality_gate") or meta.get("quality_report") or {}
+        if q_rep.get("passed") is True or (visited_states & {"METADATA_VALIDATED", "UPLOAD_QUEUED", "UPLOADING", "UPLOADED_PRIVATE", "SCHEDULED", "PUBLISHED", "ANALYTICS_PENDING", "COMPLETED"} and curr != "BLOCKED_QUALITY_GATE" and q_rep.get("passed") is not False):
+            b["quality_gate_passed"] += 1
+
+        proc_ver = meta.get("processing_verification") or {}
+        has_yt_id = bool(meta.get("youtube_id"))
+        if has_yt_id and err_type != "processingfailure":
+            b["upload_completed"] += 1
+        if proc_ver.get("is_processing_complete") is True or meta.get("youtube_processing_completed") is True:
+            b["youtube_processing_completed"] += 1
+
+        pub_status = str(meta.get("publication_status", "")).upper()
+        if not pub_status and curr == "ANALYTICS_PENDING":
+            for h in reversed(hist):
+                to_s = str(h.get("to_state", "")).upper()
+                if to_s in ("SCHEDULED", "PUBLISHED", "UPLOADED_PRIVATE"):
+                    pub_status = to_s
+                    break
+
+        is_actually_pub = bool(meta.get("actually_published") or curr == "PUBLISHED" or pub_status == "PUBLISHED")
+        if is_actually_pub:
+            b["actually_published"] += 1
+        elif curr == "SCHEDULED" or pub_status == "SCHEDULED":
+            b["scheduled"] += 1
+
+        if curr == "COMPLETED" and meta.get("analytics_collected") is True:
+            b["analytics_collected"] += 1
 
         if curr in terminal_success_states:
             b["jobs_completed"] += 1
             b["publication_status"][curr] = b["publication_status"].get(curr, 0) + 1
             # Also count the immediate pre-ANALYTICS_PENDING terminal state from history if applicable
             if curr == "ANALYTICS_PENDING":
-                hist = rec.get("history", []) or []
-                for h in reversed(hist):
-                    to_s = str(h.get("to_state", "")).upper()
-                    if to_s in ("SCHEDULED", "PUBLISHED", "UPLOADED_PRIVATE"):
-                        b["publication_status"][to_s] += 1
-                        break
+                if pub_status in ("SCHEDULED", "PUBLISHED", "UPLOADED_PRIVATE"):
+                    b["publication_status"][pub_status] += 1
         elif curr == "UPLOAD_QUEUED":
             b["publication_status"]["UPLOAD_QUEUED"] += 1
         elif curr == "BLOCKED_QUALITY_GATE":
             b["blocked_by_quality_gates"] += 1
-            q_rep = rec.get("quality_gate") or meta.get("quality_report") or {}
             for iss in q_rep.get("blocking_issues", [])[:5]:
                 b["quality_gate_reasons"].append(iss)
         elif curr == "FAILED":
             b["jobs_failed"] += 1
+            b["failed"] += 1
             if "render" in err_type or "render" in str(meta.get("last_retry_stage", "")):
                 b["rendering_failures"] += 1
             elif "schedul" in err_type or "publishat" in err_msg:
@@ -1389,6 +1431,15 @@ def generate_production_reliability_report(output_dir: Optional[str] = None) -> 
             "scheduling_failures": buckets["shorts"]["scheduling_failures"] + buckets["longform"]["scheduling_failures"],
             "retry_counts": buckets["shorts"]["retry_counts"] + buckets["longform"]["retry_counts"],
             "recovery_success": buckets["shorts"]["recovery_success"] + buckets["longform"]["recovery_success"],
+            "production_completed": buckets["shorts"]["production_completed"] + buckets["longform"]["production_completed"],
+            "quality_gate_passed": buckets["shorts"]["quality_gate_passed"] + buckets["longform"]["quality_gate_passed"],
+            "upload_completed": buckets["shorts"]["upload_completed"] + buckets["longform"]["upload_completed"],
+            "youtube_processing_completed": buckets["shorts"]["youtube_processing_completed"] + buckets["longform"]["youtube_processing_completed"],
+            "scheduled": buckets["shorts"]["scheduled"] + buckets["longform"]["scheduled"],
+            "actually_published": buckets["shorts"]["actually_published"] + buckets["longform"]["actually_published"],
+            "analytics_collected": buckets["shorts"]["analytics_collected"] + buckets["longform"]["analytics_collected"],
+            "failed": buckets["shorts"]["failed"] + buckets["longform"]["failed"],
+            "recovered": buckets["shorts"]["recovered"] + buckets["longform"]["recovered"],
         },
         "queues": {
             "pending_uploads": pending_items,
@@ -1412,14 +1463,21 @@ def generate_production_reliability_report(output_dir: Optional[str] = None) -> 
     ]
     for label, key_name in [
         ("Jobs Started", "jobs_started"),
+        ("Production Completed", "production_completed"),
+        ("Quality-Gate Passed", "quality_gate_passed"),
+        ("Upload Completed", "upload_completed"),
+        ("YouTube Processing Completed", "youtube_processing_completed"),
+        ("Scheduled", "scheduled"),
+        ("Actually Published", "actually_published"),
+        ("Analytics Collected", "analytics_collected"),
         ("Jobs Completed", "jobs_completed"),
-        ("Jobs Failed", "jobs_failed"),
+        ("Failed", "failed"),
         ("Blocked by Quality Gates", "blocked_by_quality_gates"),
         ("Rendering Failures", "rendering_failures"),
         ("Upload Failures", "upload_failures"),
         ("Scheduling Failures", "scheduling_failures"),
         ("Retry Counts", "retry_counts"),
-        ("Recovery Success", "recovery_success"),
+        ("Recovered", "recovered"),
     ]:
         sv = buckets["shorts"][key_name]
         lv = buckets["longform"][key_name]

@@ -398,8 +398,9 @@ def test_processing_failure_quota_halt_and_retry_recovery(isolated_workspace, mo
 
     out_q = upload_to_youtube(script=_valid_script(is_shorts=True), video_path=str(vid2), research=_valid_research(), is_shorts=True)
     assert out_q.startswith("local://pending_quota_reset/")
-    pending_mf = isolated_workspace / "pending_uploads" / "upload_test_quota_short.mp4.json"
-    assert pending_mf.exists()
+    pending_matches = list((isolated_workspace / "pending_uploads").glob("upload_*test_quota_short.mp4.json"))
+    assert len(pending_matches) == 1
+    pending_mf = pending_matches[0]
     assert json.loads(pending_mf.read_text(encoding="utf-8"))["status"] == "pending_quota_reset"
 
     # 3. Retry pending uploads once API recovers -> transitions FAILED -> SCHEDULED -> ANALYTICS_PENDING & prevents duplicate

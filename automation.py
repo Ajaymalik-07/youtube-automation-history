@@ -46,9 +46,10 @@ from video.stock import download_images
 from video.creator import create_video
 from video.music import mix_music_with_narration
 from video import thumbnail
-from uploader.youtube import upload_to_youtube, is_configured
+from uploader.youtube import upload_to_youtube, is_configured, reconcile_channel_publications
 from uploader.safety import (
     PublishingState,
+    CrossProcessFileLock,
     record_production_state,
     record_retry_attempt,
     is_eligible_for_upload,
@@ -78,6 +79,36 @@ def _get_slot_lock(slot_key: str) -> threading.RLock:
         if slot_key not in _SLOT_LOCKS:
             _SLOT_LOCKS[slot_key] = threading.RLock()
         return _SLOT_LOCKS[slot_key]
+
+
+class _SlotLockContext:
+    """Acquires both an in-process thread lock and a cross-process OS lockfile."""
+
+    def __init__(self, slot_key: str, timeout_seconds: float = 60.0):
+        self._thread_lock = _get_slot_lock(slot_key)
+        safe_name = "".join(c if (c.isalnum() or c in "-_") else "_" for c in slot_key)
+        lock_path = os.path.join(config.OUTPUT_DIR, "locks", f"{safe_name}.lock")
+        self._file_lock = CrossProcessFileLock(lock_path, timeout_seconds=timeout_seconds)
+
+    def __enter__(self):
+        self._thread_lock.acquire()
+        try:
+            self._file_lock.acquire()
+        except Exception:
+            self._thread_lock.release()
+            raise
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            self._file_lock.release()
+        finally:
+            self._thread_lock.release()
+        return False
+
+
+def _acquire_cross_process_slot_lock(slot_key: str, timeout_seconds: float = 60.0) -> _SlotLockContext:
+    return _SlotLockContext(slot_key, timeout_seconds=timeout_seconds)
 
 
 def _make_job_context(content_type: str, target_date: str, slot_hour: int, slot_index: int = 0) -> dict:
@@ -153,23 +184,33 @@ DEFAULT_SLOTS = {
 }
 
 
+def _save_schedule_unlocked(sched_file: str, state: dict) -> None:
+    sched_dir = os.path.dirname(sched_file) or "."
+    os.makedirs(sched_dir, exist_ok=True)
+    tmp_path = os.path.join(sched_dir, f".{os.path.basename(sched_file)}.{uuid.uuid4().hex[:8]}.tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+    os.replace(tmp_path, sched_file)
+
+
 def load_schedule_state() -> dict:
-    """Load or initialize adaptive scheduling state (backward-compatible & thread-safe)."""
+    """Load or initialize adaptive scheduling state cleanly across threads and processes."""
     sched_file = _get_schedule_file()
     os.makedirs(os.path.dirname(sched_file) or ".", exist_ok=True)
     with _SCHEDULE_LOCK:
-        if os.path.exists(sched_file):
-            try:
-                with open(sched_file, encoding="utf-8") as f:
-                    loaded = json.load(f)
-                if isinstance(loaded, dict):
-                    merged = dict(DEFAULT_SLOTS)
-                    merged.update(loaded)
-                    return merged
-            except Exception:
-                pass
-        save_schedule_state(DEFAULT_SLOTS)
-        return dict(DEFAULT_SLOTS)
+        with CrossProcessFileLock(f"{sched_file}.lock"):
+            if os.path.exists(sched_file):
+                try:
+                    with open(sched_file, encoding="utf-8") as f:
+                        loaded = json.load(f)
+                    if isinstance(loaded, dict):
+                        merged = dict(DEFAULT_SLOTS)
+                        merged.update(loaded)
+                        return merged
+                except Exception:
+                    pass
+            _save_schedule_unlocked(sched_file, DEFAULT_SLOTS)
+            return dict(DEFAULT_SLOTS)
 
 
 def get_effective_cadence(state: dict = None) -> dict:
@@ -189,15 +230,11 @@ def get_effective_cadence(state: dict = None) -> dict:
 
 
 def save_schedule_state(state: dict) -> None:
-    """Atomically persist adaptive scheduling state to disk under lock."""
+    """Atomically persist adaptive scheduling state to disk under cross-process lock."""
     sched_file = _get_schedule_file()
-    sched_dir = os.path.dirname(sched_file) or "."
-    os.makedirs(sched_dir, exist_ok=True)
     with _SCHEDULE_LOCK:
-        tmp_path = os.path.join(sched_dir, f".{os.path.basename(sched_file)}.{uuid.uuid4().hex[:8]}.tmp")
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
-        os.replace(tmp_path, sched_file)
+        with CrossProcessFileLock(f"{sched_file}.lock"):
+            _save_schedule_unlocked(sched_file, state)
 
 
 def get_current_ist_time() -> datetime:
@@ -276,9 +313,8 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
     day_theme = config.get_weekly_theme(target_date)
     cadence = get_effective_cadence()
     target_hour = cadence.get("longform_target_hour_ist", 19)
-    slot_lock = _get_slot_lock(f"longform:{target_date}:h{target_hour}")
 
-    with slot_lock:
+    with _acquire_cross_process_slot_lock(f"longform:{target_date}:h{target_hour}"):
         job_ctx = _make_job_context("longform", target_date, target_hour)
         job_id = job_ctx["job_id"]
         content_id = job_ctx["content_id"]
@@ -350,7 +386,14 @@ def create_and_publish_longform(is_prerender: bool = False, for_date: str = None
         ckpt["content_id"] = content_id
         ckpt["type"] = "longform"
         ckpt["target_date"] = target_date
-        base_meta = {"job_id": job_id, "content_id": content_id, "type": "longform", "target_date": target_date, "slot_hour_ist": target_hour}
+        base_meta = {
+            "job_id": job_id,
+            "content_id": content_id,
+            "type": "longform",
+            "target_date": target_date,
+            "slot_hour_ist": target_hour,
+            "intended_publish_at": publish_at,
+        }
         record_production_state(planned_video_path, PublishingState.TOPIC_SELECTED.value, metadata=base_meta)
 
         # 1. Topic Research with Adaptive Growth Intelligence & Narrative Directives
@@ -775,9 +818,8 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
     format_choice = SHORTS_FORMATS[(idx - 1) % len(SHORTS_FORMATS)]
     state_hours = cadence.get("shorts_hours_ist", [9, 12, 16, 19, 22])
     sh_hour = state_hours[idx - 1] if idx <= len(state_hours) else 9
-    slot_lock = _get_slot_lock(f"short:{target_date}:s{idx}:h{sh_hour}")
 
-    with slot_lock:
+    with _acquire_cross_process_slot_lock(f"short:{target_date}:s{idx}:h{sh_hour}"):
         job_ctx = _make_job_context("short", target_date, sh_hour, slot_index=idx)
         job_id = job_ctx["job_id"]
         content_id = job_ctx["content_id"]
@@ -852,7 +894,15 @@ def create_and_publish_single_short(index: int, is_prerender: bool = False, for_
 
         ckpt = _load_checkpoint(ckpt_path)
         ckpt.update({"job_id": job_id, "content_id": content_id, "type": "short", "index": idx, "target_date": target_date})
-        base_meta = {"job_id": job_id, "content_id": content_id, "type": "short", "index": idx, "target_date": target_date, "slot_hour_ist": sh_hour}
+        base_meta = {
+            "job_id": job_id,
+            "content_id": content_id,
+            "type": "short",
+            "index": idx,
+            "target_date": target_date,
+            "slot_hour_ist": sh_hour,
+            "intended_publish_at": publish_at,
+        }
         record_production_state(planned_video_path, PublishingState.TOPIC_SELECTED.value, metadata=base_meta)
 
         # Phase 13 Overhaul: Perform genuine historical research for Shorts (with checkpointing)
@@ -1283,6 +1333,9 @@ def retry_pending_uploads(max_retries: int = 3, quota_reached: bool = False) -> 
 
         vpath = manifest.get("video_path", "")
         retries = int(manifest.get("retry_count", 0))
+        if manifest.get("youtube_id"):
+            summary["skipped"].append({"manifest": mf, "video_path": vpath, "reason": f"already uploaded ({manifest['youtube_id']})"})
+            continue
         if not vpath or not os.path.exists(vpath):
             summary["skipped"].append({"manifest": mf, "reason": "video_file_missing"})
             continue
@@ -1302,6 +1355,7 @@ def retry_pending_uploads(max_retries: int = 3, quota_reached: bool = False) -> 
             continue
 
         summary["retried"] += 1
+        target_pub = manifest.get("publish_at") or manifest.get("original_publish_at")
         yt_url = upload_to_youtube(
             script=manifest.get("script") or {},
             video_path=vpath,
@@ -1309,13 +1363,44 @@ def retry_pending_uploads(max_retries: int = 3, quota_reached: bool = False) -> 
             title=manifest.get("title"),
             description=manifest.get("description"),
             tags=manifest.get("tags"),
-            publish_at=manifest.get("publish_at"),
-            upload_mode=manifest.get("mode"),
+            publish_at=target_pub,
+            upload_mode=manifest.get("mode") or manifest.get("original_mode"),
             is_shorts=manifest.get("is_shorts"),
             research=manifest.get("research") or None,
         )
         if str(yt_url).startswith("https://"):
-            summary["succeeded"].append({"video_path": vpath, "url": yt_url})
+            summary["succeeded"].append({
+                "video_path": vpath,
+                "url": yt_url,
+                "content_id": manifest.get("content_id"),
+                "job_id": manifest.get("job_id"),
+                "original_publish_at": manifest.get("original_publish_at") or manifest.get("publish_at"),
+            })
+            # Reconcile schedule slot state so recovered upload is never re-produced for the same slot
+            t_date = manifest.get("target_date")
+            sh_hr = manifest.get("slot_hour_ist")
+            if t_date:
+                sched_st = load_schedule_state()
+                if manifest.get("is_shorts") and sh_hr is not None:
+                    sh_k = f"last_short_pub_{t_date}_{sh_hr}"
+                    sched_st[sh_k] = True
+                    sched_st[f"{sh_k}_url"] = yt_url
+                elif not manifest.get("is_shorts"):
+                    sched_st["last_longform_pub_date"] = t_date
+                    sched_st["last_longform_date"] = t_date
+                    sched_st[f"last_longform_pub_{t_date}"] = True
+                    sched_st[f"last_longform_pub_{t_date}_url"] = yt_url
+                sched_st.setdefault("history_runs", []).append({
+                    "type": "short" if manifest.get("is_shorts") else "longform",
+                    "job_id": manifest.get("job_id"),
+                    "content_id": manifest.get("content_id"),
+                    "title": manifest.get("title", "Recovered Upload"),
+                    "url": yt_url,
+                    "date_ist": get_current_ist_time().isoformat(),
+                    "score": 100,
+                    "recovered_from_pending": True,
+                })
+                save_schedule_state(sched_st)
             try:
                 os.remove(mf)
             except OSError:
@@ -1325,7 +1410,7 @@ def retry_pending_uploads(max_retries: int = 3, quota_reached: bool = False) -> 
             summary["failed"].append({"video_path": vpath, "url": yt_url, "reason": "quota_exceeded"})
             break
         else:
-            record_retry_attempt(vpath, "upload_retry", str(yt_url))
+            record_retry_attempt(vpath, "upload_retry", str(yt_url), job_id=manifest.get("job_id"))
             manifest["retry_count"] = retries + 1
             manifest["last_retry_url"] = str(yt_url)
             try:
@@ -1568,6 +1653,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
     from agents.adaptive_engine import generate_weekly_adaptive_strategy
 
     sync_res = sync_owner_channel_analytics(days_back=days_back)
+    reconciliation = reconcile_channel_publications()
     format_report = generate_weekly_format_report(days_back=days_back)
     growth_dossier = generate_growth_intelligence_dossier(evaluation_window_days=days_back)
     adaptive_strategy = generate_weekly_adaptive_strategy(evaluation_window_days=days_back)
@@ -1577,6 +1663,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
     print(f"  📊 Weekly Performance Review Complete (Rolling {days_back}-Day Window)")
     print(f"  Cadence Preserved : {growth_dossier['cadence_policy']['longform_per_day']} Long-Form + {growth_dossier['cadence_policy']['shorts_per_day']} Shorts = {growth_dossier['cadence_policy']['total_per_day']}/day ({growth_dossier['cadence_policy']['timezone']})")
     print(f"  Analytics Source  : {sync_res['source']} ({sync_res['videos_synced']} video(s) synced)")
+    print(f"  Channel Reconcile : {reconciliation['live_videos_inspected']} live videos ({reconciliation['source']}), {reconciliation['matched_schedule_history_count']} matched local history")
     print(f"  OAuth Owner API   : {'Connected' if sync_res['capabilities']['owner_analytics_connected'] else 'Limited (missing scopes)'}")
     for lim in sync_res.get("limitations", []):
         print(f"   ℹ Limitation: {lim}")
@@ -1584,6 +1671,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
 
     return {
         "sync": sync_res,
+        "reconciliation": reconciliation,
         "format_report": format_report,
         "growth_dossier": growth_dossier,
         "adaptive_strategy": adaptive_strategy,
