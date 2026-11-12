@@ -764,6 +764,48 @@
       "url": "https://www.youtube.com/watch?v=tZwFU2wLtH8",
       "date_ist": "2026-11-12T17:20:16.998029+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Dwarka 9000 Years: Is Dwarka 9,000 Years Older Than History Books...",
+      "url": "https://www.youtube.com/watch?v=6FrMt2uUP60",
+      "date_ist": "2026-11-13T00:07:04.404393+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Why MohenjoDaro destroyed ancient: Was Mohenjo-Daro destroyed by an.",
+      "url": "https://www.youtube.com/watch?v=_EDsuC3OR9M",
+      "date_ist": "2026-11-13T00:13:56.644693+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Happened People Pompeii: What Happened to the People of Pompeii?...",
+      "url": "https://www.youtube.com/watch?v=wYSJw099YIY",
+      "date_ist": "2026-11-13T00:18:58.237560+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Petra Lost City: Petra: The Lost City Hidden Inside Solid Rock...",
+      "url": "https://www.youtube.com/watch?v=l1IRnuG6wLc",
+      "date_ist": "2026-11-13T00:25:24.484938+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of Pompeii City That: Pompeii: The City That Time Froze...",
+      "url": "https://www.youtube.com/watch?v=4UvzH5vZsu8",
+      "date_ist": "2026-11-13T00:30:58.227458+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Why Sunken Kingdom Dwarka: The Sunken City of Dwarka: India\u2019s Real..",
+      "url": "https://www.youtube.com/watch?v=zCOSA9cHTHQ",
+      "date_ist": "2026-11-13T01:07:48.744280+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -793,11 +835,11 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-13",
+  "last_longform_date": "2026-11-14",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-13",
+  "last_longform_pub_date": "2026-11-14",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -937,5 +979,17 @@
   "last_short_pub_2026-11-13_22": true,
   "last_short_pub_2026-11-13_22_url": "https://www.youtube.com/watch?v=emBqGaaz_2g",
   "last_longform_pub_2026-11-13": true,
-  "last_longform_pub_2026-11-13_url": "https://www.youtube.com/watch?v=tZwFU2wLtH8"
+  "last_longform_pub_2026-11-13_url": "https://www.youtube.com/watch?v=tZwFU2wLtH8",
+  "last_short_pub_2026-11-14_9": true,
+  "last_short_pub_2026-11-14_9_url": "https://www.youtube.com/watch?v=6FrMt2uUP60",
+  "last_short_pub_2026-11-14_12": true,
+  "last_short_pub_2026-11-14_12_url": "https://www.youtube.com/watch?v=_EDsuC3OR9M",
+  "last_short_pub_2026-11-14_16": true,
+  "last_short_pub_2026-11-14_16_url": "https://www.youtube.com/watch?v=wYSJw099YIY",
+  "last_short_pub_2026-11-14_19": true,
+  "last_short_pub_2026-11-14_19_url": "https://www.youtube.com/watch?v=l1IRnuG6wLc",
+  "last_short_pub_2026-11-14_22": true,
+  "last_short_pub_2026-11-14_22_url": "https://www.youtube.com/watch?v=4UvzH5vZsu8",
+  "last_longform_pub_2026-11-14": true,
+  "last_longform_pub_2026-11-14_url": "https://www.youtube.com/watch?v=zCOSA9cHTHQ"
 }
