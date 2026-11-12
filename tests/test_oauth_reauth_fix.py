@@ -49,8 +49,11 @@ def test_reauthorize_delegates_single_auth_url_and_browser_to_run_local_server(t
     assert kwargs["timeout_seconds"] == 120
     assert kwargs["prompt"] == "consent"
     assert kwargs["access_type"] == "offline"
-    assert kwargs["include_granted_scopes"] == "true"
+    assert kwargs["include_granted_scopes"] == "false"
     assert isinstance(kwargs["state"], str) and len(kwargs["state"]) > 10
+    import os
+    assert os.environ.get("OAUTHLIB_RELAX_TOKEN_SCOPE") is None
+    assert res["unexpected_extra_scopes"] == []
 
     # Valid scopes & matching channel atomically replaced token
     saved = pickle.loads(tok_file.read_bytes())
@@ -113,3 +116,34 @@ def test_reauthorize_preserves_existing_token_on_partial_scopes_and_channel_mism
     out = capsys.readouterr().out
     assert "SECRET_ACCESS_TOKEN_XYZ" not in out
     assert "SECRET_REFRESH_TOKEN_ABC" not in out
+
+
+def test_reauthorize_accepts_verified_superset_with_extra_youtube_scope(tmp_path, capsys):
+    import os
+
+    cs_file = tmp_path / "client_secret.json"
+    cs_file.write_text('{"installed": {"client_id": "cid", "client_secret": "SECRET_CLIENT_XYZ"}}', encoding="utf-8")
+    tok_file = tmp_path / "youtube_token.pickle"
+    tok_file.write_bytes(pickle.dumps(_DummyCreds(["https://www.googleapis.com/auth/youtube.upload"])))
+
+    superset_scopes = REQUIRED_SCOPES + ["https://www.googleapis.com/auth/youtube"]
+    mock_flow = MagicMock()
+    mock_flow.run_local_server.return_value = _DummyCreds(superset_scopes)
+
+    with patch("uploader.oauth_manager.InstalledAppFlow.from_client_secrets_file", return_value=mock_flow), \
+         patch("uploader.oauth_manager.verify_channel_identity", return_value=(True, {"channel_id": "UCb1BDNY8WxoD1q_UVyEmvuw", "channel_title": "Stories Malik"})), \
+         patch("uploader.oauth_manager.config.sync_client_secret_file"):
+        ok, res = reauthorize_channel(
+            client_secret_file=str(cs_file),
+            token_path=str(tok_file),
+            open_browser=False,
+            expected_channel_id="UCb1BDNY8WxoD1q_UVyEmvuw",
+            sync_env=False,
+        )
+
+    assert ok is True
+    assert res["unexpected_extra_scopes"] == ["https://www.googleapis.com/auth/youtube"]
+    assert os.environ.get("OAUTHLIB_RELAX_TOKEN_SCOPE") is None
+    out = capsys.readouterr().out
+    assert "Additional OAuth scopes returned by Google (1): https://www.googleapis.com/auth/youtube" in out
+

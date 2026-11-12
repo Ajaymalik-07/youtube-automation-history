@@ -212,11 +212,16 @@ def reauthorize_channel(
         return False, {"error": f"Client secret file not found: {cs_file}"}
 
     prev_insecure = os.environ.get("OAUTHLIB_INSECURE_TRANSPORT")
+    prev_relax = os.environ.get("OAUTHLIB_RELAX_TOKEN_SCOPE")
     backup_created = False
     wrote_new_token = False
 
     try:
         os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+        # Scoped strictly to this dedicated reauthorization call so oauthlib's
+        # validate_token_parameters() does not abort before verify_granted_scopes()
+        # can inspect a superset grant (e.g. an existing broader `youtube` grant).
+        os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
         flow = InstalledAppFlow.from_client_secrets_file(cs_file, REQUIRED_SCOPES)
         state_token = secrets.token_urlsafe(24)
 
@@ -228,7 +233,7 @@ def reauthorize_channel(
             timeout_seconds=timeout_seconds,
             prompt="consent",
             access_type="offline",
-            include_granted_scopes="true",
+            include_granted_scopes="false",
             state=state_token,
         )
 
@@ -236,7 +241,10 @@ def reauthorize_channel(
             raise RuntimeError("OAuth server returned invalid credentials.")
 
         granted_scopes = list(getattr(creds, "scopes", None) or [])
+        extra_scopes = sorted(set(granted_scopes) - set(REQUIRED_SCOPES))
         print(f"   → Granted OAuth scopes ({len(granted_scopes)}): {', '.join(granted_scopes) if granted_scopes else 'none'}")
+        if extra_scopes:
+            print(f"   ℹ Additional OAuth scopes returned by Google ({len(extra_scopes)}): {', '.join(extra_scopes)}")
 
         # 1. Verify all required scopes BEFORE overwriting any existing token
         scopes_ok, missing_scopes = verify_granted_scopes(creds)
@@ -281,7 +289,8 @@ def reauthorize_channel(
         return True, {
             "channel_title": id_info["channel_title"],
             "channel_id": id_info["channel_id"],
-            "scopes": list(creds.scopes) if creds.scopes else [],
+            "scopes": granted_scopes,
+            "unexpected_extra_scopes": extra_scopes,
         }
 
     except Exception as e:
@@ -298,3 +307,7 @@ def reauthorize_channel(
             os.environ.pop("OAUTHLIB_INSECURE_TRANSPORT", None)
         else:
             os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = prev_insecure
+        if prev_relax is None:
+            os.environ.pop("OAUTHLIB_RELAX_TOKEN_SCOPE", None)
+        else:
+            os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = prev_relax
