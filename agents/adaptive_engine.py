@@ -559,6 +559,26 @@ def _render_adaptive_strategy_md(payload: dict) -> None:
         f.write("\n".join(md_lines))
 
 
+def _load_phase31_adaptive_guidance(video_type: str = "longform") -> Dict[str, Any]:
+    """
+    Phase 31 Workstream H: Loads latest experiment decisions mapped to adaptive actions:
+    VALIDATED -> production_directive, PRELIMINARY/PROMISING -> suggestion_only,
+    INSUFFICIENT_DATA -> uncertainty_hold, REJECTED -> exclude_from_best_practices,
+    NO_CLEAR_DIFFERENCE -> no_preference.
+    """
+    path = os.path.join(config.OUTPUT_DIR, "phase31_adaptive_guidance_report.json")
+    if not os.path.exists(path):
+        return {"status": "no_phase31_guidance_yet", "guidance": []}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        fmt = "short" if video_type in ("short", "shorts") else "longform"
+        relevant = [g for g in data.get("guidance", []) if g.get("format") == fmt]
+        return {"status": "loaded", "guidance": relevant}
+    except Exception:
+        return {"status": "unreadable", "guidance": []}
+
+
 def _load_phase30_adaptive_guidance(video_type: str = "longform") -> Dict[str, Any]:
     """
     Workstream G: Surfaces Phase 30 experiment recommendations by evidence tier
@@ -611,6 +631,7 @@ def get_production_run_brief(video_type: str = "longform") -> Dict[str, Any]:
         pillar_name=selected_topic_cand["pillar"],
     )
     phase30_guidance = _load_phase30_adaptive_guidance(video_type)
+    phase31_guidance = _load_phase31_adaptive_guidance(video_type)
 
     exp = strategy["recommended_next_experiment"]
 
@@ -621,6 +642,7 @@ def get_production_run_brief(video_type: str = "longform") -> Dict[str, Any]:
         "narrative_directive": directive,
         "phase29_directives": phase29_dir,
         "phase30_experiment_guidance": phase30_guidance,
+        "phase31_experiment_guidance": phase31_guidance,
         "diversity_score": strategy["content_diversity"]["diversity_score"],
         "active_experiment": exp,
         "preferred_title_style": "curiosity_oriented",
