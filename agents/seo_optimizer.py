@@ -45,6 +45,50 @@ def generate_title_candidates(
     return res
 
 
+def sanitize_title_duplicate_prefix(title: str) -> str:
+    """
+    Phase 27 Workstream 3: Removes redundant or duplicated hook prefixes before ':'
+    (e.g. 'Shivajis secret escape: Shivaji's secret escape...', 'This 1600YearOld Iron: Why Has This 1,600-Year-Old Iron...',
+    or multi-colon prefixes like 'समरट रहसय: Lost Wealth Secret: सम्राट अशोक...').
+    """
+    t = (title or "").strip()
+    for _ in range(2):
+        if ":" not in t:
+            break
+        prefix, rest = t.split(":", 1)
+        prefix_clean = prefix.strip()
+        rest_clean = rest.strip()
+        if len(rest_clean) < 18 or not prefix_clean:
+            break
+
+        # Multi-colon prefix (e.g. 'Corrupted Hindi: English Hook: Actual Title')
+        if ":" in rest_clean and len(prefix_clean.split()) <= 4:
+            t = rest_clean
+            continue
+
+        # Pure-ASCII short prefix before a Devanagari Hindi title (e.g. 'Lost Wealth Secret: सम्राट अशोक...')
+        dev_in_rest = sum(1 for ch in rest_clean if "\u0900" <= ch <= "\u097F")
+        if prefix_clean.isascii() and len(prefix_clean.split()) <= 4 and dev_in_rest >= 4:
+            t = rest_clean
+            continue
+
+        # Normalize punctuation/apostrophes/commas so 'Shivajis'/'1600YearOld' matches "Shivaji's"/"1,600-Year-Old"
+        norm_rest = re.sub(r"[^a-z0-9\s]", "", rest_clean.lower())
+        norm_rest_compact = norm_rest.replace(" ", "")
+        p_words = [
+            re.sub(r"[^a-z0-9]", "", w.lower())
+            for w in prefix_clean.split()
+        ]
+        p_words = [w for w in p_words if len(w) >= 3]
+        if p_words:
+            matches = sum(1 for w in p_words if (w in norm_rest or w.rstrip("s") in norm_rest or w in norm_rest_compact))
+            if matches >= max(1, len(p_words) // 2):
+                t = rest_clean
+                continue
+        break
+    return t
+
+
 def validate_youtube_metadata(title: str, description: str, tags: list,
                               sections: list = None, is_shorts: bool = False) -> tuple[bool, list[str]]:
     """
@@ -61,6 +105,8 @@ def validate_youtube_metadata(title: str, description: str, tags: list,
         issues.append(f"Title is too short ({len(t)} chars, minimum 20 recommended).")
     elif len(t) > 100:
         issues.append(f"Title exceeds YouTube maximum length ({len(t)} chars, max 100).")
+    if sanitize_title_duplicate_prefix(t) != t:
+        issues.append("Title contains a redundant/duplicated hook prefix before ':'.")
 
     # Description checks
     if len(d) < 150:
@@ -110,7 +156,7 @@ def optimize_for_100_percent(title: str, description: str, tags: list,
     Non-destructive metadata optimizer that formats clean, production-ready metadata
     without spamming fake tags or arbitrary prefixing.
     """
-    title = (title or "").strip()
+    title = sanitize_title_duplicate_prefix((title or "").strip())
     description = (description or "").strip()
     tags = list(tags or [])
     sections = sections or []

@@ -584,4 +584,174 @@ def is_eligible_for_upload(video_path: str) -> Tuple[bool, Optional[str]]:
     if q_gate and not q_gate.get("passed", True):
         return False, "Video has recorded quality gate issues."
 
+    # Phase 27: Enforce format & duration contract when declared_format/video_format or contract metadata is present
+    declared_fmt = meta.get("declared_format") or meta.get("video_format")
+    if declared_fmt is not None or meta.get("enforce_media_contract") or meta.get("actual_duration_seconds") is not None:
+        ok_contract, contract_err, _ = validate_format_and_duration_contract(
+            video_path=video_path,
+            declared_format=declared_fmt,
+            metadata_format=meta.get("metadata_format"),
+            db_format=meta.get("db_format"),
+            duration_override=meta.get("actual_duration_seconds"),
+        )
+        if not ok_contract:
+            return False, contract_err
+
     return True, None
+
+
+def normalize_content_format(fmt: Optional[str]) -> Optional[str]:
+    """Normalizes content format aliases to canonical 'short' or 'longform', or None if missing/invalid."""
+    if not fmt or not isinstance(fmt, str):
+        return None
+    val = fmt.strip().lower().replace("-", "_").replace(" ", "_")
+    if val in ("short", "shorts"):
+        return "short"
+    if val in ("longform", "long_form", "normal", "documentary"):
+        return "longform"
+    return None
+
+
+def probe_media_duration(video_path: str) -> Dict[str, Any]:
+    """
+    Phase 27: Inspects final encoded media duration and streams using ffprobe.
+    Returns {ok, duration_seconds, has_video, has_audio, error}.
+    """
+    import subprocess
+
+    if not video_path or not os.path.exists(video_path):
+        return {"ok": False, "duration_seconds": None, "has_video": False, "has_audio": False, "error": "Media file does not exist."}
+
+    try:
+        proc = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration:stream=codec_type",
+                "-of",
+                "json",
+                video_path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        if proc.returncode != 0 or not proc.stdout.strip():
+            return {
+                "ok": False,
+                "duration_seconds": None,
+                "has_video": False,
+                "has_audio": False,
+                "error": f"ffprobe failed (rc={proc.returncode}): {proc.stderr.strip() or 'corrupt or unreadable media'}",
+            }
+        data = json.loads(proc.stdout)
+        fmt = data.get("format") or {}
+        raw_dur = fmt.get("duration")
+        if raw_dur is None:
+            return {"ok": False, "duration_seconds": None, "has_video": False, "has_audio": False, "error": "Missing duration metadata in media container."}
+        dur = float(raw_dur)
+        if dur <= 0.0:
+            return {"ok": False, "duration_seconds": dur, "has_video": False, "has_audio": False, "error": f"Non-positive media duration ({dur}s)."}
+        streams = data.get("streams") or []
+        codec_types = {str(s.get("codec_type", "")).lower() for s in streams}
+        return {
+            "ok": True,
+            "duration_seconds": round(dur, 4),
+            "has_video": "video" in codec_types,
+            "has_audio": "audio" in codec_types,
+            "error": None,
+        }
+    except Exception as e:
+        return {"ok": False, "duration_seconds": None, "has_video": False, "has_audio": False, "error": f"Media inspection error: {e}"}
+
+
+def validate_format_and_duration_contract(
+    video_path: str,
+    declared_format: Optional[str],
+    metadata_format: Optional[str] = None,
+    db_format: Optional[str] = None,
+    duration_override: Optional[float] = None,
+    expected_duration_seconds: Optional[float] = None,
+) -> Tuple[bool, Optional[str], Dict[str, Any]]:
+    """
+    Phase 27 Workstreams 1 & 2:
+    Enforces an explicit content-format contract and final encoded duration bounds:
+      - Short ('short'): SHORTS_MIN_SECONDS (25s) <= duration <= SHORTS_MAX_SECONDS (60.0s)
+      - Long-form ('longform'): VIDEO_MIN_MINUTES * 60 (480s) <= duration <= 870.0s (14m30s)
+    Rejects missing/invalid format, contradictory format metadata, missing/corrupt duration,
+    and Shorts > 60.0s or Long-form < 480.0s.
+    """
+    canon_declared = normalize_content_format(declared_format)
+    if not canon_declared:
+        return False, f"Missing or invalid declared_format ({declared_format!r}); cannot verify format contract.", {}
+
+    for label, other in (("metadata_format", metadata_format), ("db_format", db_format)):
+        if other is not None:
+            canon_other = normalize_content_format(other)
+            if not canon_other or canon_other != canon_declared:
+                return (
+                    False,
+                    f"Contradictory format contract: declared_format='{canon_declared}' conflicts with {label}={other!r}.",
+                    {"declared_format": canon_declared, label: other},
+                )
+
+    if duration_override is not None:
+        try:
+            actual_dur = float(duration_override)
+        except Exception:
+            return False, f"Invalid duration metadata: {duration_override!r}.", {}
+        if actual_dur <= 0.0:
+            return False, f"Non-positive media duration ({actual_dur}s).", {}
+        probe_info = {"ok": True, "duration_seconds": actual_dur, "source": "override"}
+    else:
+        probe_info = probe_media_duration(video_path)
+        if not probe_info.get("ok") or probe_info.get("duration_seconds") is None:
+            return False, probe_info.get("error") or "Missing or corrupt media duration metadata.", probe_info
+        actual_dur = float(probe_info["duration_seconds"])
+
+    shorts_min = float(getattr(config, "SHORTS_MIN_SECONDS", 25))
+    shorts_max = float(getattr(config, "SHORTS_MAX_SECONDS", 60))
+    lf_min = float(getattr(config, "VIDEO_MIN_MINUTES", 8)) * 60.0
+    lf_max = 870.0  # YouTube unverified account 14:30 hard limit
+
+    if canon_declared == "short":
+        if actual_dur > shorts_max:
+            return (
+                False,
+                f"Shorts duration {actual_dur:.2f}s exceeds configured maximum {shorts_max:.2f}s.",
+                {"declared_format": "short", "actual_duration_seconds": actual_dur, "max_seconds": shorts_max},
+            )
+        if actual_dur < shorts_min:
+            return (
+                False,
+                f"Shorts duration {actual_dur:.2f}s is below configured minimum {shorts_min:.2f}s.",
+                {"declared_format": "short", "actual_duration_seconds": actual_dur, "min_seconds": shorts_min},
+            )
+    elif canon_declared == "longform":
+        if actual_dur < lf_min:
+            return (
+                False,
+                f"Long-form duration {actual_dur:.2f}s is below configured minimum {lf_min:.2f}s ({lf_min/60:.0f} min).",
+                {"declared_format": "longform", "actual_duration_seconds": actual_dur, "min_seconds": lf_min},
+            )
+        if actual_dur > lf_max:
+            return (
+                False,
+                f"Long-form duration {actual_dur:.2f}s exceeds configured maximum {lf_max:.2f}s.",
+                {"declared_format": "longform", "actual_duration_seconds": actual_dur, "max_seconds": lf_max},
+            )
+
+    details = {
+        "declared_format": canon_declared,
+        "actual_duration_seconds": actual_dur,
+        "probe": probe_info,
+    }
+    if expected_duration_seconds is not None:
+        diff = abs(actual_dur - float(expected_duration_seconds))
+        details["expected_duration_seconds"] = float(expected_duration_seconds)
+        details["duration_delta_seconds"] = round(diff, 3)
+
+    return True, None, details

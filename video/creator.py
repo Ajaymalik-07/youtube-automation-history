@@ -919,10 +919,17 @@ def create_video(script: dict, audio_path: str, output_dir: str,
 
         # Attach audio first to know true duration
         audio      = AudioFileClip(audio_path)
-        max_short_secs = min(float(getattr(config, "SHORTS_MAX_SECONDS", 60)), 59.5)
+        max_short_secs = float(getattr(config, "SHORTS_MAX_SECONDS", 60))
         if audio.duration > max_short_secs:
-            print(f"   ⚠ Short audio duration ({audio.duration:.1f}s) exceeds {max_short_secs:.1f}s cap; clamping strictly under 60s.")
-            audio = audio.subclip(0, max_short_secs)
+            dur_val = float(audio.duration)
+            try:
+                audio.close()
+            except Exception:
+                pass
+            raise ValueError(
+                f"Short audio duration ({dur_val:.2f}s) exceeds {max_short_secs:.2f}s Shorts cap; "
+                "refusing silent audio truncation that could cut dialogue mid-sentence."
+            )
         total_dur  = audio.duration
         print(f"   → Audio duration: {total_dur:.1f}s")
 
@@ -1042,6 +1049,17 @@ def create_video(script: dict, audio_path: str, output_dir: str,
         except Exception:
             pass
 
+    from uploader.safety import validate_format_and_duration_contract
+    declared_fmt = "short" if is_shorts else "longform"
+    ok_contract, contract_err, contract_info = validate_format_and_duration_contract(
+        video_path=output_path,
+        declared_format=declared_fmt,
+        expected_duration_seconds=total_secs,
+    )
+    if not ok_contract:
+        raise ValueError(f"Post-encode media contract failed for {declared_fmt}: {contract_err}")
+
     size_mb = os.path.getsize(output_path) // (1024 * 1024)
-    print(f"\n   ✅ Video rendered: {output_path} ({size_mb} MB)")
+    actual_probe_dur = contract_info.get("actual_duration_seconds", total_secs)
+    print(f"\n   ✅ Video rendered: {output_path} ({size_mb} MB, {actual_probe_dur:.2f}s verified via ffprobe)")
     return output_path
