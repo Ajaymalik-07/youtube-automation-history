@@ -1662,6 +1662,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
     from agents.adaptive_engine import generate_weekly_adaptive_strategy
     from agents.phase28_video_diagnosis import generate_phase28_reports
     from agents.phase29_content_intelligence import generate_phase29_reports
+    from agents.phase30_experiments import generate_phase30_reports
 
     sync_res = sync_owner_channel_analytics(days_back=days_back)
     reconciliation = reconcile_channel_publications()
@@ -1677,6 +1678,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
     phase26_reports = generate_phase26_reports(evaluation_window_days=days_back)
     phase28_reports = generate_phase28_reports(days_back=days_back)
     phase29_reports = generate_phase29_reports()
+    phase30_reports = generate_phase30_reports()
 
     print("\n" + "=" * 70)
     print(f"  📊 Weekly Performance Review Complete (Rolling {days_back}-Day Window)")
@@ -1701,6 +1703,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
         "phase23_reports": phase23_reports,
         "phase28_reports": phase28_reports,
         "phase29_reports": phase29_reports,
+        "phase30_reports": phase30_reports,
     }
 
 

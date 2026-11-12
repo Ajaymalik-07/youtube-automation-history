@@ -559,6 +559,31 @@ def _render_adaptive_strategy_md(payload: dict) -> None:
         f.write("\n".join(md_lines))
 
 
+def _load_phase30_adaptive_guidance(video_type: str = "longform") -> Dict[str, Any]:
+    """
+    Workstream G: Surfaces Phase 30 experiment recommendations by evidence tier
+    (validated -> directive, preliminary/promising -> suggestion, rejected -> excluded,
+    insufficient -> uncertain_hold). Never bypasses quality gates or changes cadence.
+    """
+    rec_path = os.path.join(config.OUTPUT_DIR, "phase30_growth_recommendations.json")
+    if not os.path.exists(rec_path):
+        return {"status": "no_phase30_recommendations_yet", "suggestions": [], "directives": [], "excluded": []}
+    try:
+        with open(rec_path, encoding="utf-8") as f:
+            data = json.load(f)
+        fmt = "short" if video_type in ("short", "shorts") else "longform"
+        relevant = [r for r in data.get("recommendations", []) if r.get("format") == fmt]
+        return {
+            "status": "loaded",
+            "directives": [r for r in relevant if r.get("action_tier") == "production_directive"],
+            "suggestions": [r for r in relevant if r.get("action_tier") == "suggestion_only"],
+            "excluded": [r for r in relevant if r.get("action_tier") == "excluded_from_best_practices"],
+            "uncertain": [r for r in relevant if r.get("action_tier") == "uncertain_hold"],
+        }
+    except Exception:
+        return {"status": "unreadable", "suggestions": [], "directives": [], "excluded": []}
+
+
 def get_production_run_brief(video_type: str = "longform") -> Dict[str, Any]:
     """
     Returns real-time adaptive brief executed before every production run:
@@ -585,6 +610,7 @@ def get_production_run_brief(video_type: str = "longform") -> Dict[str, Any]:
         topic=selected_topic_cand["topic"],
         pillar_name=selected_topic_cand["pillar"],
     )
+    phase30_guidance = _load_phase30_adaptive_guidance(video_type)
 
     exp = strategy["recommended_next_experiment"]
 
@@ -594,6 +620,7 @@ def get_production_run_brief(video_type: str = "longform") -> Dict[str, Any]:
         "selected_candidate": selected_topic_cand,
         "narrative_directive": directive,
         "phase29_directives": phase29_dir,
+        "phase30_experiment_guidance": phase30_guidance,
         "diversity_score": strategy["content_diversity"]["diversity_score"],
         "active_experiment": exp,
         "preferred_title_style": "curiosity_oriented",
