@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
-  "last_sync_at": "2026-11-12T08:47:55.286276+00:00",
+  "last_sync_at": "2026-11-12T08:52:13.455173+00:00",
   "authoritative_stores": {
     "historical_performance_db.json": {
       "revision": 1,
-      "sha256": "a44f554470ab305ab38b258e01fb38dc70cb24a156c32209a15120fdffa4ce27"
+      "sha256": "01ab860e0ceeb1252e0ea2e4cb50fb968d114719f5e146b94d3a4e80ce3af1cf"
     },
     "automation_schedule.json": {
       "revision": 2,

@@ -1949,3 +1949,141 @@ def generate_phase24_reports(
         "phase24_30day_optimization_report": optimization_30d,
         "paths": paths,
     }
+
+
+def generate_phase25_execution_report(
+    output_dir: Optional[str] = None,
+    evaluation_window_days: int = 30,
+) -> Dict[str, Any]:
+    """
+    Phase 25: 30-Day Audience Growth Execution & Controlled Experimentation Evaluation.
+    Applies the Analytics Readiness Gate to all experiments, records separate Shorts and
+    Long-form baselines, separates statistically supported findings from directional
+    observations, and preserves missing metrics honestly without manufacturing conclusions.
+    """
+    from agents.experiment_tracker import get_experiment_tracker
+    from agents.statistical_validator import calculate_median, compute_publication_age_days
+    from apis.youtube_analytics import get_analytics_capabilities_and_limitations
+    from uploader.oauth_manager import audit_token_scopes
+
+    out_dir = output_dir or getattr(config, "OUTPUT_DIR", "output")
+    os.makedirs(out_dir, exist_ok=True)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    caps = get_analytics_capabilities_and_limitations()
+    oauth_audit = audit_token_scopes()
+    owner_connected = bool(caps.get("owner_analytics_connected"))
+
+    tracker = get_experiment_tracker()
+    gate_summary = tracker.apply_analytics_readiness_gate(
+        owner_analytics_connected=owner_connected,
+        ctr_available=False,
+    )
+
+    db = get_performance_db()
+    raw_vids = db.get_videos_in_window(days=evaluation_window_days)
+    real_vids = [
+        v for v in raw_vids
+        if not v.get("is_test_fixture")
+        and not (v.get("metadata_extras") or {}).get("is_test_fixture")
+        and v.get("data_provenance") != "mock_or_test_data"
+    ]
+    shorts = [v for v in real_vids if v.get("video_format") == "short"]
+    longform = [v for v in real_vids if v.get("video_format") == "longform"]
+
+    def _baseline_bucket(vlist: List[Dict[str, Any]]) -> Dict[str, Any]:
+        views = [
+            float((v.get("latest_metrics") or {}).get("views"))
+            for v in vlist
+            if (v.get("latest_metrics") or {}).get("views") is not None
+        ]
+        ages = [
+            compute_publication_age_days(v.get("publication_timestamp", ""))
+            for v in vlist
+            if v.get("publication_timestamp")
+        ]
+        return {
+            "video_count": len(vlist),
+            "median_views": calculate_median(views) if views else None,
+            "total_views": int(sum(views)) if views else 0,
+            "median_publication_age_days": round(calculate_median(ages), 2) if ages else None,
+            "watch_time_minutes": None,
+            "average_view_duration_seconds": None,
+            "average_percentage_viewed": None,
+            "impressions": None,
+            "ctr": None,
+            "subscribers_gained": None,
+        }
+
+    shorts_base = _baseline_bucket(shorts)
+    lf_base = _baseline_bucket(longform)
+
+    if owner_connected:
+        sp = analyze_shorts_performance(shorts)
+        lp = analyze_longform_performance(longform)
+        shorts_base["watch_time_minutes"] = sp.get("total_watch_time_minutes")
+        shorts_base["average_view_duration_seconds"] = sp.get("observed_avg_avd_seconds")
+        shorts_base["average_percentage_viewed"] = sp.get("observed_avg_apv")
+        shorts_base["subscribers_gained"] = sp.get("total_subscribers_gained")
+        lf_base["watch_time_minutes"] = lp.get("total_watch_time_minutes")
+        lf_base["average_view_duration_seconds"] = lp.get("storytelling_diagnostics", {}).get("avg_view_duration_seconds")
+        lf_base["average_percentage_viewed"] = lp.get("storytelling_diagnostics", {}).get("avg_percentage_viewed")
+        lf_base["subscribers_gained"] = lp.get("total_subscribers_gained")
+
+    all_exps = tracker.get_all_experiments()
+    completed_exps = [e for e in all_exps if e.get("status") == "completed"]
+    inconclusive_or_blocked = [e for e in all_exps if e.get("status") in ("BLOCKED", "in_progress")]
+
+    report = {
+        "generated_at": now_iso,
+        "evaluation_window_days": evaluation_window_days,
+        "cadence_preserved": {
+            "longform_daily": getattr(config, "DAILY_LONGFORM_TARGET", 1),
+            "shorts_daily": getattr(config, "DAILY_SHORTS_TARGET", 5),
+            "total_daily": getattr(config, "TOTAL_DAILY_VIDEOS", 6),
+            "timezone": getattr(config, "TIMEZONE", "Asia/Kolkata"),
+            "auto_frequency_reduction": False,
+        },
+        "analytics_readiness_gate": {
+            "channel_id": getattr(config, "YOUTUBE_CHANNEL_ID", ""),
+            "owner_analytics_connected": owner_connected,
+            "granted_scopes": oauth_audit.get("granted_scopes", []),
+            "missing_scopes": oauth_audit.get("missing_scopes", []),
+            "gate_result": gate_summary,
+        },
+        "baseline": {
+            "shorts": shorts_base,
+            "longform": lf_base,
+            "unavailable_baseline_metrics": [
+                "impressions",
+                "ctr",
+                *([] if owner_connected else ["watch_time_minutes", "average_view_duration_seconds", "average_percentage_viewed", "subscribers_gained"]),
+            ],
+        },
+        "experiment_register": all_exps,
+        "thirty_day_findings": {
+            "statistically_supported_findings": [
+                e.get("conclusion") for e in completed_exps if e.get("conclusion")
+            ],
+            "directional_observations": [
+                f"Observed {shorts_base['video_count']} Shorts (median {shorts_base['median_views']} views, total {shorts_base['total_views']}) and {lf_base['video_count']} Long-form videos (median {lf_base['median_views']} views, total {lf_base['total_views']}) via public Data API v3."
+            ],
+            "inconclusive_or_blocked_experiments": [
+                {"id": e.get("id"), "status": e.get("status"), "reason": e.get("blocked_reason", "insufficient_samples")}
+                for e in inconclusive_or_blocked
+            ],
+            "honesty_statement": (
+                "No positive growth conclusion is manufactured where owner analytics are BLOCKED or samples are insufficient."
+            ),
+        },
+        "next_30day_recommendations": [
+            "Complete interactive OAuth reauthorization (`python authorize_youtube.py` with `youtube.readonly` and `yt-analytics.readonly`) to unblock EXP-001 and EXP-003.",
+            "Preserve the 5 Shorts + 1 Long-form daily IST cadence while collecting comparable publication-age samples (>= 5 per variant).",
+        ],
+    }
+
+    report_path = os.path.join(out_dir, "phase25_30day_growth_evaluation.json")
+    with open(report_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
+    report["report_path"] = report_path
+    return report

@@ -10,11 +10,13 @@
     "test_variant": "High-contrast visual paradox + direct question",
     "min_sample_size": 3,
     "current_samples": 0,
-    "status": "in_progress",
+    "status": "BLOCKED",
     "created_at": "2026-11-11T06:48:50.003330+00:00",
     "samples": [],
     "conclusion": null,
-    "confidence_level": "insufficient_data"
+    "confidence_level": "insufficient_data",
+    "analytics_gate": "BLOCKED",
+    "blocked_reason": "OAuth token lacks yt-analytics.readonly scope for owner analytics retrieval."
   },
   {
     "id": "EXP-002",
@@ -27,11 +29,13 @@
     "test_variant": "Curiosity-oriented contradiction title",
     "min_sample_size": 3,
     "current_samples": 0,
-    "status": "in_progress",
+    "status": "BLOCKED",
     "created_at": "2026-11-11T06:48:50.003330+00:00",
     "samples": [],
     "conclusion": null,
-    "confidence_level": "insufficient_data"
+    "confidence_level": "insufficient_data",
+    "analytics_gate": "BLOCKED",
+    "blocked_reason": "YouTube Analytics API v2 does not expose impressions/CTR without Studio reach-report access."
   },
   {
     "id": "EXP-003",
@@ -44,10 +48,12 @@
     "test_variant": "Step-by-step engineering forensics with architectural diagrams",
     "min_sample_size": 3,
     "current_samples": 0,
-    "status": "in_progress",
+    "status": "BLOCKED",
     "created_at": "2026-11-11T06:48:50.003330+00:00",
     "samples": [],
     "conclusion": null,
-    "confidence_level": "insufficient_data"
+    "confidence_level": "insufficient_data",
+    "analytics_gate": "BLOCKED",
+    "blocked_reason": "OAuth token lacks yt-analytics.readonly scope for owner analytics retrieval."
   }
 ]

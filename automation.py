@@ -1650,7 +1650,12 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
     """
     from apis.youtube_analytics import sync_owner_channel_analytics, generate_weekly_format_report
     from apis.state_store import create_state_backup, sync_to_sqlite
-    from agents.growth_analyst import generate_growth_intelligence_dossier, generate_phase23_reports, generate_phase24_reports
+    from agents.growth_analyst import (
+        generate_growth_intelligence_dossier,
+        generate_phase23_reports,
+        generate_phase24_reports,
+        generate_phase25_execution_report,
+    )
     from agents.adaptive_engine import generate_weekly_adaptive_strategy
 
     sync_res = sync_owner_channel_analytics(days_back=days_back)
@@ -1663,6 +1668,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
     sqlite_manifest = sync_to_sqlite()
     phase23_reports = generate_phase23_reports(evaluation_window_days=days_back)
     phase24_reports = generate_phase24_reports(evaluation_window_days=days_back)
+    phase25_report = generate_phase25_execution_report(evaluation_window_days=days_back)
 
     print("\n" + "=" * 70)
     print(f"  📊 Weekly Performance Review Complete (Rolling {days_back}-Day Window)")

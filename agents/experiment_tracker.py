@@ -354,6 +354,60 @@ class ExperimentTracker:
         self.save()
         return exp_record
 
+    def apply_analytics_readiness_gate(
+        self,
+        owner_analytics_connected: bool,
+        ctr_available: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Phase 25 Analytics Readiness Gate:
+        Marks analytics-dependent experiments BLOCKED when required owner analytics
+        or impressions/CTR metrics are unavailable. Never simulates missing metrics.
+        """
+        owner_metrics = {
+            "average_percentage_viewed",
+            "average_view_duration_seconds",
+            "watch_time_minutes",
+            "subscribers_gained",
+            "returning_viewers",
+            "median_views_and_apv",
+        }
+        reach_metrics = {"ctr", "impressions"}
+
+        blocked_ids: List[str] = []
+        active_ids: List[str] = []
+
+        for exp in self.experiments:
+            if exp.get("status") == "completed":
+                continue
+            metric = str(exp.get("target_metric") or exp.get("success_metric") or "").lower()
+            if metric in reach_metrics and not ctr_available:
+                exp["status"] = "BLOCKED"
+                exp["analytics_gate"] = "BLOCKED"
+                exp["blocked_reason"] = "YouTube Analytics API v2 does not expose impressions/CTR without Studio reach-report access."
+                blocked_ids.append(str(exp.get("id")))
+            elif metric in owner_metrics and not owner_analytics_connected:
+                exp["status"] = "BLOCKED"
+                exp["analytics_gate"] = "BLOCKED"
+                exp["blocked_reason"] = "OAuth token lacks yt-analytics.readonly scope for owner analytics retrieval."
+                blocked_ids.append(str(exp.get("id")))
+            else:
+                if exp.get("status") == "BLOCKED":
+                    exp["status"] = "in_progress"
+                exp["analytics_gate"] = "READY"
+                exp.pop("blocked_reason", None)
+                active_ids.append(str(exp.get("id")))
+
+        self.save()
+        return {
+            "owner_analytics_connected": owner_analytics_connected,
+            "ctr_available": ctr_available,
+            "blocked_count": len(blocked_ids),
+            "blocked_experiment_ids": blocked_ids,
+            "active_count": len(active_ids),
+            "active_experiment_ids": active_ids,
+        }
+
     def save(self) -> None:
         """Persists experiments atomically under cross-process lock."""
         os.makedirs(os.path.dirname(os.path.abspath(self.storage_path)), exist_ok=True)
