@@ -1655,6 +1655,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
         generate_phase23_reports,
         generate_phase24_reports,
         generate_phase25_execution_report,
+        generate_phase26_reports,
     )
     from agents.adaptive_engine import generate_weekly_adaptive_strategy
 
@@ -1669,6 +1670,7 @@ def run_weekly_performance_review(days_back: int = 30) -> dict:
     phase23_reports = generate_phase23_reports(evaluation_window_days=days_back)
     phase24_reports = generate_phase24_reports(evaluation_window_days=days_back)
     phase25_report = generate_phase25_execution_report(evaluation_window_days=days_back)
+    phase26_reports = generate_phase26_reports(evaluation_window_days=days_back)
 
     print("\n" + "=" * 70)
     print(f"  📊 Weekly Performance Review Complete (Rolling {days_back}-Day Window)")

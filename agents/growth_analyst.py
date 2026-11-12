@@ -2087,3 +2087,166 @@ def generate_phase25_execution_report(
         json.dump(report, f, indent=2, ensure_ascii=False)
     report["report_path"] = report_path
     return report
+
+
+def audit_published_content_sample(
+    output_dir: Optional[str] = None,
+    shorts_sample_size: int = 5,
+    longform_sample_size: int = 3,
+    db_override: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """
+    Phase 26: Audits a representative sample of actually published Shorts & Long-form videos
+    and local rendered artifacts (scheduled_queue, thumbnails) for title clarity,
+    duration compliance (Shorts <= 60s), duplicate prefix / corrupted Devanagari issues,
+    and storytelling/packaging alignment.
+    """
+    import re as _re
+
+    out_dir = output_dir or getattr(config, "OUTPUT_DIR", "output")
+    db = db_override or get_performance_db()
+    real_vids = [
+        v for v in db.get_videos_in_window(days=30)
+        if not v.get("is_test_fixture")
+        and not (v.get("metadata_extras") or {}).get("is_test_fixture")
+        and v.get("data_provenance") != "mock_or_test_data"
+    ]
+    shorts = sorted([v for v in real_vids if v.get("video_format") == "short"], key=lambda x: x.get("publication_timestamp", ""), reverse=True)[:shorts_sample_size]
+    longform = sorted([v for v in real_vids if v.get("video_format") == "longform"], key=lambda x: x.get("publication_timestamp", ""), reverse=True)[:longform_sample_size]
+
+    def _inspect_video(v: Dict[str, Any], expected_fmt: str) -> Dict[str, Any]:
+        title = str(v.get("title", "") or "")
+        dur = float(v.get("video_duration_seconds") or 0.0)
+        m = v.get("latest_metrics") or {}
+        pkg = evaluate_packaging_candidate(title=title, documentary_topic=v.get("topic", ""), video_format=expected_fmt)
+        findings: List[str] = list(pkg.get("issues", []))
+
+        if expected_fmt == "short" and dur > 60.0:
+            findings.append(f"Duration {dur:.0f}s exceeds 60s Shorts ceiling.")
+        if expected_fmt == "longform" and 0 < dur < 180.0:
+            findings.append(f"Duration {dur:.0f}s is under 3 minutes; likely a misclassified Short.")
+        # Detect repeated/concatenated prefix before colon (e.g. 'This 1600YearOld Iron: Why Has This...')
+        if ":" in title:
+            prefix, rest = title.split(":", 1)
+            p_words = [w for w in _re.findall(r"[A-Za-z0-9]+", prefix.lower()) if len(w) > 3]
+            if p_words and sum(1 for w in p_words if w in rest.lower()) >= max(1, len(p_words) // 2):
+                findings.append("Title has redundant/duplicated hook prefix before colon.")
+
+        return {
+            "video_id": v.get("video_id"),
+            "title": title,
+            "published_at": v.get("publication_timestamp"),
+            "duration_seconds": dur,
+            "public_metrics": {
+                "views": m.get("views"),
+                "likes": m.get("likes"),
+                "comments": m.get("comments"),
+            },
+            "private_owner_metrics_available": bool(v.get("owner_analytics_available")),
+            "packaging_score": pkg.get("title_score"),
+            "audit_findings": findings,
+        }
+
+    shorts_audited = [_inspect_video(s, "short") for s in shorts]
+    longform_audited = [_inspect_video(l, "longform") for l in longform]
+
+    local_artifacts = {
+        "video_files": sorted(f for f in os.listdir(out_dir) if f.endswith(".mp4")) if os.path.isdir(out_dir) else [],
+        "thumbnail_files": sorted(f for f in os.listdir(out_dir) if f.endswith((".jpg", ".png"))) if os.path.isdir(out_dir) else [],
+        "scheduled_queue_files": sorted(os.listdir(os.path.join(out_dir, "scheduled_queue"))) if os.path.isdir(os.path.join(out_dir, "scheduled_queue")) else [],
+    }
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "shorts_sample_count": len(shorts_audited),
+        "longform_sample_count": len(longform_audited),
+        "shorts_audit": shorts_audited,
+        "longform_audit": longform_audited,
+        "local_rendered_artifacts": local_artifacts,
+        "editorial_note": (
+            "Narration quality, visual storytelling, and ending payoff of already-published YouTube videos require manual/owner Studio review when local script JSONs are absent."
+        ),
+    }
+
+
+def generate_phase26_reports(
+    output_dir: Optional[str] = None,
+    evaluation_window_days: int = 30,
+) -> Dict[str, Any]:
+    """
+    Phase 26: Generates all 6 Analytics Activation & Audience Discovery reports:
+      1. oauth_analytics_activation_report.json
+      2. api_capability_matrix.json
+      3. actual_content_audit_report.json
+      4. audience_discovery_report.json
+      5. experiment_readiness_report.json
+      6. phase25_30day_growth_evaluation.json (updated)
+    """
+    from agents.adaptive_engine import generate_adaptive_opportunity_report
+    from apis.youtube_analytics import get_api_capability_matrix
+    from uploader.oauth_manager import audit_token_scopes
+
+    out_dir = output_dir or getattr(config, "OUTPUT_DIR", "output")
+    os.makedirs(out_dir, exist_ok=True)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    oauth_state = audit_token_scopes()
+    cap_matrix = get_api_capability_matrix()
+    content_audit = audit_published_content_sample(output_dir=out_dir)
+    opp_raw = generate_adaptive_opportunity_report()
+    phase25 = generate_phase25_execution_report(output_dir=out_dir, evaluation_window_days=evaluation_window_days)
+
+    oauth_report = {
+        "generated_at": now_iso,
+        "channel_id": getattr(config, "YOUTUBE_CHANNEL_ID", ""),
+        "status": "CONNECTED" if oauth_state.get("is_fully_authorized") else "BLOCKED",
+        "oauth_audit": oauth_state,
+        "owner_analytics_verified": bool(cap_matrix.get("owner_analytics_connected")),
+        "reauthorization_command": ".venv\\Scripts\\python.exe authorize_youtube.py",
+    }
+
+    audience_discovery = {
+        "generated_at": now_iso,
+        "measured_demand": {
+            "source": "youtube_data_api_v3",
+            "shorts_total_views_30d": phase25["baseline"]["shorts"]["total_views"],
+            "longform_total_views_30d": phase25["baseline"]["longform"]["total_views"],
+            "search_volume_note": "Exact search volume figures are not fabricated; free YouTube Data API v3 does not expose keyword search volume.",
+        },
+        "editorial_judgment": {
+            "recommended_shorts": opp_raw.get("recommended_shorts", []),
+            "recommended_longform": opp_raw.get("recommended_longform", []),
+            "reserve_topics": opp_raw.get("reserve_topics", []),
+            "channel_diversity": opp_raw.get("channel_diversity", {}),
+        },
+    }
+
+    exp_readiness = {
+        "generated_at": now_iso,
+        "analytics_readiness_gate": phase25["analytics_readiness_gate"],
+        "experiments": phase25["experiment_register"],
+        "policy": "Experiments whose required metrics are unavailable are marked BLOCKED; no metric substitution is permitted.",
+    }
+
+    paths = {"phase25_30day_growth_evaluation": phase25.get("report_path")}
+    for key, fname, payload in [
+        ("oauth_analytics_activation", "oauth_analytics_activation_report.json", oauth_report),
+        ("api_capability_matrix", "api_capability_matrix.json", cap_matrix),
+        ("actual_content_audit", "actual_content_audit_report.json", content_audit),
+        ("audience_discovery", "audience_discovery_report.json", audience_discovery),
+        ("experiment_readiness", "experiment_readiness_report.json", exp_readiness),
+    ]:
+        p = os.path.join(out_dir, fname)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+        paths[key] = p
+
+    return {
+        "oauth_analytics_activation": oauth_report,
+        "api_capability_matrix": cap_matrix,
+        "actual_content_audit": content_audit,
+        "audience_discovery": audience_discovery,
+        "experiment_readiness": exp_readiness,
+        "phase25_30day_growth_evaluation": phase25,
+        "paths": paths,
+    }

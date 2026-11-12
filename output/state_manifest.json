@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
-  "last_sync_at": "2026-11-12T08:52:13.455173+00:00",
+  "last_sync_at": "2026-11-12T08:56:58.769622+00:00",
   "authoritative_stores": {
     "historical_performance_db.json": {
       "revision": 1,
-      "sha256": "01ab860e0ceeb1252e0ea2e4cb50fb968d114719f5e146b94d3a4e80ce3af1cf"
+      "sha256": "45d7d877da570a712ce8da3656709c8d5ad9780021e1d866ee51564f84bbba42"
     },
     "automation_schedule.json": {
       "revision": 2,
@@ -12,7 +12,7 @@
     },
     "growth_experiments.json": {
       "revision": 1,
-      "sha256": "cb0fb64cefdbb3ba99a23b4d14f63a52cc4bb587229eb6e5eb16a8e0928cf9a5"
+      "sha256": "5a31072becff6826d27f9510a6112131c557099a3cc268212ffb199b0ddbb789"
     }
   },
   "sqlite_ledger": "yaas_state.sqlite"

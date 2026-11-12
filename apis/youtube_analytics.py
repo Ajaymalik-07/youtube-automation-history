@@ -913,3 +913,133 @@ def generate_weekly_format_report(
         json.dump(report, f, indent=2, ensure_ascii=False)
 
     return report
+
+
+def get_api_capability_matrix() -> Dict[str, Any]:
+    """
+    Phase 26: Returns an honest, per-metric capability matrix distinguishing
+    YouTube Data API v3, YouTube Analytics API v2, and YouTube Studio-only metrics.
+    """
+    caps = get_analytics_capabilities_and_limitations()
+    has_data_api = bool(caps.get("has_public_data_api_fallback"))
+    has_ro = bool(caps.get("has_youtube_readonly_scope"))
+    has_yt_ana = bool(caps.get("has_analytics_scope"))
+
+    metrics = [
+        {
+            "metric": "views",
+            "api_source": "YouTube Data API v3 / YouTube Analytics API v2",
+            "required_permission": "API Key (public) or youtube.readonly / yt-analytics.readonly",
+            "available_channel_level": True,
+            "available_video_level": True,
+            "reporting_delay": "Near real-time (Data API) / ~48h (Analytics API v2)",
+            "historical_data_available": True,
+            "currently_authorized": has_data_api or has_ro or has_yt_ana,
+            "known_limitations": "Public Data API v3 provides cumulative totals only, not daily time-series.",
+        },
+        {
+            "metric": "likes_and_comments",
+            "api_source": "YouTube Data API v3 / YouTube Analytics API v2",
+            "required_permission": "API Key (public) or yt-analytics.readonly",
+            "available_channel_level": True,
+            "available_video_level": True,
+            "reporting_delay": "Near real-time (Data API)",
+            "historical_data_available": True,
+            "currently_authorized": has_data_api or has_yt_ana,
+            "known_limitations": "Public Data API v3 returns cumulative totals.",
+        },
+        {
+            "metric": "watch_time_minutes",
+            "api_source": "YouTube Analytics API v2 (estimatedMinutesWatched)",
+            "required_permission": "yt-analytics.readonly (channel owner OAuth)",
+            "available_channel_level": True,
+            "available_video_level": True,
+            "reporting_delay": "~48 hours",
+            "historical_data_available": True,
+            "currently_authorized": has_yt_ana,
+            "known_limitations": "Unavailable without owner OAuth yt-analytics.readonly scope.",
+        },
+        {
+            "metric": "average_view_duration_seconds",
+            "api_source": "YouTube Analytics API v2 (averageViewDuration)",
+            "required_permission": "yt-analytics.readonly (channel owner OAuth)",
+            "available_channel_level": True,
+            "available_video_level": True,
+            "reporting_delay": "~48 hours",
+            "historical_data_available": True,
+            "currently_authorized": has_yt_ana,
+            "known_limitations": "Unavailable without owner OAuth yt-analytics.readonly scope.",
+        },
+        {
+            "metric": "average_percentage_viewed",
+            "api_source": "YouTube Analytics API v2 (averageViewPercentage)",
+            "required_permission": "yt-analytics.readonly (channel owner OAuth)",
+            "available_channel_level": True,
+            "available_video_level": True,
+            "reporting_delay": "~48 hours",
+            "historical_data_available": True,
+            "currently_authorized": has_yt_ana,
+            "known_limitations": "Unavailable without owner OAuth yt-analytics.readonly scope.",
+        },
+        {
+            "metric": "subscribers_gained",
+            "api_source": "YouTube Analytics API v2 (subscribersGained)",
+            "required_permission": "yt-analytics.readonly (channel owner OAuth)",
+            "available_channel_level": True,
+            "available_video_level": True,
+            "reporting_delay": "~48 hours",
+            "historical_data_available": True,
+            "currently_authorized": has_yt_ana,
+            "known_limitations": "Unavailable without owner OAuth yt-analytics.readonly scope.",
+        },
+        {
+            "metric": "traffic_sources",
+            "api_source": "YouTube Analytics API v2 (insightTrafficSourceType)",
+            "required_permission": "yt-analytics.readonly (channel owner OAuth)",
+            "available_channel_level": True,
+            "available_video_level": True,
+            "reporting_delay": "~48 hours",
+            "historical_data_available": True,
+            "currently_authorized": has_yt_ana,
+            "known_limitations": "Unavailable without owner OAuth yt-analytics.readonly scope.",
+        },
+        {
+            "metric": "impressions_and_ctr",
+            "api_source": "YouTube Studio / Reporting API Reach Reports only",
+            "required_permission": "YouTube Studio Reach Report (not exposed in Analytics API v2 reports.query)",
+            "available_channel_level": False,
+            "available_video_level": False,
+            "reporting_delay": "N/A via standard Analytics API v2",
+            "historical_data_available": False,
+            "currently_authorized": False,
+            "known_limitations": "Standard YouTube Analytics API v2 reports.query does not expose thumbnail impressions or impressions CTR.",
+        },
+        {
+            "metric": "shorts_viewed_vs_swiped_and_retention_curves",
+            "api_source": "YouTube Studio UI only",
+            "required_permission": "YouTube Studio UI (not exposed in standard Analytics API v2)",
+            "available_channel_level": False,
+            "available_video_level": False,
+            "reporting_delay": "N/A via API",
+            "historical_data_available": False,
+            "currently_authorized": False,
+            "known_limitations": "Granular second-by-second retention curves and Shorts Viewed vs Swiped Away are not exposed in standard Analytics API v2.",
+        },
+        {
+            "metric": "returning_viewers",
+            "api_source": "YouTube Analytics API v2 (channel audience dimension where supported)",
+            "required_permission": "yt-analytics.readonly (channel owner OAuth)",
+            "available_channel_level": True,
+            "available_video_level": False,
+            "reporting_delay": "~48 hours",
+            "historical_data_available": True,
+            "currently_authorized": has_yt_ana,
+            "known_limitations": "Not available at individual video level in standard v2 queries.",
+        },
+    ]
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "owner_analytics_connected": bool(caps.get("owner_analytics_connected")),
+        "metrics": metrics,
+    }
