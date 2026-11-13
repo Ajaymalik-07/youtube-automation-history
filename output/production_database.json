@@ -1,0 +1,118 @@
+{
+  "output\\live_test_dwarka\\final_short.mp4": {
+    "schema_version": 2,
+    "revision": 6,
+    "video_path": "output/live_test_dwarka\\final_short.mp4",
+    "filename": "final_short.mp4",
+    "current_state": "ANALYTICS_PENDING",
+    "history": [
+      {
+        "from_state": "METADATA_VALIDATED",
+        "to_state": "UPLOAD_QUEUED",
+        "timestamp": "2026-11-12T11:15:34.429190+00:00"
+      },
+      {
+        "from_state": "UPLOAD_QUEUED",
+        "to_state": "UPLOADING",
+        "timestamp": "2026-11-12T11:15:34.739689+00:00"
+      },
+      {
+        "from_state": "UPLOADING",
+        "to_state": "PUBLISHED",
+        "timestamp": "2026-11-12T11:15:43.446367+00:00"
+      },
+      {
+        "from_state": "PUBLISHED",
+        "to_state": "ANALYTICS_PENDING",
+        "timestamp": "2026-11-12T11:15:43.462843+00:00"
+      }
+    ],
+    "quality_gate": {
+      "passed": true,
+      "timestamp": "2026-11-12T11:15:34.314607+00:00",
+      "is_shorts": true,
+      "gates": {
+        "research": {
+          "passed": true,
+          "issues": []
+        },
+        "script": {
+          "passed": true,
+          "issues": []
+        },
+        "video": {
+          "passed": true,
+          "issues": []
+        },
+        "metadata": {
+          "passed": true,
+          "issues": []
+        }
+      },
+      "blocking_issues": [],
+      "video_path": "output/live_test_dwarka\\final_short.mp4",
+      "thumb_path": null,
+      "diagnostic_file": "output\\diagnostics\\diagnostic_final_short.mp4.json"
+    },
+    "metadata": {
+      "quality_report": {
+        "passed": true,
+        "timestamp": "2026-11-12T11:15:34.314607+00:00",
+        "is_shorts": true,
+        "gates": {
+          "research": {
+            "passed": true,
+            "issues": []
+          },
+          "script": {
+            "passed": true,
+            "issues": []
+          },
+          "video": {
+            "passed": true,
+            "issues": []
+          },
+          "metadata": {
+            "passed": true,
+            "issues": []
+          }
+        },
+        "blocking_issues": [],
+        "video_path": "output/live_test_dwarka\\final_short.mp4",
+        "thumb_path": null,
+        "diagnostic_file": "output\\diagnostics\\diagnostic_final_short.mp4.json"
+      },
+      "title": "Submerged Dwarka: What Marine Archaeology Actually Found #Shorts",
+      "is_shorts": true,
+      "mode": "immediate",
+      "privacy": "public",
+      "publish_at": null,
+      "youtube_id": "Ik7SOWFFyJk",
+      "youtube_url": "https://www.youtube.com/watch?v=Ik7SOWFFyJk",
+      "intended_publish_at": null,
+      "publication_status": "PUBLISHED",
+      "upload_completed": true,
+      "youtube_processing_completed": false,
+      "actually_published": true,
+      "processing_verification": {
+        "ok": true,
+        "video_id": "Ik7SOWFFyJk",
+        "channel_id": "UCb1BDNY8WxoD1q_UVyEmvuw",
+        "channel_verified": true,
+        "upload_status": "uploaded",
+        "privacy_status": "public",
+        "publish_at": null,
+        "processing_status": "processing",
+        "is_processing_complete": false,
+        "is_processing_failed": false,
+        "failure_reason": null,
+        "parts_available": null
+      }
+    },
+    "retry_count": 0,
+    "recovered_count": 0,
+    "was_failed": false,
+    "created_at": "2026-11-12T11:15:34.391367+00:00",
+    "updated_at": "2026-11-12T11:15:43.462843+00:00"
+  }
+}
