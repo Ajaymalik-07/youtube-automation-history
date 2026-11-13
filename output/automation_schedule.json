@@ -806,6 +806,48 @@
       "url": "https://www.youtube.com/watch?v=zCOSA9cHTHQ",
       "date_ist": "2026-11-13T01:07:48.744280+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Nalanda Burn Whole: Why Did Nalanda Burn For 3 Whole Months?...",
+      "url": "https://www.youtube.com/watch?v=8nLcQS0QuTA",
+      "date_ist": "2026-11-14T02:12:08.950168+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Deadly Curse KohiNoor: The Deadly Curse Of Koh-i-Noor: Why Male...",
+      "url": "https://www.youtube.com/watch?v=qz4QCZup2vY",
+      "date_ist": "2026-11-14T02:17:59.129637+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u091c\u0932\u0930\u091c\u0924 \u0932\u0907\u092c\u0930\u0930: \u0915\u093f\u0938\u0928\u0947 \u091c\u0932\u093e\u0930\u094d\u091c\u093f\u0924 \u0915\u0940 \u0925\u0940 \u0928\u093e\u0932\u0902\u0926\u093e \u0915\u0940 \u092e\u0939\u093e\u0928 \u0932\u093e\u0907\u092c\u094d\u0930\u0947\u0930\u0940?...",
+      "url": "https://www.youtube.com/watch?v=74G7HCfqAXI",
+      "date_ist": "2026-11-14T02:24:06.827201+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u092e\u0939\u092d\u0930\u0924: \u0915\u094d\u092f\u093e \u092e\u0939\u093e\u092d\u093e\u0930\u0924 \u0915\u0947 \u092a\u093e\u0924\u094d\u0930 \u0906\u091c \u092d\u0940 \u091c\u0940\u0935\u093f\u0924 \u0939\u0948\u0902? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=NnQLIEWMFgk",
+      "date_ist": "2026-11-14T02:29:03.094843+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Mahabharata Actually Happen: Did Mahabharata War Actually Happen...",
+      "url": "https://www.youtube.com/watch?v=-qRFPubY8uE",
+      "date_ist": "2026-11-14T02:35:09.265666+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Lost City Dwarka: The Sunken City That Proves...",
+      "url": "https://www.youtube.com/watch?v=EJHBdyhN-9s",
+      "date_ist": "2026-11-14T03:16:56.147186+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -835,11 +877,11 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-14",
+  "last_longform_date": "2026-11-15",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-14",
+  "last_longform_pub_date": "2026-11-15",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -991,5 +1033,17 @@
   "last_short_pub_2026-11-14_22": true,
   "last_short_pub_2026-11-14_22_url": "https://www.youtube.com/watch?v=4UvzH5vZsu8",
   "last_longform_pub_2026-11-14": true,
-  "last_longform_pub_2026-11-14_url": "https://www.youtube.com/watch?v=zCOSA9cHTHQ"
+  "last_longform_pub_2026-11-14_url": "https://www.youtube.com/watch?v=zCOSA9cHTHQ",
+  "last_short_pub_2026-11-15_9": true,
+  "last_short_pub_2026-11-15_9_url": "https://www.youtube.com/watch?v=8nLcQS0QuTA",
+  "last_short_pub_2026-11-15_12": true,
+  "last_short_pub_2026-11-15_12_url": "https://www.youtube.com/watch?v=qz4QCZup2vY",
+  "last_short_pub_2026-11-15_16": true,
+  "last_short_pub_2026-11-15_16_url": "https://www.youtube.com/watch?v=74G7HCfqAXI",
+  "last_short_pub_2026-11-15_19": true,
+  "last_short_pub_2026-11-15_19_url": "https://www.youtube.com/watch?v=NnQLIEWMFgk",
+  "last_short_pub_2026-11-15_22": true,
+  "last_short_pub_2026-11-15_22_url": "https://www.youtube.com/watch?v=-qRFPubY8uE",
+  "last_longform_pub_2026-11-15": true,
+  "last_longform_pub_2026-11-15_url": "https://www.youtube.com/watch?v=EJHBdyhN-9s"
 }
