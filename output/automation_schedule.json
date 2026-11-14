@@ -890,6 +890,20 @@
       "url": "local://scheduled_queue/2026-11-16/longform",
       "date_ist": "2026-11-15T01:43:39.424964+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Amazon Hide MillionMan: Did the Amazon Hide a Million-Man Empire?...",
+      "url": "https://www.youtube.com/watch?v=1CVxmO1xY3M",
+      "date_ist": "2026-11-15T02:23:15.593023+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Saraswati River Lost: \u0935\u0939 \u092d\u0942\u0924\u093f\u092f\u093e \u0928\u0926\u0940 \u091c\u093f\u0938\u0928\u0947 \u090f\u0915 \u092a\u094d\u0930\u093e\u091a\u0940\u0928...",
+      "url": "https://www.youtube.com/watch?v=58T0RGeUbA4",
+      "date_ist": "2026-11-15T02:23:52.113780+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -923,7 +937,7 @@
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-15",
+  "last_longform_pub_date": "2026-11-16",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -1095,5 +1109,9 @@
   "last_short_pub_2026-11-16_16": true,
   "last_short_pub_2026-11-16_16_url": "https://www.youtube.com/watch?v=EAHe75RkLPo",
   "last_short_pub_2026-11-16_19": true,
-  "last_short_pub_2026-11-16_19_url": "https://www.youtube.com/watch?v=eLsSySe8ly4"
+  "last_short_pub_2026-11-16_19_url": "https://www.youtube.com/watch?v=eLsSySe8ly4",
+  "last_short_pub_2026-11-16_22": true,
+  "last_short_pub_2026-11-16_22_url": "https://www.youtube.com/watch?v=1CVxmO1xY3M",
+  "last_longform_pub_2026-11-16": true,
+  "last_longform_pub_2026-11-16_url": "https://www.youtube.com/watch?v=58T0RGeUbA4"
 }
