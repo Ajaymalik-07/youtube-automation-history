@@ -848,6 +848,48 @@
       "url": "https://www.youtube.com/watch?v=EJHBdyhN-9s",
       "date_ist": "2026-11-14T03:16:56.147186+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "4500YearOld River City: The 4,500-Year-Old River City With Secret...",
+      "url": "https://www.youtube.com/watch?v=n99Zc8JYt_Q",
+      "date_ist": "2026-11-15T00:24:37.657729+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Ancient Egypt used secret water elevators to build Pyramids?...",
+      "url": "https://www.youtube.com/watch?v=b5zobnkLjfo",
+      "date_ist": "2026-11-15T00:30:18.729966+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Hidden Amazon River Ruins Prove History Books Wrong! #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=EAHe75RkLPo",
+      "date_ist": "2026-11-15T00:36:29.629539+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "How Did the Nile Reverse Flow for Pharaohs? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=eLsSySe8ly4",
+      "date_ist": "2026-11-15T00:41:14.902654+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The River That Cursed China's Kings #Shorts #History",
+      "url": "local://pending_quota_reset/final_short.mp4",
+      "date_ist": "2026-11-15T00:47:01.722047+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Sarasvati River Lost: The Ghost River That Built...",
+      "url": "local://scheduled_queue/2026-11-16/longform",
+      "date_ist": "2026-11-15T01:43:39.424964+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -877,7 +919,7 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-15",
+  "last_longform_date": "2026-11-16",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
@@ -1045,5 +1087,13 @@
   "last_short_pub_2026-11-15_22": true,
   "last_short_pub_2026-11-15_22_url": "https://www.youtube.com/watch?v=-qRFPubY8uE",
   "last_longform_pub_2026-11-15": true,
-  "last_longform_pub_2026-11-15_url": "https://www.youtube.com/watch?v=EJHBdyhN-9s"
+  "last_longform_pub_2026-11-15_url": "https://www.youtube.com/watch?v=EJHBdyhN-9s",
+  "last_short_pub_2026-11-16_9": true,
+  "last_short_pub_2026-11-16_9_url": "https://www.youtube.com/watch?v=n99Zc8JYt_Q",
+  "last_short_pub_2026-11-16_12": true,
+  "last_short_pub_2026-11-16_12_url": "https://www.youtube.com/watch?v=b5zobnkLjfo",
+  "last_short_pub_2026-11-16_16": true,
+  "last_short_pub_2026-11-16_16_url": "https://www.youtube.com/watch?v=EAHe75RkLPo",
+  "last_short_pub_2026-11-16_19": true,
+  "last_short_pub_2026-11-16_19_url": "https://www.youtube.com/watch?v=eLsSySe8ly4"
 }
