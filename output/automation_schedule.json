@@ -946,6 +946,27 @@
       "url": "local://scheduled_queue/2026-11-17/longform",
       "date_ist": "2026-11-16T01:53:02.142923+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of This Cursed Fort Killed Every King Who Ruled It!...",
+      "url": "https://www.youtube.com/watch?v=fzJ520InbLc",
+      "date_ist": "2026-11-16T02:46:23.679617+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Haunted Fort Where an Entire Army Vanished...",
+      "url": "https://www.youtube.com/watch?v=UrlL1hx_2to",
+      "date_ist": "2026-11-16T02:52:25.538178+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Cursed Fort Bhangarh: Why India Legally Bans Entry to This...",
+      "url": "https://www.youtube.com/watch?v=slua8s9ePDo",
+      "date_ist": "2026-11-16T03:23:37.850891+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -979,7 +1000,7 @@
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-16",
+  "last_longform_pub_date": "2026-11-17",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -1161,5 +1182,11 @@
   "last_short_pub_2026-11-17_12": true,
   "last_short_pub_2026-11-17_12_url": "https://www.youtube.com/watch?v=YJTQsy8Fybs",
   "last_short_pub_2026-11-17_16": true,
-  "last_short_pub_2026-11-17_16_url": "https://www.youtube.com/watch?v=IjsOGfdHz7w"
+  "last_short_pub_2026-11-17_16_url": "https://www.youtube.com/watch?v=IjsOGfdHz7w",
+  "last_short_pub_2026-11-17_19": true,
+  "last_short_pub_2026-11-17_19_url": "https://www.youtube.com/watch?v=fzJ520InbLc",
+  "last_short_pub_2026-11-17_22": true,
+  "last_short_pub_2026-11-17_22_url": "https://www.youtube.com/watch?v=UrlL1hx_2to",
+  "last_longform_pub_2026-11-17": true,
+  "last_longform_pub_2026-11-17_url": "https://www.youtube.com/watch?v=slua8s9ePDo"
 }
