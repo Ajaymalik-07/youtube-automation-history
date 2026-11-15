@@ -904,6 +904,48 @@
       "url": "https://www.youtube.com/watch?v=58T0RGeUbA4",
       "date_ist": "2026-11-15T02:23:52.113780+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Why Is This Indian Fort Illegal After Sunset? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=xLm_9yGXjEY",
+      "date_ist": "2026-11-16T01:00:48.163285+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Only Fort Legally Banned After Dark! #Shorts...",
+      "url": "https://www.youtube.com/watch?v=YJTQsy8Fybs",
+      "date_ist": "2026-11-16T01:05:32.993626+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Dark Historical Tragedy Behind Bhangarh\u2019s Curse...",
+      "url": "https://www.youtube.com/watch?v=IjsOGfdHz7w",
+      "date_ist": "2026-11-16T01:10:12.931974+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Tragic Dark History Behind India's Cursed...",
+      "url": "local://pending_quota_reset/final_short.mp4",
+      "date_ist": "2026-11-16T01:14:47.012501+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "200YearOld Curse That: The 200-Year-Old Curse That Still Haunts...",
+      "url": "local://scheduled_queue/2026-11-17/short_5",
+      "date_ist": "2026-11-16T01:20:05.517141+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Cursed Legion Roman: The Roman Legion That Still...",
+      "url": "local://scheduled_queue/2026-11-17/longform",
+      "date_ist": "2026-11-16T01:53:02.142923+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -933,7 +975,7 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-16",
+  "last_longform_date": "2026-11-17",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
@@ -1113,5 +1155,11 @@
   "last_short_pub_2026-11-16_22": true,
   "last_short_pub_2026-11-16_22_url": "https://www.youtube.com/watch?v=1CVxmO1xY3M",
   "last_longform_pub_2026-11-16": true,
-  "last_longform_pub_2026-11-16_url": "https://www.youtube.com/watch?v=58T0RGeUbA4"
+  "last_longform_pub_2026-11-16_url": "https://www.youtube.com/watch?v=58T0RGeUbA4",
+  "last_short_pub_2026-11-17_9": true,
+  "last_short_pub_2026-11-17_9_url": "https://www.youtube.com/watch?v=xLm_9yGXjEY",
+  "last_short_pub_2026-11-17_12": true,
+  "last_short_pub_2026-11-17_12_url": "https://www.youtube.com/watch?v=YJTQsy8Fybs",
+  "last_short_pub_2026-11-17_16": true,
+  "last_short_pub_2026-11-17_16_url": "https://www.youtube.com/watch?v=IjsOGfdHz7w"
 }
