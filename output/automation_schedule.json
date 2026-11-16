@@ -967,6 +967,48 @@
       "url": "https://www.youtube.com/watch?v=slua8s9ePDo",
       "date_ist": "2026-11-16T03:23:37.850891+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of poison diet ancient: The poison diet of ancient...",
+      "url": "https://www.youtube.com/watch?v=qXoWr9ufAFA",
+      "date_ist": "2026-11-17T02:13:30.728542+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Why Did Chola Kings Blind Their Own Princes? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=4XICAIiCpbw",
+      "date_ist": "2026-11-17T02:19:25.691333+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of Mystery Behind Gupta: The Mystery Behind the Gupta...",
+      "url": "https://www.youtube.com/watch?v=qU0hC4OpJZM",
+      "date_ist": "2026-11-17T02:24:39.817703+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Why did the Mughal Empire suddenly collapse? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=XNknN_Dh67U",
+      "date_ist": "2026-11-17T02:31:06.661149+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Why Did the Gupta Empire Actually Collapse? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=0Lm2h3UanVU",
+      "date_ist": "2026-11-17T02:36:04.283180+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Shadow Empress Gupta: The Forgotten Empress Who...",
+      "url": "https://www.youtube.com/watch?v=3MOOU9gcqoo",
+      "date_ist": "2026-11-17T03:17:10.614488+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -996,11 +1038,11 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-17",
+  "last_longform_date": "2026-11-18",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-17",
+  "last_longform_pub_date": "2026-11-18",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -1188,5 +1230,17 @@
   "last_short_pub_2026-11-17_22": true,
   "last_short_pub_2026-11-17_22_url": "https://www.youtube.com/watch?v=UrlL1hx_2to",
   "last_longform_pub_2026-11-17": true,
-  "last_longform_pub_2026-11-17_url": "https://www.youtube.com/watch?v=slua8s9ePDo"
+  "last_longform_pub_2026-11-17_url": "https://www.youtube.com/watch?v=slua8s9ePDo",
+  "last_short_pub_2026-11-18_9": true,
+  "last_short_pub_2026-11-18_9_url": "https://www.youtube.com/watch?v=qXoWr9ufAFA",
+  "last_short_pub_2026-11-18_12": true,
+  "last_short_pub_2026-11-18_12_url": "https://www.youtube.com/watch?v=4XICAIiCpbw",
+  "last_short_pub_2026-11-18_16": true,
+  "last_short_pub_2026-11-18_16_url": "https://www.youtube.com/watch?v=qU0hC4OpJZM",
+  "last_short_pub_2026-11-18_19": true,
+  "last_short_pub_2026-11-18_19_url": "https://www.youtube.com/watch?v=XNknN_Dh67U",
+  "last_short_pub_2026-11-18_22": true,
+  "last_short_pub_2026-11-18_22_url": "https://www.youtube.com/watch?v=0Lm2h3UanVU",
+  "last_longform_pub_2026-11-18": true,
+  "last_longform_pub_2026-11-18_url": "https://www.youtube.com/watch?v=3MOOU9gcqoo"
 }
