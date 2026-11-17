@@ -1009,6 +1009,48 @@
       "url": "https://www.youtube.com/watch?v=3MOOU9gcqoo",
       "date_ist": "2026-11-17T03:17:10.614488+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u091a\u091f\u091f\u0928: \u0915\u0948\u0932\u093e\u0936 \u092e\u0902\u0926\u093f\u0930: \u090f\u0915 \u0930\u093e\u0924 \u092e\u0947\u0902 \u0915\u0948\u0938\u0947 \u0915\u091f\u093e \u090f\u0915 \u0939\u0940 \u091a\u091f\u094d\u091f\u093e\u0928? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=JwJLIdCUNYs",
+      "date_ist": "2026-11-18T00:53:20.946115+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "1600 \u0930\u0939\u0938\u092f\u092e\u092f: 1600 \u0938\u093e\u0932 \u092a\u0941\u0930\u093e\u0928\u093e \u0930\u0939\u0938\u094d\u092f\u092e\u092f\u0940 \u0932\u094b\u0939 \u0938\u094d\u0924\u0902\u092d! #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=TV1RtAOx42Y",
+      "date_ist": "2026-11-18T00:59:17.838496+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u092a\u0930\u091a\u0928: \u092a\u094d\u0930\u093e\u091a\u0940\u0928 \u092e\u093f\u0938\u094d\u0930 \u0915\u093e \u092f\u0939 \u092c\u0932\u094d\u092c \u0915\u094d\u092f\u093e \u0938\u091a \u0925\u093e? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=oIMHWEZcrn8",
+      "date_ist": "2026-11-18T01:03:55.972863+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Why built giant monoliths: Who built the giant monoliths of the...",
+      "url": "https://www.youtube.com/watch?v=ixrRd3aZ3aQ",
+      "date_ist": "2026-11-18T01:10:13.705046+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Baffling Monoliths They: Baffling Monoliths: How Did They Move...",
+      "url": "local://pending_quota_reset/final_short.mp4",
+      "date_ist": "2026-11-18T01:15:22.743974+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Peoples Collapse Bronze: The Day Civilization Vanished: 1177 BC",
+      "url": "local://scheduled_queue/2026-11-19/longform",
+      "date_ist": "2026-11-18T01:54:46.715989+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -1038,7 +1080,7 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-18",
+  "last_longform_date": "2026-11-19",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
@@ -1242,5 +1284,13 @@
   "last_short_pub_2026-11-18_22": true,
   "last_short_pub_2026-11-18_22_url": "https://www.youtube.com/watch?v=0Lm2h3UanVU",
   "last_longform_pub_2026-11-18": true,
-  "last_longform_pub_2026-11-18_url": "https://www.youtube.com/watch?v=3MOOU9gcqoo"
+  "last_longform_pub_2026-11-18_url": "https://www.youtube.com/watch?v=3MOOU9gcqoo",
+  "last_short_pub_2026-11-19_9": true,
+  "last_short_pub_2026-11-19_9_url": "https://www.youtube.com/watch?v=JwJLIdCUNYs",
+  "last_short_pub_2026-11-19_12": true,
+  "last_short_pub_2026-11-19_12_url": "https://www.youtube.com/watch?v=TV1RtAOx42Y",
+  "last_short_pub_2026-11-19_16": true,
+  "last_short_pub_2026-11-19_16_url": "https://www.youtube.com/watch?v=oIMHWEZcrn8",
+  "last_short_pub_2026-11-19_19": true,
+  "last_short_pub_2026-11-19_19_url": "https://www.youtube.com/watch?v=ixrRd3aZ3aQ"
 }
