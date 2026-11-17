@@ -1051,6 +1051,20 @@
       "url": "local://scheduled_queue/2026-11-19/longform",
       "date_ist": "2026-11-18T01:54:46.715989+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u0935\u0936\u0932\u0915\u092f \u092a\u0924\u0925\u0930: \u0915\u0948\u0938\u0947 \u0915\u091f\u0947 \u0925\u0947 \u092f\u0947 \u0935\u093f\u0936\u093e\u0932\u0915\u093e\u092f \u092a\u0924\u094d\u0925\u0930? \u0939\u0948\u0930\u093e\u0928 \u0938\u091a! #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=_SGMDMcoE-c",
+      "date_ist": "2026-11-18T03:28:19.564682+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Peoples Collapse Bronze: The Day Civilization Vanished: 1177 BC",
+      "url": "https://www.youtube.com/watch?v=CHPHxyv5Wjs",
+      "date_ist": "2026-11-18T03:28:38.885967+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -1084,7 +1098,7 @@
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-18",
+  "last_longform_pub_date": "2026-11-19",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -1292,5 +1306,9 @@
   "last_short_pub_2026-11-19_16": true,
   "last_short_pub_2026-11-19_16_url": "https://www.youtube.com/watch?v=oIMHWEZcrn8",
   "last_short_pub_2026-11-19_19": true,
-  "last_short_pub_2026-11-19_19_url": "https://www.youtube.com/watch?v=ixrRd3aZ3aQ"
+  "last_short_pub_2026-11-19_19_url": "https://www.youtube.com/watch?v=ixrRd3aZ3aQ",
+  "last_short_pub_2026-11-19_22": true,
+  "last_short_pub_2026-11-19_22_url": "https://www.youtube.com/watch?v=_SGMDMcoE-c",
+  "last_longform_pub_2026-11-19": true,
+  "last_longform_pub_2026-11-19_url": "https://www.youtube.com/watch?v=CHPHxyv5Wjs"
 }
