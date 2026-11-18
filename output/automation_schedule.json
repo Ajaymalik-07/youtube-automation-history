@@ -1100,6 +1100,13 @@
       "url": "https://www.youtube.com/watch?v=-7qyTejImmI",
       "date_ist": "2026-11-19T01:01:06.804111+05:30",
       "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Battle Pelusium Persia: The Psychological Weapon...",
+      "url": "https://www.youtube.com/watch?v=WirXmY1cJ3k",
+      "date_ist": "2026-11-19T05:01:45.229862+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -1129,11 +1136,11 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-19",
+  "last_longform_date": "2026-11-20",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-19",
+  "last_longform_pub_date": "2026-11-20",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -1355,5 +1362,7 @@
   "last_short_pub_2026-11-20_19": true,
   "last_short_pub_2026-11-20_19_url": "https://www.youtube.com/watch?v=YB_ZWQbtw54",
   "last_short_pub_2026-11-20_22": true,
-  "last_short_pub_2026-11-20_22_url": "https://www.youtube.com/watch?v=-7qyTejImmI"
+  "last_short_pub_2026-11-20_22_url": "https://www.youtube.com/watch?v=-7qyTejImmI",
+  "last_longform_pub_2026-11-20": true,
+  "last_longform_pub_2026-11-20_url": "https://www.youtube.com/watch?v=WirXmY1cJ3k"
 }
