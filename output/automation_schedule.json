@@ -1149,6 +1149,34 @@
       "url": "local://scheduled_queue/2026-11-21/longform",
       "date_ist": "2026-11-20T01:29:12.226121+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "This 5000YearOld Result: This 5,000-Year-Old DNA Result Changed...",
+      "url": "https://www.youtube.com/watch?v=5_nQD1lpvzI",
+      "date_ist": "2026-11-20T02:52:10.661131+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Petra Built This: Petra: Who Built This Desert Mystery? #Shorts...",
+      "url": "https://www.youtube.com/watch?v=9JiA0bujxvM",
+      "date_ist": "2026-11-20T02:52:28.780855+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of Pompeii Frozen Time: Pompeii: Frozen in Time...",
+      "url": "https://www.youtube.com/watch?v=pYKcKaBPYiE",
+      "date_ist": "2026-11-20T02:52:41.148536+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Sunken Kingdom Dwarka: The Sunken City of Dwarka:...",
+      "url": "https://www.youtube.com/watch?v=AlZrBCy5Dlg",
+      "date_ist": "2026-11-20T02:53:08.038625+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -1182,7 +1210,7 @@
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-20",
+  "last_longform_pub_date": "2026-11-21",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -1410,5 +1438,13 @@
   "last_short_pub_2026-11-21_9": true,
   "last_short_pub_2026-11-21_9_url": "https://www.youtube.com/watch?v=2QQkTmuQoaU",
   "last_short_pub_2026-11-21_12": true,
-  "last_short_pub_2026-11-21_12_url": "https://www.youtube.com/watch?v=1A9c7aYLI_Y"
+  "last_short_pub_2026-11-21_12_url": "https://www.youtube.com/watch?v=1A9c7aYLI_Y",
+  "last_short_pub_2026-11-21_16": true,
+  "last_short_pub_2026-11-21_16_url": "https://www.youtube.com/watch?v=5_nQD1lpvzI",
+  "last_short_pub_2026-11-21_19": true,
+  "last_short_pub_2026-11-21_19_url": "https://www.youtube.com/watch?v=9JiA0bujxvM",
+  "last_short_pub_2026-11-21_22": true,
+  "last_short_pub_2026-11-21_22_url": "https://www.youtube.com/watch?v=pYKcKaBPYiE",
+  "last_longform_pub_2026-11-21": true,
+  "last_longform_pub_2026-11-21_url": "https://www.youtube.com/watch?v=AlZrBCy5Dlg"
 }
