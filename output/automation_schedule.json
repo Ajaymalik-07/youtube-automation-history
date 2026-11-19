@@ -1107,6 +1107,48 @@
       "url": "https://www.youtube.com/watch?v=WirXmY1cJ3k",
       "date_ist": "2026-11-19T05:01:45.229862+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "\u0938\u092e\u0926\u0930 \u092d\u0917\u0935\u0928 \u0926\u0935\u0930\u0915: \u0938\u092e\u0941\u0926\u094d\u0930 \u092e\u0947\u0902 \u0921\u0942\u092c\u0940 \u092d\u0917\u0935\u093e\u0928 \u0915\u0943\u0937\u094d\u0923 \u0915\u0940 \u0926\u094d\u0935\u093e\u0930\u0915\u093e? #Shorts...",
+      "url": "https://www.youtube.com/watch?v=2QQkTmuQoaU",
+      "date_ist": "2026-11-20T00:42:37.769695+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "MohenjoDaro this city: Mohenjo-Daro: Why did this city suddenly...",
+      "url": "https://www.youtube.com/watch?v=1A9c7aYLI_Y",
+      "date_ist": "2026-11-20T00:47:00.131946+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of Rakhigarhi city that: Rakhigarhi: The city that...",
+      "url": "local://pending_quota_reset/final_short.mp4",
+      "date_ist": "2026-11-20T00:51:56.748743+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Petra Built This: Petra: Who Built This Desert Mystery? #Shorts...",
+      "url": "local://scheduled_queue/2026-11-21/short_4",
+      "date_ist": "2026-11-20T00:56:52.983439+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of Pompeii Frozen Time: Pompeii: Frozen in Time...",
+      "url": "local://scheduled_queue/2026-11-21/short_5",
+      "date_ist": "2026-11-20T01:01:22.745580+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Sunken Kingdom Dwarka: The Sunken City of Dwarka:...",
+      "url": "local://scheduled_queue/2026-11-21/longform",
+      "date_ist": "2026-11-20T01:29:12.226121+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -1136,7 +1178,7 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-20",
+  "last_longform_date": "2026-11-21",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
@@ -1364,5 +1406,9 @@
   "last_short_pub_2026-11-20_22": true,
   "last_short_pub_2026-11-20_22_url": "https://www.youtube.com/watch?v=-7qyTejImmI",
   "last_longform_pub_2026-11-20": true,
-  "last_longform_pub_2026-11-20_url": "https://www.youtube.com/watch?v=WirXmY1cJ3k"
+  "last_longform_pub_2026-11-20_url": "https://www.youtube.com/watch?v=WirXmY1cJ3k",
+  "last_short_pub_2026-11-21_9": true,
+  "last_short_pub_2026-11-21_9_url": "https://www.youtube.com/watch?v=2QQkTmuQoaU",
+  "last_short_pub_2026-11-21_12": true,
+  "last_short_pub_2026-11-21_12_url": "https://www.youtube.com/watch?v=1A9c7aYLI_Y"
 }
