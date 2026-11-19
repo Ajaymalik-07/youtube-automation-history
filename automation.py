@@ -1852,6 +1852,8 @@ if __name__ == "__main__":
     parser.add_argument("--backup-state", action="store_true", help="Create checksummed backup and sync SQLite WAL state ledger")
     parser.add_argument("--reliability-report", action="store_true", help="Generate production reliability report (Shorts vs Long-form)")
     parser.add_argument("--retry-pending", action="store_true", help="Retry eligible pending uploads in output/pending_uploads")
+    parser.add_argument("--send-daily-digest", action="store_true", help="Send 24-hour consolidated email digest (respects 24h rate limit)")
+    parser.add_argument("--force-daily-digest", action="store_true", help="Force send 24-hour consolidated email digest immediately")
     parser.add_argument("--status", action="store_true", help="Display current status and adaptive metrics")
 
     args = parser.parse_args()
@@ -1925,6 +1927,14 @@ if __name__ == "__main__":
         elif args.retry_pending:
             rep = retry_pending_uploads()
             print(json.dumps(rep, indent=2))
+        elif args.send_daily_digest:
+            from notifier.email_notifier import send_daily_email_digest
+            sent = send_daily_email_digest(force=False)
+            print(f"Daily digest dispatch status: {sent}")
+        elif args.force_daily_digest:
+            from notifier.email_notifier import send_daily_email_digest
+            sent = send_daily_email_digest(force=True)
+            print(f"Forced daily digest dispatch status: {sent}")
         elif args.status:
             print_status()
         else:
@@ -1940,6 +1950,8 @@ if __name__ == "__main__":
             print("  python automation.py --run-long        # Run deep history video (<15 min safe) now")
             print("  python automation.py --run-all         # Run Shorts FIRST, then Long-form now")
             print("  python automation.py --weekly-review   # Run rolling 30-day analytics & growth review")
+            print("  python automation.py --send-daily-digest # Send 24-hour consolidated email digest (if due)")
+            print("  python automation.py --force-daily-digest # Force send 24-hour consolidated email digest now")
             print("  python automation.py --status          # View schedule and performance metrics\n")
     except Exception as fatal_err:
         import traceback

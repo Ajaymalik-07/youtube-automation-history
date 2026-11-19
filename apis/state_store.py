@@ -344,6 +344,14 @@ def merge_schedule_states(local_state: Dict[str, Any], incoming_state: Dict[str,
     base = dict(inc if inc_rank > loc_rank else loc)
     other = loc if inc_rank > loc_rank else inc
 
+    # Monotonically preserve latest email digest timestamp
+    loc_email_ts = _parse_ts(loc.get("last_email_digest_sent_at"))
+    inc_email_ts = _parse_ts(incoming_state.get("last_email_digest_sent_at"))
+    if inc_email_ts > loc_email_ts:
+        base["last_email_digest_sent_at"] = incoming_state.get("last_email_digest_sent_at")
+    elif loc_email_ts > inc_email_ts:
+        base["last_email_digest_sent_at"] = loc.get("last_email_digest_sent_at")
+
     # Union published slot flags (truthy publication flags monotonically persist)
     for k, v in other.items():
         if k.startswith("last_short_pub_") or k.startswith("last_longform_pub_"):

@@ -145,12 +145,13 @@ YOUTUBE_CLIENT_SECRET       = os.getenv("YOUTUBE_CLIENT_SECRET", "")
 YOUTUBE_OAUTH_CLIENT_ID     = YOUTUBE_CLIENT_ID
 YOUTUBE_OAUTH_CLIENT_SECRET = YOUTUBE_CLIENT_SECRET
 
-# Email Notification on Upload & Analytics Dispatch
-NOTIFICATION_EMAIL = os.getenv("NOTIFICATION_EMAIL", "ajaymobulous@gmail.com")
-SMTP_HOST          = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT          = int(os.getenv("SMTP_PORT", 587))
-SMTP_USER          = os.getenv("SMTP_USER", "") or os.getenv("NOTIFICATION_EMAIL", "ajaymobulous@gmail.com")
-SMTP_PASSWORD      = os.getenv("SMTP_PASSWORD", "")
+# Email Notification on Upload & Analytics Dispatch (Daily 24-Hour Digest)
+NOTIFICATION_EMAIL          = os.getenv("NOTIFICATION_EMAIL", "ajaymobulous@gmail.com")
+SMTP_HOST                   = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT                   = int(os.getenv("SMTP_PORT", 587))
+SMTP_USER                   = os.getenv("SMTP_USER", "") or os.getenv("NOTIFICATION_EMAIL", "ajaymobulous@gmail.com")
+SMTP_PASSWORD               = os.getenv("SMTP_PASSWORD", "")
+EMAIL_DIGEST_INTERVAL_HOURS = float(os.getenv("EMAIL_DIGEST_INTERVAL_HOURS", "24.0"))
 
 # Settings the GUI stores in .env rather than in this file
 ENV_KEYS = [
@@ -158,6 +159,7 @@ ENV_KEYS = [
     "OPENROUTER_API_KEY", "YOUTUBE_API_KEY", "YOUTUBE_CHANNEL_ID",
     "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_TOKEN_BASE64",
     "NOTIFICATION_EMAIL", "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD",
+    "EMAIL_DIGEST_INTERVAL_HOURS",
     "CHANNEL_NAME", "DEFAULT_LANGUAGE", "SECONDARY_LANGUAGE", "TARGET_TIMEZONE",
 ]
 
