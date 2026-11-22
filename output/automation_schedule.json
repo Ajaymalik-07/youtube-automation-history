@@ -1275,6 +1275,48 @@
       "url": "https://www.youtube.com/watch?v=NGsogw4yBt0",
       "date_ist": "2026-11-22T02:38:12.772493+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "villages vanish single: Why did 83 villages vanish in ONE single...",
+      "url": "https://www.youtube.com/watch?v=SleE-84djs4",
+      "date_ist": "2026-11-23T02:02:33.123218+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The Indian Fort Where Entry Is Banned After Sunset...",
+      "url": "https://www.youtube.com/watch?v=4N5pPxMxCe0",
+      "date_ist": "2026-11-23T02:08:26.742426+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "This Cursed Fort Was Wiped Out in 24 Hours #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=7FwDStb0VqY",
+      "date_ist": "2026-11-23T02:13:15.822869+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of The royal family that starved inside a cursed palace...",
+      "url": "https://www.youtube.com/watch?v=O3l3oHdM6UU",
+      "date_ist": "2026-11-23T02:19:15.581318+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Really Happened Night: What Really Happened the Night Kuldhara...",
+      "url": "https://www.youtube.com/watch?v=QVTctniLiJU",
+      "date_ist": "2026-11-23T02:24:24.760126+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Curse Kuldhara Night: The Ancient Ghost Town Where 84 Villages...",
+      "url": "https://www.youtube.com/watch?v=CyVB8L-Bu7Y",
+      "date_ist": "2026-11-23T02:57:36.458564+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -1304,11 +1346,11 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-23",
+  "last_longform_date": "2026-11-24",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-23",
+  "last_longform_pub_date": "2026-11-24",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -1568,5 +1610,17 @@
   "last_short_pub_2026-11-23_22": true,
   "last_short_pub_2026-11-23_22_url": "https://www.youtube.com/watch?v=EroGRVbj5_8",
   "last_longform_pub_2026-11-23": true,
-  "last_longform_pub_2026-11-23_url": "https://www.youtube.com/watch?v=NGsogw4yBt0"
+  "last_longform_pub_2026-11-23_url": "https://www.youtube.com/watch?v=NGsogw4yBt0",
+  "last_short_pub_2026-11-24_9": true,
+  "last_short_pub_2026-11-24_9_url": "https://www.youtube.com/watch?v=SleE-84djs4",
+  "last_short_pub_2026-11-24_12": true,
+  "last_short_pub_2026-11-24_12_url": "https://www.youtube.com/watch?v=4N5pPxMxCe0",
+  "last_short_pub_2026-11-24_16": true,
+  "last_short_pub_2026-11-24_16_url": "https://www.youtube.com/watch?v=7FwDStb0VqY",
+  "last_short_pub_2026-11-24_19": true,
+  "last_short_pub_2026-11-24_19_url": "https://www.youtube.com/watch?v=O3l3oHdM6UU",
+  "last_short_pub_2026-11-24_22": true,
+  "last_short_pub_2026-11-24_22_url": "https://www.youtube.com/watch?v=QVTctniLiJU",
+  "last_longform_pub_2026-11-24": true,
+  "last_longform_pub_2026-11-24_url": "https://www.youtube.com/watch?v=CyVB8L-Bu7Y"
 }
