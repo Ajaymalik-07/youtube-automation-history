@@ -1317,6 +1317,48 @@
       "url": "https://www.youtube.com/watch?v=CyVB8L-Bu7Y",
       "date_ist": "2026-11-23T02:57:36.458564+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of poison diet ancient: The poison diet of ancient...",
+      "url": "https://www.youtube.com/watch?v=rVNqfoH_GEg",
+      "date_ist": "2026-11-24T00:08:16.027072+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "How one Chola king conquered the ocean! #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=46JzdFcFjfI",
+      "date_ist": "2026-11-24T00:20:10.033518+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Shivajis escape shocked: Why Shivaji's escape shocked the Mughal...",
+      "url": "https://www.youtube.com/watch?v=CP7Pgqj4ZlI",
+      "date_ist": "2026-11-24T00:25:00.095801+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Shivajis escape shocked: Why Shivaji's escape shocked the Mughal...",
+      "url": "https://www.youtube.com/watch?v=8zaJNJ3E7r8",
+      "date_ist": "2026-11-24T00:31:56.599465+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Why the Mughal emperor feared a woman's seal #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=M8qR65Sv3NA",
+      "date_ist": "2026-11-24T00:37:10.676758+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Rise Revenge Queen: The Queen Who Defeated the...",
+      "url": "https://www.youtube.com/watch?v=_wQusLrhb-Q",
+      "date_ist": "2026-11-24T01:12:27.044436+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -1346,11 +1388,11 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-24",
+  "last_longform_date": "2026-11-25",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-24",
+  "last_longform_pub_date": "2026-11-25",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -1622,5 +1664,17 @@
   "last_short_pub_2026-11-24_22": true,
   "last_short_pub_2026-11-24_22_url": "https://www.youtube.com/watch?v=QVTctniLiJU",
   "last_longform_pub_2026-11-24": true,
-  "last_longform_pub_2026-11-24_url": "https://www.youtube.com/watch?v=CyVB8L-Bu7Y"
+  "last_longform_pub_2026-11-24_url": "https://www.youtube.com/watch?v=CyVB8L-Bu7Y",
+  "last_short_pub_2026-11-25_9": true,
+  "last_short_pub_2026-11-25_9_url": "https://www.youtube.com/watch?v=rVNqfoH_GEg",
+  "last_short_pub_2026-11-25_12": true,
+  "last_short_pub_2026-11-25_12_url": "https://www.youtube.com/watch?v=46JzdFcFjfI",
+  "last_short_pub_2026-11-25_16": true,
+  "last_short_pub_2026-11-25_16_url": "https://www.youtube.com/watch?v=CP7Pgqj4ZlI",
+  "last_short_pub_2026-11-25_19": true,
+  "last_short_pub_2026-11-25_19_url": "https://www.youtube.com/watch?v=8zaJNJ3E7r8",
+  "last_short_pub_2026-11-25_22": true,
+  "last_short_pub_2026-11-25_22_url": "https://www.youtube.com/watch?v=M8qR65Sv3NA",
+  "last_longform_pub_2026-11-25": true,
+  "last_longform_pub_2026-11-25_url": "https://www.youtube.com/watch?v=_wQusLrhb-Q"
 }
