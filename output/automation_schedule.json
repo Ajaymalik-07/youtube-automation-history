@@ -1443,6 +1443,20 @@
       "url": "local://scheduled_queue/2026-11-27/longform",
       "date_ist": "2026-11-26T02:33:15.262579+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "10000: \u0905\u0938\u092e \u0915\u0947 \u0909\u0938 \u092f\u0941\u0926\u094d\u0927 \u092e\u0947\u0902 \u0915\u0939\u093e\u0901 \u0917\u090f \u0925\u0947 10,000 \u092e\u0941\u095a\u0932? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=7XCAoCwYS30",
+      "date_ist": "2026-11-26T04:14:38.209404+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Battle Pelusium Psychological: The Battle Won By...",
+      "url": "https://www.youtube.com/watch?v=hROtoIvrls8",
+      "date_ist": "2026-11-26T04:15:08.253587+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -1476,7 +1490,7 @@
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-26",
+  "last_longform_pub_date": "2026-11-27",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -1780,5 +1794,9 @@
   "last_short_pub_2026-11-27_16": true,
   "last_short_pub_2026-11-27_16_url": "https://www.youtube.com/watch?v=KMKCvJEIdmc",
   "last_short_pub_2026-11-27_19": true,
-  "last_short_pub_2026-11-27_19_url": "https://www.youtube.com/watch?v=Gz9WStl4KC0"
+  "last_short_pub_2026-11-27_19_url": "https://www.youtube.com/watch?v=Gz9WStl4KC0",
+  "last_short_pub_2026-11-27_22": true,
+  "last_short_pub_2026-11-27_22_url": "https://www.youtube.com/watch?v=7XCAoCwYS30",
+  "last_longform_pub_2026-11-27": true,
+  "last_longform_pub_2026-11-27_url": "https://www.youtube.com/watch?v=hROtoIvrls8"
 }
