@@ -1401,6 +1401,48 @@
       "url": "https://www.youtube.com/watch?v=KDMXJWPSgH4",
       "date_ist": "2026-11-25T03:17:47.548877+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Maharana Prataps Horse: Why Maharana Pratap\u2019s Horse Wore an...",
+      "url": "https://www.youtube.com/watch?v=QCdUbwjvokw",
+      "date_ist": "2026-11-26T01:40:03.289905+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The 1 Deadly Mistake That Lost India at Battle of Tarain #Shorts...",
+      "url": "https://www.youtube.com/watch?v=QhiKdzVgs0c",
+      "date_ist": "2026-11-26T01:44:55.756438+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Single Battle That: The Single Day Battle That Wiped Out 100,000...",
+      "url": "https://www.youtube.com/watch?v=KMKCvJEIdmc",
+      "date_ist": "2026-11-26T01:52:03.550873+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "The Secret of Prithviraj Chauhans Fatal: Prithviraj Chauhan\u2019s...",
+      "url": "https://www.youtube.com/watch?v=Gz9WStl4KC0",
+      "date_ist": "2026-11-26T01:57:38.353492+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "How 300 Rajput Soldiers Defeated an Army of 50,000? #Shorts #History",
+      "url": "local://pending_quota_reset/final_short.mp4",
+      "date_ist": "2026-11-26T02:02:16.782881+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "The Secret of Battle Pelusium Psychological: The Battle Won By...",
+      "url": "local://scheduled_queue/2026-11-27/longform",
+      "date_ist": "2026-11-26T02:33:15.262579+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -1430,7 +1472,7 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-26",
+  "last_longform_date": "2026-11-27",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
@@ -1730,5 +1772,13 @@
   "last_short_pub_2026-11-26_22": true,
   "last_short_pub_2026-11-26_22_url": "https://www.youtube.com/watch?v=UpOMC9IhAus",
   "last_longform_pub_2026-11-26": true,
-  "last_longform_pub_2026-11-26_url": "https://www.youtube.com/watch?v=KDMXJWPSgH4"
+  "last_longform_pub_2026-11-26_url": "https://www.youtube.com/watch?v=KDMXJWPSgH4",
+  "last_short_pub_2026-11-27_9": true,
+  "last_short_pub_2026-11-27_9_url": "https://www.youtube.com/watch?v=QCdUbwjvokw",
+  "last_short_pub_2026-11-27_12": true,
+  "last_short_pub_2026-11-27_12_url": "https://www.youtube.com/watch?v=QhiKdzVgs0c",
+  "last_short_pub_2026-11-27_16": true,
+  "last_short_pub_2026-11-27_16_url": "https://www.youtube.com/watch?v=KMKCvJEIdmc",
+  "last_short_pub_2026-11-27_19": true,
+  "last_short_pub_2026-11-27_19_url": "https://www.youtube.com/watch?v=Gz9WStl4KC0"
 }
