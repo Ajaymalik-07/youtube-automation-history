@@ -1499,6 +1499,13 @@
       "url": "local://pending_quota_reset/final_video.mp4",
       "date_ist": "2026-11-27T02:09:18.953972+05:30",
       "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Derinkuyu 8Story Underground: The 20,000-Person Underground City...",
+      "url": "https://www.youtube.com/watch?v=qRisfAn5H4g",
+      "date_ist": "2026-11-27T04:00:25.769005+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -1532,7 +1539,7 @@
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-27",
+  "last_longform_pub_date": "2026-11-28",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -1850,5 +1857,7 @@
   "last_short_pub_2026-11-28_19": true,
   "last_short_pub_2026-11-28_19_url": "https://www.youtube.com/watch?v=ZTRh8Q_Dkyo",
   "last_short_pub_2026-11-28_22": true,
-  "last_short_pub_2026-11-28_22_url": "https://www.youtube.com/watch?v=YQnCdP7NKJg"
+  "last_short_pub_2026-11-28_22_url": "https://www.youtube.com/watch?v=YQnCdP7NKJg",
+  "last_longform_pub_2026-11-28": true,
+  "last_longform_pub_2026-11-28_url": "https://www.youtube.com/watch?v=qRisfAn5H4g"
 }
