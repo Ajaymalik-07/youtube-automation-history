@@ -1506,6 +1506,48 @@
       "url": "https://www.youtube.com/watch?v=qRisfAn5H4g",
       "date_ist": "2026-11-27T04:00:25.769005+05:30",
       "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Setu Really ManMade: Is Ram Setu Really Man-Made? NASA's Secret...",
+      "url": "https://www.youtube.com/watch?v=-cbVyyi2SKY",
+      "date_ist": "2026-11-28T01:13:28.375108+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Why Did Nalanda Library Burn For 3 Months Straight? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=JcMRuyxpV0E",
+      "date_ist": "2026-11-28T01:19:14.185800+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Nalandas Library Burn: Why Did Nalanda\u2019s Library Burn For 3...",
+      "url": "https://www.youtube.com/watch?v=9WyR2PDiXjA",
+      "date_ist": "2026-11-28T01:23:57.989061+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Underwater Ruins Found: Is Krishna\u2019s Dwarka Real? #Shorts #History",
+      "url": "https://www.youtube.com/watch?v=h1duW1QOpV8",
+      "date_ist": "2026-11-28T01:30:33.129175+05:30",
+      "score": 100
+    },
+    {
+      "type": "short",
+      "title": "Emperor Ashokas Secret: Emperor Ashoka\u2019s Secret Society of 9...",
+      "url": "https://www.youtube.com/watch?v=EegJXHG-Kdk",
+      "date_ist": "2026-11-28T01:35:50.439650+05:30",
+      "score": 100
+    },
+    {
+      "type": "longform",
+      "title": "Legend King Ashokas: The 2,200-Year-Old Secret Society That...",
+      "url": "https://www.youtube.com/watch?v=62XNe_M21ms",
+      "date_ist": "2026-11-28T02:18:41.534045+05:30",
+      "score": 100
     }
   ],
   "slot_performance": {
@@ -1535,11 +1577,11 @@
       "avg_views": 0
     }
   },
-  "last_longform_date": "2026-11-28",
+  "last_longform_date": "2026-11-29",
   "last_shorts_date": "2026-10-30",
   "last_short_pub_2026-10-29_9": true,
   "last_short_pub_2026-10-29_12": true,
-  "last_longform_pub_date": "2026-11-28",
+  "last_longform_pub_date": "2026-11-29",
   "last_short_pub_2026-10-30_9": true,
   "last_short_pub_2026-10-30_12": true,
   "last_short_pub_2026-10-30_16": true,
@@ -1859,5 +1901,17 @@
   "last_short_pub_2026-11-28_22": true,
   "last_short_pub_2026-11-28_22_url": "https://www.youtube.com/watch?v=YQnCdP7NKJg",
   "last_longform_pub_2026-11-28": true,
-  "last_longform_pub_2026-11-28_url": "https://www.youtube.com/watch?v=qRisfAn5H4g"
+  "last_longform_pub_2026-11-28_url": "https://www.youtube.com/watch?v=qRisfAn5H4g",
+  "last_short_pub_2026-11-29_9": true,
+  "last_short_pub_2026-11-29_9_url": "https://www.youtube.com/watch?v=-cbVyyi2SKY",
+  "last_short_pub_2026-11-29_12": true,
+  "last_short_pub_2026-11-29_12_url": "https://www.youtube.com/watch?v=JcMRuyxpV0E",
+  "last_short_pub_2026-11-29_16": true,
+  "last_short_pub_2026-11-29_16_url": "https://www.youtube.com/watch?v=9WyR2PDiXjA",
+  "last_short_pub_2026-11-29_19": true,
+  "last_short_pub_2026-11-29_19_url": "https://www.youtube.com/watch?v=h1duW1QOpV8",
+  "last_short_pub_2026-11-29_22": true,
+  "last_short_pub_2026-11-29_22_url": "https://www.youtube.com/watch?v=EegJXHG-Kdk",
+  "last_longform_pub_2026-11-29": true,
+  "last_longform_pub_2026-11-29_url": "https://www.youtube.com/watch?v=62XNe_M21ms"
 }
